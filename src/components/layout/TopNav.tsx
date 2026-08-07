@@ -1,19 +1,56 @@
-import { Moon, Sun, Upload, Settings } from 'lucide-react';
+import { Moon, Sun, Upload, Settings, Database, Network } from 'lucide-react';
 import { Button } from '../ui/button';
+import { ViewState } from '@/types';
+import { cn } from '@/lib/utils';
 
-export function TopNav() {
+interface TopNavProps {
+  currentView: ViewState;
+  onViewChange: (view: ViewState) => void;
+  onImportFiles: () => void;
+}
+
+export function TopNav({ currentView, onViewChange, onImportFiles }: TopNavProps) {
   return (
     <header className="h-14 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex items-center justify-between px-4 lg:px-6 z-10 relative">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center shadow-inner">
-          <span className="text-white font-bold leading-none text-lg tracking-tighter">Ac</span>
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center shadow-inner">
+            <span className="text-white font-bold leading-none text-lg tracking-tighter">Ac</span>
+          </div>
+          <span className="font-semibold tracking-tight text-lg text-zinc-900 dark:text-zinc-50">
+            Analytics Copilot
+          </span>
         </div>
-        <span className="font-semibold tracking-tight text-lg text-zinc-900 dark:text-zinc-50">
-          Analytics Copilot
-        </span>
+        
+        <div className="hidden md:flex items-center bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg">
+          <button 
+            onClick={() => onViewChange('data-manager')}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+              currentView === 'data-manager' 
+                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            )}
+          >
+            <Database className="w-4 h-4" />
+            Data
+          </button>
+          <button 
+            onClick={() => onViewChange('relationships')}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+              currentView === 'relationships' 
+                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            )}
+          >
+            <Network className="w-4 h-4" />
+            Relationships
+          </button>
+        </div>
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" className="hidden md:flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+        <Button variant="outline" size="sm" className="hidden md:flex items-center gap-2 text-zinc-700 dark:text-zinc-300" onClick={onImportFiles}>
           <Upload className="w-4 h-4" />
           <span>Import Files</span>
         </Button>

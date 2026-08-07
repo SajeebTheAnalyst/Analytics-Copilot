@@ -78,8 +78,34 @@ export async function processDataset(file: File): Promise<Dataset> {
   const { data, headers } = await parseFile(file);
   
   const columnTypes: Record<string, Dataset['columnTypes'][string]> = {};
+  const columnProfiles: Record<string, Dataset['columnProfiles'][string]> = {};
+
   for (const header of headers) {
     columnTypes[header] = determineColumnType(data, header);
+    
+    let nullCount = 0;
+    const uniqueValues = new Set<any>();
+    let exampleValue: any = null;
+    
+    for (const row of data) {
+      const val = row[header];
+      if (val === null || val === undefined || val === "") {
+        nullCount++;
+      } else {
+        uniqueValues.add(val);
+        if (exampleValue === null) {
+          exampleValue = val;
+        }
+      }
+    }
+    
+    columnProfiles[header] = {
+      name: header,
+      type: columnTypes[header],
+      nullCount,
+      uniqueCount: uniqueValues.size,
+      exampleValue: exampleValue instanceof Date ? exampleValue.toISOString() : exampleValue,
+    };
   }
 
   return {
@@ -92,7 +118,17 @@ export async function processDataset(file: File): Promise<Dataset> {
     rowCount: data.length,
     colCount: headers.length,
     headers,
-    data: data.slice(0, 100), // Only keep top 100 rows in memory for preview
-    columnTypes
+    data: data.slice(0, 100).map(row => {
+      // Serialize dates to string for preview
+      const newRow = { ...row };
+      for (const key of Object.keys(newRow)) {
+        if (newRow[key] instanceof Date) {
+          newRow[key] = newRow[key].toISOString();
+        }
+      }
+      return newRow;
+    }), // Only keep top 100 rows in memory for preview
+    columnTypes,
+    columnProfiles
   };
 }

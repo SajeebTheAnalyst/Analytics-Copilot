@@ -4,14 +4,18 @@ import { Sidebar } from './components/layout/Sidebar';
 import { RightPanel } from './components/layout/RightPanel';
 import { DatasetManager } from './components/workspace/DatasetManager';
 import { DataPreview } from './components/workspace/DataPreview';
-import { Dataset } from '@/types';
+import { RelationshipView } from './components/relationships/RelationshipView';
+import { Dataset, ViewState } from '@/types';
 
 export default function App() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<ViewState>('data-manager');
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleImport = (newDatasets: Dataset[]) => {
     setDatasets(prev => [...prev, ...newDatasets]);
+    setIsUploading(false);
   };
 
   const handleRemove = (id: string) => {
@@ -25,29 +29,53 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-[#050505] text-zinc-900 dark:text-zinc-50 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 overflow-hidden">
-      <TopNav />
+      <TopNav 
+        currentView={currentView} 
+        onViewChange={setCurrentView} 
+        onImportFiles={() => {
+          setIsUploading(true);
+          setCurrentView('data-manager');
+        }} 
+      />
 
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar 
-          datasets={datasets}
-          selectedDatasetId={selectedDatasetId}
-          onSelectDataset={setSelectedDatasetId}
-        />
-
-        <main className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505]">
-          {selectedDatasetId && selectedDataset ? (
-            <DataPreview dataset={selectedDataset} />
-          ) : (
-            <DatasetManager 
+        {currentView === 'data-manager' ? (
+          <>
+            <Sidebar 
               datasets={datasets}
-              onImport={handleImport}
-              onRemove={handleRemove}
-              onPreview={setSelectedDatasetId}
+              selectedDatasetId={selectedDatasetId}
+              onSelectDataset={(id) => {
+                setSelectedDatasetId(id);
+                setIsUploading(false);
+              }}
+              onRemoveDataset={handleRemove}
             />
-          )}
-        </main>
 
-        <RightPanel />
+            <main className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505]">
+              {datasets.length === 0 || isUploading ? (
+                <DatasetManager 
+                  datasets={datasets}
+                  onImport={handleImport}
+                  onRemove={handleRemove}
+                  onPreview={(id) => {
+                    setSelectedDatasetId(id);
+                    setIsUploading(false);
+                  }}
+                />
+              ) : selectedDatasetId && selectedDataset ? (
+                <DataPreview dataset={selectedDataset} />
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400">
+                  <p>Select a dataset from the sidebar to preview its contents.</p>
+                </div>
+              )}
+            </main>
+
+            <RightPanel />
+          </>
+        ) : currentView === 'relationships' ? (
+          <RelationshipView datasets={datasets} />
+        ) : null}
       </div>
 
       <style>{`
