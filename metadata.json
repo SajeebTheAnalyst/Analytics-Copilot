@@ -1,0 +1,6 @@
+{
+  "name": "Analytics Copilot",
+  "description": "An AI-powered analytics workspace foundation for managing multiple datasets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

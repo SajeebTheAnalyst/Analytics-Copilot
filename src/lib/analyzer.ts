@@ -1,0 +1,98 @@
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
+import { Dataset } from "../types";
+import { isValid, parseISO } from "date-fns";
+
+export async function parseFile(file: File): Promise<{ data: Record<string, any>[], headers: string[] }> {
+  return new Promise((resolve, reject) => {
+    if (file.name.match(/\.csv$/i)) {
+      Papa.parse(file, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        worker: true,
+        complete: (results) => {
+          resolve({
+            data: results.data as Record<string, any>[],
+            headers: results.meta.fields || []
+          });
+        },
+        error: (error) => {
+          reject(new Error("Failed to parse CSV: " + error.message));
+        }
+      });
+    } else if (file.name.match(/\.xlsx?$/i)) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array", cellDates: true });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+          const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
+          resolve({ data: jsonData, headers });
+        } catch (err: any) {
+          reject(new Error("Failed to parse Excel file: " + err.message));
+        }
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsArrayBuffer(file);
+    } else {
+      reject(new Error("Unsupported file type."));
+    }
+  });
+}
+
+function determineColumnType(data: Record<string, any>[], column: string): Dataset['columnTypes'][string] {
+  let numCount = 0;
+  let dateCount = 0;
+  let boolCount = 0;
+  let validCount = 0;
+
+  const sampleSize = Math.min(data.length, 100);
+  for (let i = 0; i < sampleSize; i++) {
+    const val = data[i][column];
+    if (val === null || val === undefined || val === "") continue;
+    
+    validCount++;
+    if (typeof val === "number") {
+      numCount++;
+    } else if (typeof val === "boolean") {
+      boolCount++;
+    } else if (val instanceof Date || (typeof val === "string" && isValid(parseISO(val)))) {
+      dateCount++;
+    } else if (typeof val === "string" && !isNaN(Number(val)) && val.trim() !== "") {
+      numCount++;
+    }
+  }
+
+  if (validCount === 0) return "unknown";
+  if (numCount / validCount > 0.8) return "numeric";
+  if (dateCount / validCount > 0.5) return "date";
+  if (boolCount / validCount > 0.8) return "boolean";
+  return "categorical";
+}
+
+export async function processDataset(file: File): Promise<Dataset> {
+  const { data, headers } = await parseFile(file);
+  
+  const columnTypes: Record<string, Dataset['columnTypes'][string]> = {};
+  for (const header of headers) {
+    columnTypes[header] = determineColumnType(data, header);
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    name: file.name.replace(/\.[^/.]+$/, ""),
+    filename: file.name,
+    type: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx',
+    size: file.size,
+    uploadTime: Date.now(),
+    rowCount: data.length,
+    colCount: headers.length,
+    headers,
+    data: data.slice(0, 100), // Only keep top 100 rows in memory for preview
+    columnTypes
+  };
+}
