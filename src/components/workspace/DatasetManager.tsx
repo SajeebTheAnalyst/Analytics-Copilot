@@ -125,7 +125,7 @@ export function DatasetManager({
   const isCleaned = activeDataset.cleaningStatus === 'cleaned';
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-transparent p-6 lg:p-8 overflow-y-auto custom-scrollbar space-y-6">
+    <div className="flex-1 min-w-0 min-h-0 bg-transparent p-6 lg:p-8 pb-24 lg:pb-32 overflow-y-auto custom-scrollbar space-y-6">
       
       {/* Page Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800 pb-5">
@@ -313,8 +313,8 @@ export function DatasetManager({
       </div>
 
       {/* 4. Column Profiling Table */}
-      <div className="glass-panel glass-card rounded-xl overflow-hidden">
-        <div className="p-4.5 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-black/20 flex items-center justify-between backdrop-blur-md">
+      <div className="glass-panel glass-card rounded-xl">
+        <div className="p-4.5 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-black/20 flex items-center justify-between backdrop-blur-md rounded-t-xl">
           <div>
             <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50">Column Schema & Profiling</h3>
             <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
@@ -323,7 +323,7 @@ export function DatasetManager({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto pb-2">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-white/40 dark:bg-white/5 border-b border-zinc-200/80 dark:border-zinc-800/80 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest select-none backdrop-blur-md">
