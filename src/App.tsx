@@ -280,7 +280,11 @@ export default function App() {
             ) : currentView === 'relationships' ? (
               <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
             ) : currentView === 'kpi-builder' ? (
-              <KpiBuilderView datasets={datasets} />
+              <KpiBuilderView 
+                datasets={datasets} 
+                selectedDatasetId={selectedDatasetId || undefined}
+                onNavigateView={(view) => setCurrentView(view)}
+              />
             ) : currentView === 'dashboards' ? (
               <DashboardView 
                 dashboards={dashboards} 

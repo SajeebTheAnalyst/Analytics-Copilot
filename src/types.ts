@@ -100,6 +100,64 @@ export type ViewState =
 export type WidgetType = 'kpi' | 'line' | 'bar' | 'area' | 'scatter' | 'donut' | 'pie' | 'table';
 export type AggregationFunction = 'sum' | 'count' | 'avg' | 'min' | 'max';
 
+export type KpiStatus = 'active' | 'needs_attention' | 'invalid';
+export type KpiAggregation = 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max';
+export type KpiFormatType = 'number' | 'currency' | 'percentage' | 'decimal';
+
+export interface KpiFormatConfig {
+  type: KpiFormatType;
+  currencySymbol?: string; // e.g. '$'
+  decimals: number; // e.g. 0, 1, 2, 3
+  useThousandsSeparator: boolean;
+  compactNotation: boolean; // e.g. 1.25M
+}
+
+export type FormulaOperator = '+' | '-' | '*' | '/' | '(' | ')';
+
+export interface FormulaToken {
+  id: string;
+  type: 'term' | 'kpi_ref' | 'operator' | 'constant';
+  aggregation?: KpiAggregation;
+  column?: string;
+  kpiId?: string;
+  kpiName?: string;
+  operator?: FormulaOperator;
+  value?: number;
+}
+
+export interface KpiDefinition {
+  id: string;
+  name: string;
+  description: string;
+  datasetId: string;
+  datasetName?: string;
+  metricType: 'simple' | 'calculated';
+  
+  // Simple Metric
+  column?: string;
+  aggregation?: KpiAggregation;
+
+  // Calculated Metric Formula Tokens
+  formulaTokens?: FormulaToken[];
+
+  // Definition Filters
+  filters: ColumnFilter[];
+  inheritExplorerFilters?: boolean;
+
+  // Presentation Formatting
+  format: KpiFormatConfig;
+
+  // Status & Health
+  status: KpiStatus;
+  statusReason?: string;
+
+  createdAt: number;
+  updatedAt: number;
+
+  // Optional usage tracing
+  usedBy?: { type: 'dashboard' | 'report' | 'ai'; name: string }[];
+}
+
 export interface WidgetConfig {
   id: string;
   type: WidgetType;

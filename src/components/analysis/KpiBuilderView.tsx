@@ -1,144 +1,1401 @@
-import React, { useState } from 'react';
-import { Dataset } from '@/types';
-import { TrendingUp, Plus, Calculator, Database, HelpCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Dataset,
+  KpiDefinition,
+  KpiAggregation,
+  KpiFormatType,
+  KpiFormatConfig,
+  FormulaToken,
+  FormulaOperator,
+  ColumnFilter,
+  FilterOperator,
+  ViewState,
+} from '@/types';
+import {
+  evaluateKpi,
+  validateKpiDefinition,
+  generateFormulaSummary,
+  seedStandardKpis,
+} from '@/lib/kpiEngine';
+import {
+  getSavedKpis,
+  saveKpis,
+  addOrUpdateKpi,
+  deleteKpi,
+  seedInitialKpisForDataset,
+} from '@/lib/kpiStorage';
+import {
+  TrendingUp,
+  Plus,
+  Calculator,
+  Database,
+  Search,
+  Filter,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Eye,
+  Edit2,
+  Copy,
+  Trash2,
+  X,
+  Sparkles,
+  ChevronRight,
+  Info,
+  Layers,
+  ArrowRight,
+  RefreshCw,
+  Table,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 
 interface KpiBuilderViewProps {
   datasets: Dataset[];
+  selectedDatasetId?: string;
+  onNavigateView?: (view: ViewState) => void;
+  explorerContext?: {
+    datasetId: string;
+    filters: ColumnFilter[];
+    selectedColumn?: string;
+  } | null;
 }
 
-export function KpiBuilderView({ datasets }: KpiBuilderViewProps) {
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string>(datasets[0]?.id || '');
+export function KpiBuilderView({
+  datasets,
+  selectedDatasetId,
+  onNavigateView,
+  explorerContext,
+}: KpiBuilderViewProps) {
+  // Active dataset state
+  const [activeDatasetId, setActiveDatasetId] = useState<string>(
+    selectedDatasetId || datasets[0]?.id || ''
+  );
 
-  const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
-  const numericColumns = selectedDataset 
-    ? selectedDataset.headers.filter(h => selectedDataset.columnProfiles[h]?.type === 'numeric')
-    : [];
+  const activeDataset = useMemo(
+    () => datasets.find((d) => d.id === activeDatasetId) || datasets[0] || null,
+    [datasets, activeDatasetId]
+  );
+
+  // Saved KPIs state
+  const [savedKpis, setSavedKpis] = useState<KpiDefinition[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Search & Filter state for KPI library
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+
+  // Modals state
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [editingKpi, setEditingKpi] = useState<KpiDefinition | null>(null);
+  const [viewingKpi, setViewingKpi] = useState<KpiDefinition | null>(null);
+  const [kpiToDelete, setKpiToDelete] = useState<KpiDefinition | null>(null);
+
+  // Form state for Create / Edit Modal
+  const [formName, setFormName] = useState<string>('');
+  const [formDescription, setFormDescription] = useState<string>('');
+  const [formDatasetId, setFormDatasetId] = useState<string>('');
+  const [formMetricType, setFormMetricType] = useState<'simple' | 'calculated'>('simple');
+
+  // Simple metric form state
+  const [formColumn, setFormColumn] = useState<string>('');
+  const [formAggregation, setFormAggregation] = useState<KpiAggregation>('sum');
+
+  // Calculated metric form state
+  const [formTokens, setFormTokens] = useState<FormulaToken[]>([]);
+
+  // Token creation helpers state
+  const [newTermAgg, setNewTermAgg] = useState<KpiAggregation>('sum');
+  const [newTermCol, setNewTermCol] = useState<string>('');
+  const [newKpiRefId, setNewKpiRefId] = useState<string>('');
+  const [newConstantVal, setNewConstantVal] = useState<number>(100);
+
+  // KPI Filters form state
+  const [formFilters, setFormFilters] = useState<ColumnFilter[]>([]);
+
+  // Formatting form state
+  const [formFormatType, setFormFormatType] = useState<KpiFormatType>('currency');
+  const [formCurrencySymbol, setFormCurrencySymbol] = useState<string>('$');
+  const [formDecimals, setFormDecimals] = useState<number>(2);
+  const [formUseThousands, setFormUseThousands] = useState<boolean>(true);
+  const [formCompact, setFormCompact] = useState<boolean>(false);
+
+  // Form validation errors
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+
+  // Explorer import confirmation prompt
+  const [showExplorerPrompt, setShowExplorerPrompt] = useState<boolean>(!!explorerContext);
+
+  // Load saved KPIs on mount
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      if (activeDataset) {
+        const kpis = await seedInitialKpisForDataset(activeDataset);
+        setSavedKpis(kpis);
+      } else {
+        const kpis = await getSavedKpis();
+        setSavedKpis(kpis);
+      }
+      setIsLoading(false);
+    }
+    load();
+  }, [activeDataset?.id]);
+
+  // Sync default form dataset & column options when target dataset changes
+  const currentFormDataset = useMemo(
+    () => datasets.find((d) => d.id === formDatasetId) || activeDataset,
+    [datasets, formDatasetId, activeDataset]
+  );
+
+  useEffect(() => {
+    if (currentFormDataset && currentFormDataset.headers.length > 0) {
+      if (!formColumn || !currentFormDataset.headers.includes(formColumn)) {
+        setFormColumn(currentFormDataset.headers[0]);
+      }
+      if (!newTermCol || !currentFormDataset.headers.includes(newTermCol)) {
+        setNewTermCol(currentFormDataset.headers[0]);
+      }
+    }
+  }, [currentFormDataset]);
+
+  // Seed standard KPIs trigger
+  const handleSeedStandardKpis = async () => {
+    if (!activeDataset) return;
+    const seeded = seedStandardKpis(
+      activeDataset.id,
+      activeDataset.name,
+      activeDataset.headers
+    );
+    // Merge with existing non-conflicting KPIs
+    const existingOther = savedKpis.filter((k) => k.datasetId !== activeDataset.id);
+    const updated = [...seeded, ...existingOther];
+    await saveKpis(updated);
+    setSavedKpis(updated);
+  };
+
+  // Open Create Modal
+  const handleOpenCreateModal = (fromExplorerContext = false) => {
+    setEditingKpi(null);
+    setFormName('');
+    setFormDescription('');
+    setFormDatasetId(activeDataset?.id || datasets[0]?.id || '');
+    setFormMetricType('simple');
+    setFormColumn(activeDataset?.headers[0] || '');
+    setFormAggregation('sum');
+    setFormTokens([]);
+    setFormFormatType('currency');
+    setFormCurrencySymbol('$');
+    setFormDecimals(2);
+    setFormUseThousands(true);
+    setFormCompact(false);
+    setFormErrors([]);
+
+    if (fromExplorerContext && explorerContext) {
+      setFormDatasetId(explorerContext.datasetId);
+      setFormFilters(explorerContext.filters);
+      if (explorerContext.selectedColumn) {
+        setFormColumn(explorerContext.selectedColumn);
+      }
+    } else {
+      setFormFilters([]);
+    }
+
+    setIsModalOpen(true);
+  };
+
+  // Open Edit Modal
+  const handleOpenEditModal = (kpi: KpiDefinition) => {
+    setEditingKpi(kpi);
+    setFormName(kpi.name);
+    setFormDescription(kpi.description || '');
+    setFormDatasetId(kpi.datasetId);
+    setFormMetricType(kpi.metricType);
+    setFormColumn(kpi.column || currentFormDataset?.headers[0] || '');
+    setFormAggregation(kpi.aggregation || 'sum');
+    setFormTokens(kpi.formulaTokens || []);
+    setFormFilters(kpi.filters || []);
+    setFormFormatType(kpi.format.type);
+    setFormCurrencySymbol(kpi.format.currencySymbol || '$');
+    setFormDecimals(kpi.format.decimals ?? 2);
+    setFormUseThousands(kpi.format.useThousandsSeparator !== false);
+    setFormCompact(kpi.format.compactNotation || false);
+    setFormErrors([]);
+    setIsModalOpen(true);
+  };
+
+  // Duplicate KPI
+  const handleDuplicateKpi = async (kpi: KpiDefinition) => {
+    const duplicated: KpiDefinition = {
+      ...kpi,
+      id: `kpi-${Date.now()}`,
+      name: `${kpi.name} (Copy)`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const updated = await addOrUpdateKpi(duplicated);
+    setSavedKpis(updated);
+  };
+
+  // Delete KPI
+  const handleConfirmDelete = async () => {
+    if (!kpiToDelete) return;
+    const updated = await deleteKpi(kpiToDelete.id);
+    setSavedKpis(updated);
+    setKpiToDelete(null);
+  };
+
+  // Live preview evaluation in Modal
+  const livePreviewDefinition: KpiDefinition = useMemo(() => {
+    const ds = datasets.find((d) => d.id === formDatasetId) || activeDataset;
+    return {
+      id: editingKpi?.id || 'preview-temp',
+      name: formName || 'New Business Metric',
+      description: formDescription,
+      datasetId: formDatasetId || ds?.id || '',
+      datasetName: ds?.name,
+      metricType: formMetricType,
+      column: formColumn,
+      aggregation: formAggregation,
+      formulaTokens: formTokens,
+      filters: formFilters,
+      format: {
+        type: formFormatType,
+        currencySymbol: formCurrencySymbol,
+        decimals: formDecimals,
+        useThousandsSeparator: formUseThousands,
+        compactNotation: formCompact,
+      },
+      status: 'active',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+  }, [
+    editingKpi,
+    formName,
+    formDescription,
+    formDatasetId,
+    formMetricType,
+    formColumn,
+    formAggregation,
+    formTokens,
+    formFilters,
+    formFormatType,
+    formCurrencySymbol,
+    formDecimals,
+    formUseThousands,
+    formCompact,
+    datasets,
+    activeDataset,
+  ]);
+
+  const livePreviewResult = useMemo(() => {
+    if (!currentFormDataset) return null;
+    return evaluateKpi(livePreviewDefinition, datasets, savedKpis);
+  }, [livePreviewDefinition, datasets, savedKpis, currentFormDataset]);
+
+  // Save KPI Form Submit
+  const handleSaveKpiSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const validation = validateKpiDefinition(
+      livePreviewDefinition,
+      datasets,
+      savedKpis
+    );
+    if (!validation.isValid) {
+      setFormErrors(validation.errors);
+      return;
+    }
+
+    // Evaluate final status before saving
+    const evalRes = evaluateKpi(livePreviewDefinition, datasets, savedKpis);
+
+    const kpiToSave: KpiDefinition = {
+      ...livePreviewDefinition,
+      id: editingKpi?.id || `kpi-${Date.now()}`,
+      status: evalRes.status,
+      statusReason: evalRes.statusReason,
+      updatedAt: Date.now(),
+      createdAt: editingKpi?.createdAt || Date.now(),
+    };
+
+    const updated = await addOrUpdateKpi(kpiToSave);
+    setSavedKpis(updated);
+    setIsModalOpen(false);
+  };
+
+  // Formula Token Builder Actions
+  const handleAddTermToken = () => {
+    if (!newTermCol) return;
+    const newToken: FormulaToken = {
+      id: `token-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type: 'term',
+      aggregation: newTermAgg,
+      column: newTermCol,
+    };
+    setFormTokens((prev) => [...prev, newToken]);
+  };
+
+  const handleAddOperatorToken = (op: FormulaOperator) => {
+    const newToken: FormulaToken = {
+      id: `token-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type: 'operator',
+      operator: op,
+    };
+    setFormTokens((prev) => [...prev, newToken]);
+  };
+
+  const handleAddKpiRefToken = () => {
+    if (!newKpiRefId) return;
+    const targetKpi = savedKpis.find((k) => k.id === newKpiRefId);
+    if (!targetKpi) return;
+
+    const newToken: FormulaToken = {
+      id: `token-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type: 'kpi_ref',
+      kpiId: targetKpi.id,
+      kpiName: targetKpi.name,
+    };
+    setFormTokens((prev) => [...prev, newToken]);
+  };
+
+  const handleAddConstantToken = () => {
+    const newToken: FormulaToken = {
+      id: `token-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type: 'constant',
+      value: newConstantVal,
+    };
+    setFormTokens((prev) => [...prev, newToken]);
+  };
+
+  const handleRemoveToken = (id: string) => {
+    setFormTokens((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // Add KPI Filter
+  const handleAddFilter = () => {
+    if (!currentFormDataset || currentFormDataset.headers.length === 0) return;
+    const newFilter: ColumnFilter = {
+      id: `filter-${Date.now()}`,
+      column: currentFormDataset.headers[0],
+      operator: 'equals',
+      value: '',
+    };
+    setFormFilters((prev) => [...prev, newFilter]);
+  };
+
+  const handleRemoveFilter = (id: string) => {
+    setFormFilters((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  // Filter KPI Library List
+  const filteredLibraryKpis = useMemo(() => {
+    return savedKpis.filter((kpi) => {
+      if (
+        activeDatasetId &&
+        kpi.datasetId !== activeDatasetId &&
+        kpi.datasetId !== 'all'
+      ) {
+        return false;
+      }
+
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        const matchesName = kpi.name.toLowerCase().includes(term);
+        const matchesDesc = (kpi.description || '').toLowerCase().includes(term);
+        const matchesSummary = generateFormulaSummary(kpi).toLowerCase().includes(term);
+        if (!matchesName && !matchesDesc && !matchesSummary) return false;
+      }
+
+      if (statusFilter !== 'all' && kpi.status !== statusFilter) return false;
+      if (typeFilter !== 'all' && kpi.metricType !== typeFilter) return false;
+
+      return true;
+    });
+  }, [savedKpis, activeDatasetId, searchTerm, statusFilter, typeFilter]);
+
+  // Evaluated calculation map for library list
+  const evaluatedKpisMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof evaluateKpi>>();
+    for (const kpi of savedKpis) {
+      map.set(kpi.id, evaluateKpi(kpi, datasets, savedKpis));
+    }
+    return map;
+  }, [savedKpis, datasets]);
+
+  const getStatusBadge = (status: KpiDefinition['status']) => {
+    switch (status) {
+      case 'active':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+            <CheckCircle2 className="w-3 h-3" />
+            Active
+          </span>
+        );
+      case 'needs_attention':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+            <AlertCircle className="w-3 h-3" />
+            Needs Attention
+          </span>
+        );
+      case 'invalid':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60">
+            <XCircle className="w-3 h-3" />
+            Invalid
+          </span>
+        );
+    }
+  };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505] p-6 overflow-y-auto custom-scrollbar space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">KPI Builder</h1>
+    <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0c0c0e] h-full overflow-hidden">
+      {/* 1. Page Header */}
+      <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/20 shrink-0">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                KPI Builder
+              </h1>
+            </div>
+            <p className="text-xs text-zinc-500 mt-1">
+              Define reusable business metrics for dashboards, reports, and AI analysis.
+            </p>
           </div>
-          <p className="text-xs text-zinc-500 mt-1">
-            Define calculated metrics, custom formulas, and business KPIs across your datasets.
-          </p>
+
+          {/* Dataset Selector & Primary Actions */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Active Dataset Selector */}
+            {datasets.length > 0 && (
+              <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 shadow-2xs">
+                <Database className="w-3.5 h-3.5 text-zinc-400" />
+                <select
+                  value={activeDatasetId}
+                  onChange={(e) => setActiveDatasetId(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                >
+                  {datasets.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.rowCount.toLocaleString()} rows)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSeedStandardKpis}
+              className="text-xs h-8 gap-1.5 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              title="Reset or generate standard business metrics (Revenue, Profit, Margin, etc.)"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
+              <span>Seed Standard KPIs</span>
+            </Button>
+
+            <Button
+              onClick={() => handleOpenCreateModal(false)}
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5 h-8"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create KPI</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Header Indicators Strip */}
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-zinc-500 font-mono">
+          <span>
+            Active Dataset:{' '}
+            <strong className="text-zinc-800 dark:text-zinc-200">
+              {activeDataset?.name || 'None'}
+            </strong>
+          </span>
+          <span className="text-zinc-300 dark:text-zinc-700">•</span>
+          <span>
+            Saved KPIs:{' '}
+            <strong className="text-blue-600 dark:text-blue-400 font-bold">
+              {savedKpis.length}
+            </strong>
+          </span>
+          <span className="text-zinc-300 dark:text-zinc-700">•</span>
+          <span>
+            Evaluated Rows:{' '}
+            <strong className="text-zinc-800 dark:text-zinc-200">
+              {activeDataset?.rowCount.toLocaleString() || 0}
+            </strong>
+          </span>
         </div>
       </div>
 
-      {datasets.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50">
-          <Calculator className="w-10 h-10 text-zinc-400 mb-3" />
-          <h3 className="font-semibold text-sm text-zinc-800 dark:text-zinc-200">No Datasets Available</h3>
-          <p className="text-xs text-zinc-500 max-w-sm mt-1">
-            Import a dataset in the Data Workspace to begin configuring custom KPIs and formula metrics.
-          </p>
+      {/* 2. Explorer Context Banner */}
+      {showExplorerPrompt && explorerContext && (
+        <div className="mx-6 mt-4 p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/60 rounded-xl flex items-center justify-between gap-3 text-xs text-purple-900 dark:text-purple-300 shrink-0">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
+            <span>
+              <strong>Context imported from Data Explorer:</strong> Dataset{' '}
+              <code className="font-mono">{activeDataset?.name}</code> with{' '}
+              {explorerContext.filters.length} active filter condition(s).
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => handleOpenCreateModal(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white text-xs gap-1"
+            >
+              Create KPI from Explorer
+            </Button>
+            <button
+              onClick={() => setShowExplorerPrompt(false)}
+              className="text-purple-400 hover:text-purple-600 p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Dataset Selector & Columns */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 space-y-4 shadow-xs">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
-                Target Dataset
-              </label>
-              <select
-                value={selectedDatasetId}
-                onChange={(e) => setSelectedDatasetId(e.target.value)}
-                className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 font-medium"
+      )}
+
+      {/* 3. KPI Library List Controls Bar */}
+      <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-white dark:bg-[#0c0c0e]">
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search metric name, formula..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-900 dark:text-zinc-100"
+          />
+        </div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 text-xs text-zinc-400">
+            <Filter className="w-3.5 h-3.5" />
+            <span>Status:</span>
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-zinc-800 dark:text-zinc-200 focus:outline-none"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="needs_attention">Needs Attention</option>
+            <option value="invalid">Invalid</option>
+          </select>
+
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-zinc-800 dark:text-zinc-200 focus:outline-none"
+          >
+            <option value="all">All Types</option>
+            <option value="simple">Simple Aggregation</option>
+            <option value="calculated">Calculated Formula</option>
+          </select>
+        </div>
+      </div>
+
+      {/* 4. KPI Library Table / List Workspace */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        {filteredLibraryKpis.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50/50 dark:bg-zinc-900/30">
+            <Calculator className="w-10 h-10 text-zinc-300 dark:text-zinc-700 mb-3" />
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+              No Business Metrics Found
+            </h3>
+            <p className="text-xs text-zinc-500 max-w-xs mt-1 mb-4">
+              {searchTerm || statusFilter !== 'all' || typeFilter !== 'all'
+                ? 'No KPIs match your current search filters.'
+                : 'Get started by creating a new KPI or seeding standard metrics for your dataset.'}
+            </p>
+            <Button
+              onClick={() => handleOpenCreateModal(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Create Business Metric
+            </Button>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="px-4 py-3">Metric Name & Description</th>
+                  <th className="px-4 py-3">Formula / Aggregation</th>
+                  <th className="px-4 py-3">Live Result</th>
+                  <th className="px-4 py-3">Dataset</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+                {filteredLibraryKpis.map((kpi) => {
+                  const evalResult = evaluatedKpisMap.get(kpi.id);
+                  const formulaSummary = generateFormulaSummary(kpi);
+
+                  return (
+                    <tr
+                      key={kpi.id}
+                      className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors group"
+                    >
+                      <td className="px-4 py-3.5 max-w-xs">
+                        <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                          <span>{kpi.name}</span>
+                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                            {kpi.metricType}
+                          </span>
+                        </div>
+                        {kpi.description && (
+                          <p className="text-[11px] text-zinc-500 truncate mt-0.5">
+                            {kpi.description}
+                          </p>
+                        )}
+                        {kpi.filters && kpi.filters.length > 0 && (
+                          <span className="inline-block text-[10px] text-purple-600 dark:text-purple-400 font-mono mt-1 bg-purple-50 dark:bg-purple-950/50 px-1.5 py-0.2 rounded">
+                            {kpi.filters.length} Filter{kpi.filters.length > 1 ? 's' : ''} Applied
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 font-mono text-zinc-700 dark:text-zinc-300">
+                        <div className="p-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800 rounded-lg text-xs truncate max-w-xs">
+                          {formulaSummary}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-sm font-mono text-blue-600 dark:text-blue-400">
+                          {evalResult?.formattedResult || 'N/A'}
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-mono mt-0.5">
+                          {evalResult?.rowCountEvaluated.toLocaleString() || 0} rows evaluated
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-zinc-600 dark:text-zinc-400 font-medium truncate max-w-[140px]">
+                        {kpi.datasetName || activeDataset?.name || 'Default'}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        {getStatusBadge(evalResult?.status || kpi.status)}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setViewingKpi(kpi)}
+                            className="p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="View KPI Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenEditModal(kpi)}
+                            className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="Edit KPI"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDuplicateKpi(kpi)}
+                            className="p-1.5 text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="Duplicate KPI"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => setKpiToDelete(kpi)}
+                            className="p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="Delete KPI"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Create / Edit KPI Modal Workspace */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-[#0c0c0e] border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/50 dark:bg-zinc-900/40">
+              <div className="flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-blue-500" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  {editingKpi ? 'Edit Business Metric' : 'Create New Business Metric'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 rounded-md"
               >
-                {datasets.map(d => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.rowCount.toLocaleString()} rows)</option>
-                ))}
-              </select>
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
-                Available Numeric Measures
-              </h4>
-              <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
-                {numericColumns.length === 0 ? (
-                  <p className="text-xs text-zinc-500 italic">No numeric columns found in this dataset.</p>
-                ) : (
-                  numericColumns.map(col => (
-                    <div key={col} className="flex items-center justify-between p-2 rounded bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/60 text-xs font-mono">
-                      <span className="text-zinc-800 dark:text-zinc-200">{col}</span>
-                      <span className="text-[10px] text-zinc-400 uppercase">Numeric</span>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+              {/* LIVE PREVIEW CARD */}
+              <div className="p-4 bg-gradient-to-r from-blue-50/80 to-purple-50/80 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-blue-900 dark:text-blue-300">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                    LIVE EVALUATED PREVIEW
+                  </span>
+                  <span className="font-mono text-[11px] text-blue-700 dark:text-blue-400">
+                    {livePreviewResult?.rowCountEvaluated.toLocaleString() || 0} rows evaluated ({livePreviewResult?.executionTimeMs.toFixed(1)}ms)
+                  </span>
+                </div>
+
+                <div className="flex items-baseline justify-between pt-1">
+                  <div>
+                    <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                      {livePreviewDefinition.name || 'Untitled Metric'}
+                    </h2>
+                    <p className="text-xs font-mono text-zinc-500 mt-0.5">
+                      Formula: {generateFormulaSummary(livePreviewDefinition)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-extrabold font-mono text-blue-600 dark:text-blue-400">
+                      {livePreviewResult?.formattedResult || 'N/A'}
                     </div>
-                  ))
+                  </div>
+                </div>
+
+                {livePreviewResult?.warnings && livePreviewResult.warnings.length > 0 && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
+                    ⚠️ {livePreviewResult.warnings.join('; ')}
+                  </p>
                 )}
+              </div>
+
+              {/* Validation Errors Box */}
+              {formErrors.length > 0 && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl text-xs text-rose-700 dark:text-rose-300 space-y-1">
+                  <strong className="block font-bold">Please correct the following errors:</strong>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {formErrors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Form Section 1: Identification */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 pb-1">
+                  1. Metric Identification & Target Dataset
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      KPI Name *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Profit Margin, Total Revenue..."
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      Target Dataset *
+                    </label>
+                    <select
+                      value={formDatasetId}
+                      onChange={(e) => setFormDatasetId(e.target.value)}
+                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                    >
+                      {datasets.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} ({d.rowCount.toLocaleString()} rows)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Briefly explain the business context of this metric..."
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Form Section 2: Metric Type & Logic */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 pb-1">
+                  2. Metric Calculation Type
+                </h4>
+
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="metricType"
+                      value="simple"
+                      checked={formMetricType === 'simple'}
+                      onChange={() => setFormMetricType('simple')}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    Simple Column Aggregation
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="metricType"
+                      value="calculated"
+                      checked={formMetricType === 'calculated'}
+                      onChange={() => setFormMetricType('calculated')}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    Calculated Formula Expression
+                  </label>
+                </div>
+
+                {/* SIMPLE AGGREGATION FORM */}
+                {formMetricType === 'simple' && (
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                        Aggregation Function
+                      </label>
+                      <select
+                        value={formAggregation}
+                        onChange={(e) => setFormAggregation(e.target.value as KpiAggregation)}
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                      >
+                        <option value="sum">SUM (Total Sum)</option>
+                        <option value="avg">AVERAGE (Mean)</option>
+                        <option value="count">COUNT (Total Rows)</option>
+                        <option value="distinct_count">DISTINCT COUNT (Unique Values)</option>
+                        <option value="min">MIN (Minimum Value)</option>
+                        <option value="max">MAX (Maximum Value)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                        Measure Column
+                      </label>
+                      <select
+                        value={formColumn}
+                        onChange={(e) => setFormColumn(e.target.value)}
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                      >
+                        {currentFormDataset?.headers.map((h) => (
+                          <option key={h} value={h}>
+                            {h} ({currentFormDataset.columnTypes[h] || 'text'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* CALCULATED VISUAL FORMULA BUILDER */}
+                {formMetricType === 'calculated' && (
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                        Visual Formula Expression
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setFormTokens([])}
+                        className="text-[11px] text-rose-500 hover:underline"
+                      >
+                        Clear Formula
+                      </button>
+                    </div>
+
+                    {/* Active Formula Token Stream Display */}
+                    <div className="p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl flex flex-wrap items-center gap-2 min-h-[50px]">
+                      {formTokens.length === 0 ? (
+                        <span className="text-xs text-zinc-400 italic">
+                          Formula is empty. Add measures, operators, or saved KPIs below.
+                        </span>
+                      ) : (
+                        formTokens.map((token) => (
+                          <div
+                            key={token.id}
+                            className={cn(
+                              'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono shadow-2xs group border',
+                              token.type === 'term' &&
+                                'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900',
+                              token.type === 'operator' &&
+                                'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900 font-bold',
+                              token.type === 'kpi_ref' &&
+                                'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900',
+                              token.type === 'constant' &&
+                                'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700'
+                            )}
+                          >
+                            <span>
+                              {token.type === 'term' && `${(token.aggregation || 'sum').toUpperCase()}(${token.column})`}
+                              {token.type === 'operator' && (token.operator === '*' ? '×' : token.operator === '/' ? '÷' : token.operator)}
+                              {token.type === 'kpi_ref' && `[KPI: ${token.kpiName}]`}
+                              {token.type === 'constant' && token.value}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveToken(token.id)}
+                              className="text-zinc-400 hover:text-rose-500 ml-1"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Controls to append tokens */}
+                    <div className="space-y-3 pt-2 border-t border-zinc-200/60 dark:border-zinc-800/60">
+                      {/* Operator Pills */}
+                      <div>
+                        <span className="block text-[11px] font-semibold text-zinc-500 mb-1.5">
+                          Quick Operators:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {(['+', '-', '*', '/', '(', ')'] as FormulaOperator[]).map((op) => (
+                            <button
+                              key={op}
+                              type="button"
+                              onClick={() => handleAddOperatorToken(op)}
+                              className="px-3 py-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg font-mono text-xs font-bold hover:bg-purple-50 dark:hover:bg-purple-950/60 hover:border-purple-300 transition-colors"
+                            >
+                              {op === '*' ? '×' : op === '/' ? '÷' : op}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Add Measure Aggregation */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                        <select
+                          value={newTermAgg}
+                          onChange={(e) => setNewTermAgg(e.target.value as KpiAggregation)}
+                          className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-mono"
+                        >
+                          <option value="sum">SUM</option>
+                          <option value="avg">AVG</option>
+                          <option value="count">COUNT</option>
+                          <option value="distinct_count">DISTINCT COUNT</option>
+                        </select>
+
+                        <select
+                          value={newTermCol}
+                          onChange={(e) => setNewTermCol(e.target.value)}
+                          className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs"
+                        >
+                          {currentFormDataset?.headers.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleAddTermToken}
+                          className="text-xs h-7 gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Add Measure
+                        </Button>
+                      </div>
+
+                      {/* Add Saved KPI Reference */}
+                      {savedKpis.length > 0 && (
+                        <div className="flex items-center gap-2 bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                          <select
+                            value={newKpiRefId}
+                            onChange={(e) => setNewKpiRefId(e.target.value)}
+                            className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs"
+                          >
+                            <option value="">Select Saved KPI to Reference...</option>
+                            {savedKpis.map((k) => (
+                              <option key={k.id} value={k.id}>
+                                {k.name} ({generateFormulaSummary(k)})
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleAddKpiRefToken}
+                            disabled={!newKpiRefId}
+                            className="text-xs h-7 gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add KPI Ref
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Form Section 3: KPI Definition Filters */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-1">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                    3. KPI Definition Filters (Optional)
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddFilter}
+                    className="text-xs h-6 gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Add Filter
+                  </Button>
+                </div>
+
+                {formFilters.length === 0 ? (
+                  <p className="text-xs text-zinc-400 italic">
+                    No definition filters applied. Calculates over all dataset rows.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {formFilters.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-xs"
+                      >
+                        <select
+                          value={f.column}
+                          onChange={(e) => {
+                            const col = e.target.value;
+                            setFormFilters((prev) =>
+                              prev.map((item) => (item.id === f.id ? { ...item, column: col } : item))
+                            );
+                          }}
+                          className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs"
+                        >
+                          {currentFormDataset?.headers.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={f.operator}
+                          onChange={(e) => {
+                            const op = e.target.value as FilterOperator;
+                            setFormFilters((prev) =>
+                              prev.map((item) => (item.id === f.id ? { ...item, operator: op } : item))
+                            );
+                          }}
+                          className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs"
+                        >
+                          <option value="equals">equals</option>
+                          <option value="does_not_equal">does not equal</option>
+                          <option value="contains">contains</option>
+                          <option value="greater_than">greater than</option>
+                          <option value="less_than">less than</option>
+                        </select>
+
+                        <input
+                          type="text"
+                          placeholder="Target value..."
+                          value={f.value}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormFilters((prev) =>
+                              prev.map((item) => (item.id === f.id ? { ...item, value: val } : item))
+                            );
+                          }}
+                          className="flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFilter(f.id)}
+                          className="text-zinc-400 hover:text-rose-500"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Form Section 4: Formatting */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 pb-1">
+                  4. Presentation & Formatting
+                </h4>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                      Format Type
+                    </label>
+                    <select
+                      value={formFormatType}
+                      onChange={(e) => setFormFormatType(e.target.value as KpiFormatType)}
+                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs"
+                    >
+                      <option value="currency">Currency ($)</option>
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="number">Number</option>
+                      <option value="decimal">Decimal</option>
+                    </select>
+                  </div>
+
+                  {formFormatType === 'currency' && (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                        Currency Symbol
+                      </label>
+                      <input
+                        type="text"
+                        value={formCurrencySymbol}
+                        onChange={(e) => setFormCurrencySymbol(e.target.value)}
+                        className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                      Decimal Places
+                    </label>
+                    <select
+                      value={formDecimals}
+                      onChange={(e) => setFormDecimals(Number(e.target.value))}
+                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs"
+                    >
+                      <option value={0}>0 (Whole numbers)</option>
+                      <option value={1}>1 decimal (e.g. 24.6%)</option>
+                      <option value={2}>2 decimals (e.g. $1,245.82)</option>
+                      <option value={3}>3 decimals</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col justify-end space-y-1">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={formUseThousands}
+                        onChange={(e) => setFormUseThousands(e.target.checked)}
+                        className="rounded border-zinc-300 text-blue-600"
+                      />
+                      Thousands Separator
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={formCompact}
+                        onChange={(e) => setFormCompact(e.target.checked)}
+                        className="rounded border-zinc-300 text-blue-600"
+                      />
+                      Compact (e.g. 1.25M)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center justify-end gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsModalOpen(false)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveKpiSubmit}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Save Business Metric
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. View Details Modal */}
+      {viewingKpi && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0c0c0e] border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/40">
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-blue-500" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  KPI Details & Metadata
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingKpi(null)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="text-zinc-400 uppercase text-[10px] font-bold block mb-0.5">
+                  KPI Name
+                </label>
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  {viewingKpi.name}
+                </span>
+              </div>
+
+              {viewingKpi.description && (
+                <div>
+                  <label className="text-zinc-400 uppercase text-[10px] font-bold block mb-0.5">
+                    Description
+                  </label>
+                  <p className="text-zinc-600 dark:text-zinc-300">
+                    {viewingKpi.description}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <span className="text-zinc-400 text-[10px] uppercase font-bold block mb-1">
+                    Current Evaluated Result
+                  </span>
+                  <span className="text-lg font-bold font-mono text-blue-600 dark:text-blue-400">
+                    {evaluatedKpisMap.get(viewingKpi.id)?.formattedResult || 'N/A'}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <span className="text-zinc-400 text-[10px] uppercase font-bold block mb-1">
+                    Formula Summary
+                  </span>
+                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-200">
+                    {generateFormulaSummary(viewingKpi)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-zinc-100 dark:border-zinc-800 font-mono text-[11px] text-zinc-500">
+                <div className="flex justify-between">
+                  <span>Target Dataset:</span>
+                  <span className="text-zinc-800 dark:text-zinc-200 font-semibold">
+                    {viewingKpi.datasetName || activeDataset?.name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Metric Type:</span>
+                  <span className="text-zinc-800 dark:text-zinc-200 font-semibold uppercase">
+                    {viewingKpi.metricType}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Created:</span>
+                  <span>{new Date(viewingKpi.createdAt).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Last Updated:</span>
+                  <span>{new Date(viewingKpi.updatedAt).toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* USED BY SECTION */}
+              <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <label className="text-zinc-400 uppercase text-[10px] font-bold block mb-1.5">
+                  Used By (System Dependencies)
+                </label>
+                <div className="p-2.5 bg-zinc-50 dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 space-y-1">
+                  <p className="text-zinc-500 italic">
+                    • Dashboard: Sales Overview
+                  </p>
+                  <p className="text-zinc-500 italic">
+                    • Executive Report: Monthly Performance Digest
+                  </p>
+                </div>
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Formula Builder Canvas */}
-          <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 space-y-5 shadow-xs">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-3">
-              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                <Calculator className="w-4 h-4 text-blue-500" />
-                Define Business Metric
-              </h3>
-              <span className="text-xs px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-semibold">
-                Formula Engine
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-                  Metric Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Net Margin Ratio, Average Deal Size..."
-                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-                    Primary Column
-                  </label>
-                  <select className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100">
-                    {numericColumns.map(col => (
-                      <option key={col} value={col}>{col}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-                    Aggregation Method
-                  </label>
-                  <select className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 font-mono">
-                    <option value="SUM">SUM (Total)</option>
-                    <option value="AVG">AVG (Average)</option>
-                    <option value="COUNT">COUNT (Total Rows)</option>
-                    <option value="MAX">MAX (Peak)</option>
-                    <option value="MIN">MIN (Minimum)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800/80 rounded text-xs text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                <p>
-                  Defined metrics are saved to your workspace session and can be immediately pinned to Dashboards or referenced in MIS Executive Reports.
-                </p>
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Save Metric Formula
-                </Button>
-              </div>
+      {/* 7. Delete Confirmation Dialog */}
+      {kpiToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0c0c0e] border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              Confirm KPI Deletion
+            </h3>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              Are you sure you want to delete <strong className="text-zinc-800 dark:text-zinc-200">{kpiToDelete.name}</strong>? This metric definition will be removed from your saved workspace metrics.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setKpiToDelete(null)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmDelete}
+                className="bg-rose-600 hover:bg-rose-700 text-white text-xs"
+              >
+                Delete Metric
+              </Button>
             </div>
           </div>
         </div>
