@@ -1,17 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TopNav } from './components/layout/TopNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { RightPanel } from './components/layout/RightPanel';
 import { DatasetManager } from './components/workspace/DatasetManager';
 import { DataPreview } from './components/workspace/DataPreview';
 import { RelationshipView } from './components/relationships/RelationshipView';
-import { Dataset, ViewState } from '@/types';
+import { Dataset, ViewState, RelationshipSuggestion } from '@/types';
+import { detectRelationships } from '@/lib/relationshipDetector';
 
 export default function App() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('data-manager');
   const [isUploading, setIsUploading] = useState(false);
+  
+  const [suggestions, setSuggestions] = useState<RelationshipSuggestion[]>([]);
+
+  useEffect(() => {
+    // Detect relationships when datasets change
+    const newSuggestions = detectRelationships(datasets);
+    
+    // Merge with existing status
+    setSuggestions(prev => {
+      const existing = new Map<string, RelationshipSuggestion>(prev.map(p => [p.id, p]));
+      return newSuggestions.map(ns => {
+        const ext = existing.get(ns.id);
+        if (ext) return { ...ns, status: ext.status };
+        return ns;
+      });
+    });
+  }, [datasets]);
 
   const handleImport = (newDatasets: Dataset[]) => {
     setDatasets(prev => [...prev, ...newDatasets]);
@@ -71,10 +89,13 @@ export default function App() {
               )}
             </main>
 
-            <RightPanel />
+            <RightPanel currentView={currentView} suggestionsCount={suggestions.length} pendingCount={suggestions.filter(s => s.status === 'pending').length} />
           </>
         ) : currentView === 'relationships' ? (
-          <RelationshipView datasets={datasets} />
+          <>
+            <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
+            <RightPanel currentView={currentView} suggestionsCount={suggestions.length} pendingCount={suggestions.filter(s => s.status === 'pending').length} />
+          </>
         ) : null}
       </div>
 

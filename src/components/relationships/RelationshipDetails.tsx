@@ -26,6 +26,20 @@ export function RelationshipDetails({ relationship, sourceDataset, targetDataset
   const srcProfile = sourceDataset.columnProfiles[relationship.sourceColumn];
   const tgtProfile = targetDataset.columnProfiles[relationship.targetColumn];
 
+  // Calculate Example Matching Values
+  const sampleMatches = React.useMemo(() => {
+    const set1 = new Set(sourceDataset.data.map(r => String(r[relationship.sourceColumn]).trim()));
+    const set2 = new Set(targetDataset.data.map(r => String(r[relationship.targetColumn]).trim()));
+    const matches: string[] = [];
+    for (const val of set1) {
+      if (val && val !== 'null' && val !== 'undefined' && set2.has(val)) {
+        matches.push(val);
+        if (matches.length >= 3) break;
+      }
+    }
+    return matches;
+  }, [sourceDataset, targetDataset, relationship]);
+
   return (
     <div className="w-80 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0c0c0e] flex flex-col shrink-0 overflow-hidden shadow-2xl relative z-30">
       <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/50">
@@ -89,6 +103,21 @@ export function RelationshipDetails({ relationship, sourceDataset, targetDataset
             <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{relationship.type}</div>
           </div>
         </div>
+
+        {/* Example Values */}
+        {sampleMatches.length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mb-2 uppercase tracking-wide">Example Matches</h4>
+            <div className="flex flex-wrap gap-2">
+              {sampleMatches.map((val, idx) => (
+                <div key={idx} className="bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-2 py-1 rounded text-xs font-mono border border-zinc-200 dark:border-zinc-700 truncate max-w-[150px]">
+                  {val}
+                </div>
+              ))}
+              <div className="text-xs text-zinc-500 self-center px-1">...</div>
+            </div>
+          </div>
+        )}
 
         {/* Reasoning */}
         <div>

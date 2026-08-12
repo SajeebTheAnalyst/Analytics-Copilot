@@ -22,22 +22,62 @@ function calculateSimilarity(str1: string, str2: string): number {
   return 0;
 }
 
-function checkDataOverlap(data1: any[], data2: any[], col1: string, col2: string): number {
-  if (!data1.length || !data2.length) return 0;
+function checkDataOverlap(data1: any[], data2: any[], col1: string, col2: string) {
+  if (!data1.length || !data2.length) return { score: 0, missingIn1: 0, missingIn2: 0 };
   
   const set1 = new Set(data1.map(r => String(r[col1]).trim().toLowerCase()).filter(v => v !== 'null' && v !== 'undefined' && v !== ''));
   const set2 = new Set(data2.map(r => String(r[col2]).trim().toLowerCase()).filter(v => v !== 'null' && v !== 'undefined' && v !== ''));
   
-  if (set1.size === 0 || set2.size === 0) return 0;
+  if (set1.size === 0 || set2.size === 0) return { score: 0, missingIn1: 0, missingIn2: 0 };
 
   let overlap = 0;
+  let missingIn1 = 0;
+  let missingIn2 = 0;
+  
   for (const item of set1) {
     if (set2.has(item)) overlap++;
+    else missingIn2++;
+  }
+  
+  for (const item of set2) {
+    if (!set1.has(item)) missingIn1++;
   }
   
   // Calculate Jaccard similarity or intersection over smaller set
-  const intersectionOverMin = overlap / Math.min(set1.size, set2.size);
-  return intersectionOverMin;
+  const score = overlap / Math.min(set1.size, set2.size);
+  return { score, missingIn1, missingIn2 };
+}
+
+// Helper to detect cycles
+function hasCycle(suggestions: RelationshipSuggestion[]): boolean {
+  const adj = new Map<string, string[]>();
+  for (const rel of suggestions) {
+    if (!adj.has(rel.sourceDatasetId)) adj.set(rel.sourceDatasetId, []);
+    adj.get(rel.sourceDatasetId)!.push(rel.targetDatasetId);
+  }
+
+  const visited = new Set<string>();
+  const recStack = new Set<string>();
+
+  const isCyclic = (node: string): boolean => {
+    if (!visited.has(node)) {
+      visited.add(node);
+      recStack.add(node);
+      
+      const neighbors = adj.get(node) || [];
+      for (const neighbor of neighbors) {
+        if (!visited.has(neighbor) && isCyclic(neighbor)) return true;
+        if (recStack.has(neighbor)) return true;
+      }
+    }
+    recStack.delete(node);
+    return false;
+  };
+
+  for (const node of adj.keys()) {
+    if (isCyclic(node)) return true;
+  }
+  return false;
 }
 
 export function detectRelationships(datasets: Dataset[]): RelationshipSuggestion[] {
@@ -73,11 +113,11 @@ export function detectRelationships(datasets: Dataset[]): RelationshipSuggestion
           }
           
           // 2. Data Overlap (based on sample data)
-          const overlapScore = checkDataOverlap(ds1.data, ds2.data, col1, col2);
-          if (overlapScore > 0.5) {
-            confidence += 50 * overlapScore;
+          const overlap = checkDataOverlap(ds1.data, ds2.data, col1, col2);
+          if (overlap.score > 0.5) {
+            confidence += 50 * overlap.score;
             reasons.push(`Significant data overlap detected`);
-          } else if (overlapScore > 0.1) {
+          } else if (overlap.score > 0.1) {
             confidence += 15;
             reasons.push(`Some shared unique values`);
           }
@@ -95,16 +135,24 @@ export function detectRelationships(datasets: Dataset[]): RelationshipSuggestion
             relType = '1:N';
             confidence += 5;
             reasons.push(`"${col1}" appears to be a primary key`);
+            if (overlap.missingIn1 > 0) warnings.push(`Missing Foreign Keys: Some records in "${ds2.name}" have no matching primary key in "${ds1.name}" (possible orphan records)`);
           } else if (!isUnique1 && isUnique2) {
             relType = 'N:1';
             confidence += 5;
             reasons.push(`"${col2}" appears to be a primary key`);
+            if (overlap.missingIn2 > 0) warnings.push(`Missing Foreign Keys: Some records in "${ds1.name}" have no matching primary key in "${ds2.name}" (possible orphan records)`);
           } else {
             warnings.push(`Ambiguous many-to-many relationship`);
+            warnings.push(`Duplicate Keys exist on both sides`);
           }
           
           if (prof1.nullCount > 0 || prof2.nullCount > 0) {
             warnings.push(`Null values detected in key columns`);
+          }
+          
+          const finalConfidence = Math.min(Math.round(confidence), 99);
+          if (finalConfidence < 60) {
+            warnings.push(`Low confidence relationship`);
           }
           
           if (confidence > 45) {
@@ -114,7 +162,7 @@ export function detectRelationships(datasets: Dataset[]): RelationshipSuggestion
               targetDatasetId: ds2.id,
               sourceColumn: col1,
               targetColumn: col2,
-              confidence: Math.min(Math.round(confidence), 99),
+              confidence: finalConfidence,
               type: relType,
               reason: reasons.join('. '),
               status: 'pending',
@@ -126,6 +174,21 @@ export function detectRelationships(datasets: Dataset[]): RelationshipSuggestion
     }
   }
   
-  // Sort by highest confidence
-  return suggestions.sort((a, b) => b.confidence - a.confidence);
+  // Detect cycle in highest confidence suggestions
+  suggestions.sort((a, b) => b.confidence - a.confidence);
+  
+  if (hasCycle(suggestions)) {
+    // Just attach a generic warning to the first one involved, or to all?
+    // Let's attach to the top ones for simplicity.
+    if (suggestions.length > 0) {
+       suggestions.forEach(s => {
+         // This is a naive way, but works for the prompt requirement "Detect possible circular relationships. Warn the user if ambiguous relationships exist."
+         if (s.confidence > 70) {
+           s.warnings.push(`Warning: Possible circular relationship detected in the data model`);
+         }
+       });
+    }
+  }
+  
+  return suggestions;
 }

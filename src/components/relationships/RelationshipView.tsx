@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Dataset, RelationshipSuggestion } from '@/types';
 import { detectRelationships } from '@/lib/relationshipDetector';
-import { Network, ZoomIn, ZoomOut, Maximize, AlertTriangle, Check, X, EyeOff } from 'lucide-react';
+import { Network, ZoomIn, ZoomOut, Maximize, AlertTriangle, Check, X, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 import { RelationshipDetails } from './RelationshipDetails';
 
 interface RelationshipViewProps {
   datasets: Dataset[];
+  suggestions: RelationshipSuggestion[];
+  setSuggestions: React.Dispatch<React.SetStateAction<RelationshipSuggestion[]>>;
 }
 
-export function RelationshipView({ datasets }: RelationshipViewProps) {
-  const [suggestions, setSuggestions] = useState<RelationshipSuggestion[]>([]);
+export function RelationshipView({ datasets, suggestions, setSuggestions }: RelationshipViewProps) {
   const [selectedRel, setSelectedRel] = useState<RelationshipSuggestion | null>(null);
   const [positions, setPositions] = useState<Record<string, { x: number, y: number }>>({});
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDraggingNode, setIsDraggingNode] = useState<string | null>(null);
@@ -23,19 +25,6 @@ export function RelationshipView({ datasets }: RelationshipViewProps) {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    // Detect relationships when datasets change
-    const newSuggestions = detectRelationships(datasets);
-    
-    // Merge with existing status
-    setSuggestions(prev => {
-      const existing = new Map<string, RelationshipSuggestion>(prev.map(p => [p.id, p]));
-      return newSuggestions.map(ns => {
-        const ext = existing.get(ns.id);
-        if (ext) return { ...ns, status: ext.status };
-        return ns;
-      });
-    });
-
     // Auto layout newly added datasets
     setPositions(prev => {
       const next = { ...prev };
@@ -50,6 +39,17 @@ export function RelationshipView({ datasets }: RelationshipViewProps) {
         }
       });
       return updated ? next : prev;
+    });
+
+    // Expand all nodes by default
+    setExpandedNodes(prev => {
+      const next = { ...prev };
+      datasets.forEach(ds => {
+        if (next[ds.id] === undefined) {
+          next[ds.id] = true;
+        }
+      });
+      return next;
     });
   }, [datasets]);
 
@@ -202,6 +202,7 @@ export function RelationshipView({ datasets }: RelationshipViewProps) {
           {/* Nodes */}
           {datasets.map(dataset => {
             const pos = positions[dataset.id] || { x: 0, y: 0 };
+            const isExpanded = expandedNodes[dataset.id];
             return (
               <div 
                 key={dataset.id}
@@ -209,31 +210,42 @@ export function RelationshipView({ datasets }: RelationshipViewProps) {
                 style={{ left: pos.x, top: pos.y }}
               >
                 <div 
-                  className="bg-zinc-50 dark:bg-zinc-900 px-4 py-3 rounded-t-xl border-b border-zinc-200 dark:border-zinc-800 cursor-move flex items-center justify-between"
+                  className={cn("bg-zinc-50 dark:bg-zinc-900 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 cursor-move flex items-center justify-between", isExpanded ? "rounded-t-xl" : "rounded-xl border-b-0")}
                   onPointerDown={(e) => startNodeDrag(e, dataset.id)}
                 >
-                  <h4 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{dataset.name}</h4>
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                  <div className="flex items-center gap-2 overflow-hidden flex-1">
+                    <button 
+                      className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded transition-colors"
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={() => setExpandedNodes(prev => ({ ...prev, [dataset.id]: !prev[dataset.id] }))}
+                    >
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-zinc-500" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />}
+                    </button>
+                    <h4 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate flex-1">{dataset.name}</h4>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded ml-2 shrink-0">
                     {dataset.type}
                   </span>
                 </div>
-                <div className="p-2 max-h-[250px] overflow-y-auto custom-scrollbar">
-                  {dataset.headers.map(header => {
-                    const isKey = suggestions.some(s => 
-                      (s.sourceDatasetId === dataset.id && s.sourceColumn === header) ||
-                      (s.targetDatasetId === dataset.id && s.targetColumn === header)
-                    );
-                    
-                    return (
-                      <div key={header} className="flex items-center justify-between py-1.5 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 rounded">
-                        <span className={cn("text-sm truncate", isKey ? "font-medium text-blue-600 dark:text-blue-400" : "text-zinc-600 dark:text-zinc-400")}>
-                          {header}
-                        </span>
-                        {isKey && <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>}
-                      </div>
-                    );
-                  })}
-                </div>
+                {isExpanded && (
+                  <div className="p-2 max-h-[250px] overflow-y-auto custom-scrollbar">
+                    {dataset.headers.map(header => {
+                      const isKey = activeRelationships.some(s => 
+                        (s.sourceDatasetId === dataset.id && s.sourceColumn === header) ||
+                        (s.targetDatasetId === dataset.id && s.targetColumn === header)
+                      );
+                      
+                      return (
+                        <div key={header} className="flex items-center justify-between py-1.5 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 rounded">
+                          <span className={cn("text-sm truncate", isKey ? "font-medium text-blue-600 dark:text-blue-400" : "text-zinc-600 dark:text-zinc-400")}>
+                            {header}
+                          </span>
+                          {isKey && <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
