@@ -122,6 +122,18 @@ export function Sidebar({ datasets, selectedDatasetId, onSelectDataset, onRemove
                             <span className="font-medium uppercase">{dataset.type}</span>
                             <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700"></span>
                             <span>{formatBytes(dataset.size)}</span>
+                            {dataset.cleaningStatus === 'issues-found' && (
+                              <>
+                                <span className="w-1 h-1 rounded-full bg-orange-300 dark:bg-orange-700"></span>
+                                <span className="text-orange-600 dark:text-orange-400 font-medium">Issues</span>
+                              </>
+                            )}
+                            {dataset.cleaningStatus === 'cleaned' && (
+                              <>
+                                <span className="w-1 h-1 rounded-full bg-emerald-300 dark:bg-emerald-700"></span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Cleaned</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

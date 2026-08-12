@@ -85,6 +85,16 @@ export function DatasetManager({ datasets, onImport, onRemove, onPreview }: Data
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
                             .{dataset.type}
                           </span>
+                          {dataset.cleaningStatus === 'issues-found' && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                              Issues Found
+                            </span>
+                          )}
+                          {dataset.cleaningStatus === 'cleaned' && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                              Cleaned
+                            </span>
+                          )}
                         </h3>
                         <div className="flex items-center gap-3 mt-1 text-[11px] text-zinc-500">
                           <span>{dataset.rowCount.toLocaleString()} rows</span>

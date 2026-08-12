@@ -1,4 +1,4 @@
-import { Moon, Sun, Upload, Settings, Database, Network } from 'lucide-react';
+import { Moon, Sun, Upload, Settings, Database, Network, Sparkles, LayoutDashboard } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ViewState } from '@/types';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,18 @@ export function TopNav({ currentView, onViewChange, onImportFiles }: TopNavProps
             Data
           </button>
           <button 
+            onClick={() => onViewChange('cleaning')}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+              currentView === 'cleaning' 
+                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            )}
+          >
+            <Sparkles className="w-4 h-4" />
+            Cleaning
+          </button>
+          <button 
             onClick={() => onViewChange('relationships')}
             className={cn(
               "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
@@ -46,6 +58,18 @@ export function TopNav({ currentView, onViewChange, onImportFiles }: TopNavProps
           >
             <Network className="w-4 h-4" />
             Relationships
+          </button>
+          <button 
+            onClick={() => onViewChange('dashboards')}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+              currentView === 'dashboards' 
+                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            )}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Dashboards
           </button>
         </div>
       </div>
