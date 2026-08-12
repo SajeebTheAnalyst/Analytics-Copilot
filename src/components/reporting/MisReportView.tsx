@@ -289,25 +289,25 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
 
   // Filterable Categorical Columns for Filter Bar
   const categoricalCols = primaryDataset ? Object.entries(primaryDataset.columnProfiles || {})
-    .filter(([_, prof]) => prof.type === 'categorical' || prof.type === 'boolean' || prof.type === 'date' || prof.uniqueCount <= 30)
+    .filter(([col, prof]) => !col.startsWith('__EMPTY') && (prof.type === 'categorical' || prof.type === 'boolean' || prof.type === 'date' || prof.uniqueCount <= 30))
     .map(([col]) => col) : [];
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
       
       {/* CONTROL & ACTION HEADER (Hidden during Print) */}
-      <div className="no-print glass-panel border-b-0 p-4 sm:p-6 shrink-0 space-y-4">
+      <div className="no-print glass-panel border-b-0 p-4 shrink-0 flex flex-col gap-4 z-10">
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
           {/* Title & Subtitle */}
           <div>
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
-                <FileText className="w-6 h-6" />
+              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 shadow-sm border border-blue-100 dark:border-blue-900/50">
+                <FileText className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                   MIS Executive Report
                   {saveToast && (
                     <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-1 animate-fade-in">
@@ -315,21 +315,21 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                     </span>
                   )}
                 </h1>
-                <p className="text-xs sm:text-sm text-zinc-500">Management summary generated from the active dataset.</p>
+                <p className="text-xs text-zinc-500">Management summary generated from the active dataset.</p>
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsConfigExpanded(!isConfigExpanded)}
-              className="text-xs text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800"
+              className="text-xs text-zinc-700 dark:text-zinc-300"
             >
-              <Layers className="w-3.5 h-3.5 mr-1 text-zinc-500" />
+              <Layers className="w-3.5 h-3.5 mr-1.5 text-zinc-500" />
               {isConfigExpanded ? 'Hide Controls' : 'Report Settings'}
             </Button>
 
@@ -337,9 +337,9 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
               variant="outline"
               size="sm"
               onClick={() => setIsHistoryOpen(true)}
-              className="text-xs text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800"
+              className="text-xs text-zinc-700 dark:text-zinc-300"
             >
-              <History className="w-3.5 h-3.5 mr-1 text-blue-600" />
+              <History className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
               History ({savedConfigs.length})
             </Button>
 
@@ -347,9 +347,9 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
               variant="outline"
               size="sm"
               onClick={handleSaveSnapshot}
-              className="text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+              className="text-xs text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
             >
-              <Check className="w-3.5 h-3.5 mr-1" />
+              <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-500" />
               Save Snapshot
             </Button>
 
@@ -357,9 +357,9 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
               variant="outline"
               size="sm"
               onClick={handlePrint}
-              className="text-xs text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800"
+              className="text-xs text-zinc-700 dark:text-zinc-300"
             >
-              <Printer className="w-3.5 h-3.5 mr-1 text-zinc-600" />
+              <Printer className="w-3.5 h-3.5 mr-1.5 text-zinc-600 dark:text-zinc-400" />
               Print / PDF
             </Button>
 
@@ -367,7 +367,7 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
               size="sm"
               onClick={handleGenerateAiSummary}
               disabled={isAiLoading || !reportData}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex items-center gap-1.5"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex items-center gap-1.5 font-semibold"
             >
               {isAiLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
               <span>Ask AI Executive Briefing</span>
@@ -490,9 +490,9 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
 
       {/* REPORT FILTERS BAR (Distinct from Dashboard & Explorer) */}
       {primaryDataset && (
-        <div className="no-print glass-panel border-t-0 border-r-0 border-l-0 px-6 py-2.5 flex flex-wrap items-center gap-3 shrink-0">
-          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-blue-600" />
+        <div className="no-print glass-panel border-t-0 border-r-0 border-l-0 px-6 py-3 flex flex-wrap items-center gap-3 shrink-0">
+          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5 mr-2">
+            <Filter className="w-3.5 h-3.5 text-blue-500" />
             Report Filters:
           </span>
 
@@ -505,16 +505,16 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
               const activeFilter = reportFilters.find(f => f.column === col);
 
               return (
-                <div key={col} className="flex items-center gap-1.5">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{col}:</label>
+                <div key={col} className="flex items-center gap-2 bg-white/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 rounded-md px-2.5 py-1 shadow-sm">
+                  <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{col}:</label>
                   <select
                     value={activeFilter?.value ?? 'all'}
                     onChange={(e) => handleGlobalFilterChange(col, e.target.value)}
                     className={cn(
-                      "text-xs border rounded-md px-2 py-0.5 font-medium transition-all focus:outline-none focus:ring-1 focus:ring-blue-500",
+                      "text-xs bg-transparent border-none p-0 font-medium focus:outline-none focus:ring-0 cursor-pointer min-w-[80px] max-w-[150px] truncate",
                       activeFilter 
-                        ? "bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300" 
-                        : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
+                        ? "text-blue-600 dark:text-blue-400 font-bold" 
+                        : "text-zinc-800 dark:text-zinc-200"
                     )}
                   >
                     <option value="all">All</option>
