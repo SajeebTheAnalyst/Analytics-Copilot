@@ -17,6 +17,7 @@ interface WidgetRendererProps {
   filters: DashboardFilter[];
   savedKpis?: KpiDefinition[];
   onDataPointClick?: (column: string, value: string) => void;
+  onUpdateWidget?: (updatedConfig: Partial<WidgetConfig>) => void;
 }
 
 const COLORS = [
@@ -29,7 +30,8 @@ export function WidgetRenderer({
   datasets,
   filters,
   savedKpis = [],
-  onDataPointClick
+  onDataPointClick,
+  onUpdateWidget
 }: WidgetRendererProps) {
   // Find primary dataset
   const primaryDataset = datasets.find(d => d.id === widget.datasetId || d.name === widget.datasetId) || datasets[0];
@@ -165,9 +167,14 @@ export function WidgetRenderer({
 
   if (!xAxisColumn || !yAxisColumn) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-4 text-center text-zinc-400">
-        <Info className="w-6 h-6 text-zinc-400 mb-1" />
-        <span className="text-xs font-medium">Dimension or Metric Column Missing</span>
+      <div id={`cfg-attention-${widget.id}`} className="h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-50 dark:bg-zinc-900/40 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
+        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 dark:text-zinc-500">
+          <Info className="w-4 h-4" />
+        </div>
+        <div>
+          <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Chart configuration needs attention</span>
+          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 block">Dimension or Metric column reference is missing. Select columns to populate chart.</span>
+        </div>
       </div>
     );
   }
@@ -216,12 +223,79 @@ export function WidgetRenderer({
     });
   }
 
+  // High Cardinality Intercept Check
+  const isPieDonut = widget.type === 'pie' || widget.type === 'donut';
+  const isBar = widget.type === 'bar';
+  const cardinality = aggregatedChartData.length;
+
+  const isHighCardinalityPie = isPieDonut && cardinality > 12 && !widget.topN;
+  const isHighCardinalityBar = isBar && cardinality > 30 && !widget.topN;
+
+  if (isHighCardinalityPie || isHighCardinalityBar) {
+    return (
+      <div id={`hc-${widget.id}`} className="h-full flex flex-col items-center justify-center p-4 text-center bg-zinc-50/50 dark:bg-zinc-950/40 border border-amber-200/50 dark:border-amber-900/40 rounded-xl space-y-3">
+        <div className="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center border border-amber-200 dark:border-amber-900 text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="w-5 h-5 animate-pulse" />
+        </div>
+        <div className="space-y-1">
+          <h4 className="text-xs font-bold text-zinc-950 dark:text-zinc-50 uppercase tracking-wider">High Cardinality</h4>
+          <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+            Dimension <code className="bg-zinc-100 dark:bg-zinc-900 px-1 py-0.5 rounded text-[11px] font-mono">{xAxisColumn}</code> contains {cardinality.toLocaleString()} unique values.
+          </p>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto leading-normal">
+            {isPieDonut 
+              ? "Pie and Donut charts are not suitable for displaying this dimension. Rendering too many slices makes the chart unreadable."
+              : "Bar charts with too many categories become dense and illegible. Apply a filter or view as a table instead."}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1 max-w-sm">
+          {onUpdateWidget ? (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onUpdateWidget({ topN: 10 })}
+                className="text-[11px] h-7 px-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
+              >
+                Use Top 10
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onUpdateWidget({ topN: 20 })}
+                className="text-[11px] h-7 px-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
+              >
+                Use Top 20
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onUpdateWidget({ type: 'table' })}
+                className="text-[11px] h-7 px-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
+              >
+                Use Data Table
+              </Button>
+            </>
+          ) : (
+            <span className="text-[10px] text-zinc-400 italic">
+              Use the edit modal to set Top 10, Top 20, or switch to a Table layout.
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (aggregatedChartData.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-4 text-center text-zinc-400">
-        <BarChart2 className="w-8 h-8 text-zinc-300 dark:text-zinc-700 mb-2" />
-        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">No matching records found</span>
-        <span className="text-xs text-zinc-400 mt-0.5">Try clearing dashboard filters to view chart data.</span>
+      <div id={`no-data-${widget.id}`} className="h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-50 dark:bg-zinc-900/40 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
+        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 dark:text-zinc-500">
+          <BarChart2 className="w-4 h-4" />
+        </div>
+        <div>
+          <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">No data available</span>
+          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 block">No matching records found. Try modifying or clearing active dashboard filters.</span>
+        </div>
       </div>
     );
   }

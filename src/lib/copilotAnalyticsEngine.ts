@@ -5,6 +5,7 @@ import { evaluateKpi } from './kpiEngine';
 import { getSavedMisReports, MisReportConfig } from './misReportStorage';
 import { getSavedColumnMetadata } from './dataDictionaryStorage';
 import { calculateQualityStatus, normalizeTechnicalType, inferSemanticType } from './dataDictionaryEngine';
+import { calculateDatasetHealth } from './profiler';
 
 export type AnalyticalIntent = 
   | 'DESCRIPTIVE'
@@ -187,8 +188,7 @@ export async function generateAnalyticsEvidence(
       else rowStrings.add(s);
     }
 
-    const pendingIssues = (dataset.issues || []).filter(i => i.status === 'pending');
-    const healthScore = totalCells > 0 ? Math.max(0, Math.round(100 - (missingPercent * 1.5 + (duplicateCount > 0 ? 5 : 0) + pendingIssues.length * 5))) : 100;
+    const healthSummary = calculateDatasetHealth(dataset);
 
     return {
       intent: 'DATA_QUALITY',
@@ -196,14 +196,14 @@ export async function generateAnalyticsEvidence(
       datasetName: dataset.name,
       title: `Data Health Assessment for ${dataset.name}`,
       qualityDetails: {
-        healthScore,
+        healthScore: healthSummary.score,
         totalRows: dataset.rowCount || dataset.fullData.length,
-        missingCount: nullCells,
-        missingPercent: Math.round(missingPercent * 10) / 10,
-        duplicateCount,
-        invalidDateCount: 0,
-        pendingIssuesCount: pendingIssues.length,
-        issuesList: pendingIssues.map(i => ({ title: i.title, risk: i.riskLevel, affectedRows: i.affectedRowCount }))
+        missingCount: healthSummary.missingCells,
+        missingPercent: healthSummary.missingCellsPercentage,
+        duplicateCount: healthSummary.duplicateRows,
+        invalidDateCount: healthSummary.issueBreakdown.invalidDatesCount,
+        pendingIssuesCount: healthSummary.issuesCount,
+        issuesList: (dataset.issues || []).filter(i => i.status === 'pending').map(i => ({ title: i.title, risk: i.riskLevel, affectedRows: i.affectedRowCount }))
       }
     };
   }

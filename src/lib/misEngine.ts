@@ -1,6 +1,7 @@
 import { Dataset, KpiDefinition, ColumnFilter } from '@/types';
 import { evaluateKpi, evaluateSimpleAggregation, formatKpiValue, generateFormulaSummary } from './kpiEngine';
 import { filterDataset } from './explorerEngine';
+import { calculateDatasetHealth } from './profiler';
 
 export interface PerformanceMetricSummary {
   total: number;
@@ -244,17 +245,17 @@ export function generateMisReportData(
   const executiveKpis = {
     totalRevenue: {
       label: 'Total Revenue',
-      raw: rawRev,
-      formatted: formatKpiValue(rawRev, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+      raw: revCol ? rawRev : null,
+      formatted: revCol ? formatKpiValue(rawRev, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
       status: revCol ? 'active' : 'needs_attention',
-      warning: revCol ? undefined : 'Revenue column not detected; returned $0'
+      warning: revCol ? undefined : 'Revenue column not detected in active dataset'
     },
     totalProfit: {
       label: 'Total Profit',
-      raw: rawProfit,
-      formatted: formatKpiValue(rawProfit, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+      raw: profitCol ? rawProfit : null,
+      formatted: profitCol ? formatKpiValue(rawProfit, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
       status: profitCol ? 'active' : 'needs_attention',
-      warning: profitCol ? undefined : 'Profit column not detected; returned $0'
+      warning: profitCol ? undefined : 'Profit column not detected in active dataset'
     },
     totalOrders: {
       label: 'Total Orders',
@@ -264,23 +265,24 @@ export function generateMisReportData(
     },
     uniqueCustomers: {
       label: 'Unique Customers',
-      raw: rawCustomers,
-      formatted: formatKpiValue(rawCustomers, { type: 'number', decimals: 0 }),
+      raw: custCol ? rawCustomers : null,
+      formatted: custCol ? formatKpiValue(rawCustomers, { type: 'number', decimals: 0 }) : 'Needs Attention',
       status: custCol ? 'active' : 'needs_attention',
       warning: custCol ? undefined : 'Customer column not detected'
     },
     profitMargin: {
       label: 'Profit Margin',
-      raw: rawMargin,
-      formatted: `${rawMargin.toFixed(1)}%`,
+      raw: (revCol && profitCol && rawRev > 0) ? rawMargin : null,
+      formatted: (revCol && profitCol && rawRev > 0) ? `${rawMargin.toFixed(1)}%` : 'Needs Attention',
       status: (revCol && profitCol) ? 'active' : 'needs_attention',
       warning: (revCol && profitCol) ? undefined : 'Requires both Revenue and Profit columns'
     },
     avgOrderValue: {
       label: 'Average Order Value (AOV)',
-      raw: rawAov,
-      formatted: formatKpiValue(rawAov, { type: 'currency', currencySymbol: '$', decimals: 2 }),
-      status: revCol ? 'active' : 'needs_attention'
+      raw: (revCol && rawOrders > 0) ? rawAov : null,
+      formatted: (revCol && rawOrders > 0) ? formatKpiValue(rawAov, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
+      status: revCol ? 'active' : 'needs_attention',
+      warning: revCol ? undefined : 'Requires Revenue column'
     }
   };
 
@@ -510,26 +512,16 @@ export function generateMisReportData(
   }
 
   // 7. Data Quality & Governance
-  let nullCellCount = 0;
-  const totalCells = dataset.rowCount * (dataset.colCount || 1);
-
-  if (dataset.columnProfiles) {
-    Object.values(dataset.columnProfiles).forEach(p => {
-      nullCellCount += (p.nullCount || 0);
-    });
-  }
-
-  const missingPercent = totalCells > 0 ? (nullCellCount / totalCells) * 100 : 0;
-  const issuesCount = dataset.issues?.length || 0;
-  const healthScore = Math.max(0, Math.round(100 - (missingPercent * 2) - (issuesCount * 5)));
+  const healthSummary = calculateDatasetHealth(dataset);
+  const healthScore = healthSummary.score;
 
   const dataQuality: MisDataQualityInfo = {
     healthScore,
     totalRows: dataset.rowCount,
-    missingValuesCount: nullCellCount,
-    missingValuesPercent: missingPercent,
-    duplicateRowsCount: dataset.issues?.filter(i => i.type === 'duplicate_rows').reduce((a, b) => a + b.affectedRowCount, 0) || 0,
-    invalidDatesCount: dataset.issues?.filter(i => i.type === 'invalid_dates').reduce((a, b) => a + b.affectedRowCount, 0) || 0,
+    missingValuesCount: healthSummary.missingCells,
+    missingValuesPercent: healthSummary.missingCellsPercentage,
+    duplicateRowsCount: healthSummary.duplicateRows,
+    invalidDatesCount: healthSummary.issueBreakdown.invalidDatesCount,
     cleaningLogsCount: dataset.cleaningLogs?.length || 0,
     disclaimer: "Data Quality Disclaimer: Report results are based on the current cleaned dataset. Results may change if the dataset is updated or additional cleaning operations are applied."
   };

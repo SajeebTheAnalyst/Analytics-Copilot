@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { calculateDatasetHealth } from '@/lib/profiler';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -131,12 +132,7 @@ export function RightPanel({
   // Compute dataset health score for context header
   const healthScore = React.useMemo(() => {
     if (!activeDataset) return 100;
-    const colProfiles = Object.values(activeDataset.columnProfiles || {});
-    const nullCells = colProfiles.reduce((acc, p) => acc + (p.nullCount || 0), 0);
-    const totalCells = (activeDataset.rowCount || activeDataset.fullData?.length || 1) * (activeDataset.headers?.length || 1);
-    const missingPercent = totalCells > 0 ? (nullCells / totalCells) * 100 : 0;
-    const pendingIssues = (activeDataset.issues || []).filter(i => i.status === 'pending');
-    return Math.max(0, Math.round(100 - (missingPercent * 1.5 + pendingIssues.length * 5)));
+    return calculateDatasetHealth(activeDataset).score;
   }, [activeDataset]);
 
   // Scroll to bottom when messages change or drawer opens

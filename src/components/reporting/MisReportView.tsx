@@ -978,9 +978,11 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                     <thead className="bg-zinc-100 dark:bg-zinc-900 text-[10px] uppercase text-zinc-500 border-b">
                       <tr>
                         <th className="p-3 font-sans">Metric</th>
-                        <th className="p-3 text-right">Current Period ({reportData.varianceAnalysis.currentPeriodLabel})</th>
-                        <th className="p-3 text-right">Previous Period ({reportData.varianceAnalysis.previousPeriodLabel})</th>
-                        <th className="p-3 text-right">Variance ($ / Vol)</th>
+                        <th className="p-3 text-center">Current Period</th>
+                        <th className="p-3 text-center">Previous Period</th>
+                        <th className="p-3 text-right">Current Value</th>
+                        <th className="p-3 text-right">Previous Value</th>
+                        <th className="p-3 text-right">Variance</th>
                         <th className="p-3 text-right">Variance %</th>
                       </tr>
                     </thead>
@@ -988,6 +990,8 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                       {reportData.varianceAnalysis.items.map(item => (
                         <tr key={item.metricName} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                           <td className="p-3 font-semibold font-sans text-zinc-900 dark:text-zinc-100">{item.metricName}</td>
+                          <td className="p-3 text-center text-zinc-600 dark:text-zinc-400">{reportData.varianceAnalysis.currentPeriodLabel}</td>
+                          <td className="p-3 text-center text-zinc-600 dark:text-zinc-400">{reportData.varianceAnalysis.previousPeriodLabel}</td>
                           <td className="p-3 text-right font-bold text-zinc-900 dark:text-zinc-100">{item.formattedCurrent}</td>
                           <td className="p-3 text-right text-zinc-500">{item.formattedPrevious}</td>
                           <td className={cn("p-3 text-right font-bold", item.isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")}>

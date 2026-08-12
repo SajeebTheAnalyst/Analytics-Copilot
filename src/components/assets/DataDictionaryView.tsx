@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Dataset, KpiDefinition, Dashboard } from '@/types';
 import { getSavedKpis } from '@/lib/kpiStorage';
 import { getSavedMisReports, MisReportConfig } from '@/lib/misReportStorage';
+import { calculateDatasetHealth } from '@/lib/profiler';
 import { 
   getSavedColumnMetadata, 
   saveColumnMetadata, 
@@ -454,27 +455,27 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
   // Selected Dataset Metrics
   const datasetSummaryMetrics = useMemo(() => {
     if (activeDatasetObj) {
-      const colProfiles = Object.values(activeDatasetObj.columnProfiles || {});
-      const nullCells = colProfiles.reduce((acc, p) => acc + (p.nullCount || 0), 0);
-      const totalCells = activeDatasetObj.rowCount * (activeDatasetObj.colCount || 1);
-      const health = totalCells > 0 ? Math.max(0, Math.round(100 - ((nullCells / totalCells) * 100 * 2))) : 100;
+      const healthSummary = calculateDatasetHealth(activeDatasetObj);
 
       return {
         name: activeDatasetObj.name,
         rows: activeDatasetObj.rowCount,
         cols: activeDatasetObj.colCount || activeDatasetObj.headers.length,
         fileType: activeDatasetObj.type.toUpperCase(),
-        health
+        health: healthSummary.score
       };
     } else {
       const totalRows = datasets.reduce((acc, d) => acc + d.rowCount, 0);
       const totalCols = allDictionaryColumns.length;
+      const avgHealth = datasets.length > 0
+        ? Math.round(datasets.reduce((acc, d) => acc + calculateDatasetHealth(d).score, 0) / datasets.length)
+        : 100;
       return {
         name: `All Datasets (${datasets.length})`,
         rows: totalRows,
         cols: totalCols,
         fileType: 'WORKSPACE',
-        health: datasets.length > 0 ? 95 : 0
+        health: avgHealth
       };
     }
   }, [activeDatasetObj, datasets, allDictionaryColumns]);

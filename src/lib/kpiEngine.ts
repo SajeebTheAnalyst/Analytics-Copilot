@@ -267,7 +267,7 @@ export function evaluateFormulaTokens(
  */
 export function formatKpiValue(val: number | null, config: KpiFormatConfig): string {
   if (val === null || val === undefined || isNaN(val) || !isFinite(val)) {
-    return 'N/A';
+    return 'Needs Attention';
   }
 
   const symbol = config.currencySymbol || '$';
@@ -357,7 +357,7 @@ export function evaluateKpi(
   if (!dataset) {
     return {
       rawResult: null,
-      formattedResult: 'N/A',
+      formattedResult: 'Needs Attention',
       status: 'needs_attention',
       statusReason: `Target dataset ID '${kpi.datasetId}' is not loaded`,
       rowCountEvaluated: 0,
@@ -373,30 +373,30 @@ export function evaluateKpi(
   const availableHeaders = new Set(dataset.headers || []);
 
   if (kpi.metricType === 'simple') {
-    if (kpi.aggregation !== 'count' && kpi.column && !availableHeaders.has(kpi.column)) {
+    if (kpi.aggregation !== 'count' && (!kpi.column || !availableHeaders.has(kpi.column))) {
       return {
         rawResult: null,
-        formattedResult: 'N/A',
+        formattedResult: 'Needs Attention',
         status: 'needs_attention',
-        statusReason: `Column '${kpi.column}' missing in dataset '${dataset.name}'`,
+        statusReason: `Column '${kpi.column || '(unspecified)'}' missing in dataset '${dataset.name}'`,
         rowCountEvaluated: 0,
         executionTimeMs: performance.now() - startTime,
-        errors: [`Column '${kpi.column}' missing`],
+        errors: [`Column '${kpi.column || '(unspecified)'}' missing`],
         warnings,
         formulaSummary,
       };
     }
   } else if (kpi.metricType === 'calculated' && kpi.formulaTokens) {
     for (const t of kpi.formulaTokens) {
-      if (t.type === 'term' && t.column && !availableHeaders.has(t.column) && t.aggregation !== 'count') {
+      if (t.type === 'term' && t.aggregation !== 'count' && (!t.column || !availableHeaders.has(t.column))) {
         return {
           rawResult: null,
-          formattedResult: 'N/A',
+          formattedResult: 'Needs Attention',
           status: 'needs_attention',
-          statusReason: `Referenced column '${t.column}' missing in dataset`,
+          statusReason: `Referenced column '${t.column || '(unspecified)'}' missing in dataset`,
           rowCountEvaluated: 0,
           executionTimeMs: performance.now() - startTime,
-          errors: [`Referenced column '${t.column}' missing`],
+          errors: [`Referenced column '${t.column || '(unspecified)'}' missing`],
           warnings,
           formulaSummary,
         };
@@ -507,14 +507,23 @@ export function validateKpiDefinition(
   };
 }
 
+function findBestHeader(headers: string[], candidates: string[]): string | undefined {
+  const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+  for (const cand of candidates) {
+    const idx = lowerHeaders.findIndex(h => h === cand || h.includes(cand));
+    if (idx !== -1) return headers[idx];
+  }
+  return undefined;
+}
+
 /**
  * Generate standard pre-defined KPIs for a dataset
  */
 export function seedStandardKpis(datasetId: string, datasetName: string, headers: string[] = []): KpiDefinition[] {
-  const hasRev = headers.includes('Revenue');
-  const hasProfit = headers.includes('Profit');
-  const hasCust = headers.includes('Customer');
-  const hasOrder = headers.includes('Order ID');
+  const revCol = findBestHeader(headers, ['revenue', 'sales', 'amount', 'total_amount', 'grand_total', 'price']);
+  const profitCol = findBestHeader(headers, ['profit', 'margin', 'net_profit', 'gain', 'earnings']);
+  const custCol = findBestHeader(headers, ['customer', 'customer_name', 'client', 'user']);
+  const orderCol = findBestHeader(headers, ['order id', 'order_id', 'transaction_id', 'invoice_id', 'id']);
 
   const now = Date.now();
 
@@ -526,11 +535,11 @@ export function seedStandardKpis(datasetId: string, datasetName: string, headers
       datasetId,
       datasetName,
       metricType: 'simple',
-      column: hasRev ? 'Revenue' : headers.find((h) => h.toLowerCase().includes('rev')) || headers[0],
+      column: revCol || '',
       aggregation: 'sum',
       filters: [],
       format: { type: 'currency', currencySymbol: '$', decimals: 2, useThousandsSeparator: true, compactNotation: false },
-      status: 'active',
+      status: revCol ? 'active' : 'needs_attention',
       createdAt: now,
       updatedAt: now,
     },
@@ -541,11 +550,11 @@ export function seedStandardKpis(datasetId: string, datasetName: string, headers
       datasetId,
       datasetName,
       metricType: 'simple',
-      column: hasProfit ? 'Profit' : headers.find((h) => h.toLowerCase().includes('profit')) || headers[0],
+      column: profitCol || '',
       aggregation: 'sum',
       filters: [],
       format: { type: 'currency', currencySymbol: '$', decimals: 2, useThousandsSeparator: true, compactNotation: false },
-      status: 'active',
+      status: profitCol ? 'active' : 'needs_attention',
       createdAt: now,
       updatedAt: now,
     },
@@ -556,7 +565,7 @@ export function seedStandardKpis(datasetId: string, datasetName: string, headers
       datasetId,
       datasetName,
       metricType: 'simple',
-      column: hasOrder ? 'Order ID' : headers[0],
+      column: orderCol || headers[0] || '',
       aggregation: 'count',
       filters: [],
       format: { type: 'number', decimals: 0, useThousandsSeparator: true, compactNotation: false },
@@ -571,11 +580,11 @@ export function seedStandardKpis(datasetId: string, datasetName: string, headers
       datasetId,
       datasetName,
       metricType: 'simple',
-      column: hasCust ? 'Customer' : headers[0],
+      column: custCol || '',
       aggregation: 'distinct_count',
       filters: [],
       format: { type: 'number', decimals: 0, useThousandsSeparator: true, compactNotation: false },
-      status: 'active',
+      status: custCol ? 'active' : 'needs_attention',
       createdAt: now,
       updatedAt: now,
     },
@@ -586,11 +595,11 @@ export function seedStandardKpis(datasetId: string, datasetName: string, headers
       datasetId,
       datasetName,
       metricType: 'simple',
-      column: hasRev ? 'Revenue' : headers[0],
+      column: revCol || '',
       aggregation: 'avg',
       filters: [],
       format: { type: 'currency', currencySymbol: '$', decimals: 2, useThousandsSeparator: true, compactNotation: false },
-      status: 'active',
+      status: revCol ? 'active' : 'needs_attention',
       createdAt: now,
       updatedAt: now,
     },
@@ -602,13 +611,13 @@ export function seedStandardKpis(datasetId: string, datasetName: string, headers
       datasetName,
       metricType: 'calculated',
       formulaTokens: [
-        { id: 't1', type: 'term', aggregation: 'sum', column: hasProfit ? 'Profit' : headers[0] },
+        { id: 't1', type: 'term', aggregation: 'sum', column: profitCol || '' },
         { id: 't2', type: 'operator', operator: '/' },
-        { id: 't3', type: 'term', aggregation: 'sum', column: hasRev ? 'Revenue' : headers[0] },
+        { id: 't3', type: 'term', aggregation: 'sum', column: revCol || '' },
       ],
       filters: [],
       format: { type: 'percentage', decimals: 1, useThousandsSeparator: true, compactNotation: false },
-      status: 'active',
+      status: (profitCol && revCol) ? 'active' : 'needs_attention',
       createdAt: now,
       updatedAt: now,
     },
@@ -620,13 +629,13 @@ export function seedStandardKpis(datasetId: string, datasetName: string, headers
       datasetName,
       metricType: 'calculated',
       formulaTokens: [
-        { id: 't1', type: 'term', aggregation: 'sum', column: hasRev ? 'Revenue' : headers[0] },
+        { id: 't1', type: 'term', aggregation: 'sum', column: revCol || '' },
         { id: 't2', type: 'operator', operator: '/' },
-        { id: 't3', type: 'term', aggregation: 'distinct_count', column: hasCust ? 'Customer' : headers[0] },
+        { id: 't3', type: 'term', aggregation: 'distinct_count', column: custCol || '' },
       ],
       filters: [],
       format: { type: 'currency', currencySymbol: '$', decimals: 2, useThousandsSeparator: true, compactNotation: false },
-      status: 'active',
+      status: (revCol && custCol) ? 'active' : 'needs_attention',
       createdAt: now,
       updatedAt: now,
     },

@@ -16,6 +16,7 @@ import {
 import { Button } from '../ui/button';
 import { ViewState, Dataset } from '@/types';
 import { cn } from '@/lib/utils';
+import { calculateDatasetHealth } from '@/lib/profiler';
 
 interface TopNavProps {
   currentView: ViewState;
@@ -41,18 +42,28 @@ export function TopNav({
   const [showAbout, setShowAbout] = useState(false);
   const [showDatasetDropdown, setShowDatasetDropdown] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    } else if (saved === 'light') {
-      document.documentElement.classList.remove('dark');
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'dark') return 'dark';
+      if (saved === 'light') return 'light';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
-  }, []);
+    return 'dark';
+  });
+
+  useEffect(() => {
+    if (themeMode === 'dark') {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [themeMode]);
 
   const toggleTheme = () => {
-    const isDark = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    setThemeMode(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
@@ -92,18 +103,29 @@ export function TopNav({
             >
               <Database className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               {selectedDataset ? (
-                <div className="flex items-center gap-2 min-w-0 max-w-[180px] sm:max-w-[240px]">
-                  <span className="truncate font-semibold text-xs">{selectedDataset.name}</span>
-                  <span className="text-[10px] font-mono text-zinc-400 bg-zinc-200/60 dark:bg-zinc-800 px-1 rounded shrink-0">
-                    {selectedDataset.rowCount.toLocaleString()} r
-                  </span>
-                  {selectedDataset.cleaningStatus === 'cleaned' && (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                  )}
-                  {selectedDataset.cleaningStatus === 'issues-found' && (
-                    <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
-                  )}
-                </div>
+                (() => {
+                  const health = calculateDatasetHealth(selectedDataset);
+                  const cols = selectedDataset.headers.length;
+                  return (
+                    <div className="flex items-center gap-1.5 min-w-0 max-w-[280px] sm:max-w-[420px]">
+                      <span className="truncate font-bold text-xs text-zinc-900 dark:text-zinc-100">{selectedDataset.name}</span>
+                      <span className="text-[10px] font-mono font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
+                        {selectedDataset.rowCount.toLocaleString()} rows
+                      </span>
+                      <span className="text-[10px] font-mono font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
+                        {cols} cols
+                      </span>
+                      <span className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0",
+                        health.score >= 90 ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
+                        health.score >= 70 ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400" :
+                        "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                      )}>
+                        {health.score}% Health
+                      </span>
+                    </div>
+                  );
+                })()
               ) : (
                 <span className="font-medium text-xs">No active dataset selected</span>
               )}

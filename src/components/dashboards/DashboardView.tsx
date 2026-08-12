@@ -7,7 +7,8 @@ import { generateDemoDashboard } from '@/lib/dashboardStorage';
 import { getSavedKpis } from '@/lib/kpiStorage';
 import { 
   LayoutDashboard, Plus, Trash2, Edit3, Settings, Filter, FileText, Check, X, 
-  Eye, Edit2, Copy, Sparkles, Layers, ArrowUp, ArrowDown, Move, AlertCircle, Save, Calendar, RefreshCw
+  Eye, Edit2, Copy, Sparkles, Layers, ArrowUp, ArrowDown, Move, AlertCircle, Save, Calendar, RefreshCw,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,7 @@ export function DashboardView({
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [showFilterBar, setShowFilterBar] = useState(true);
   const [savedKpis, setSavedKpis] = useState<KpiDefinition[]>([]);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   
   // Dashboard Title Editing State
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -186,6 +188,12 @@ export function DashboardView({
   const handleResizeWidget = (widgetId: string, gridSpan: number) => {
     if (!currentDash) return;
     const updated = currentDash.widgets.map(w => w.id === widgetId ? { ...w, gridSpan } : w);
+    onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
+  };
+
+  const handleUpdateWidget = (widgetId: string, updatedConfig: Partial<any>) => {
+    if (!currentDash) return;
+    const updated = currentDash.widgets.map(w => w.id === widgetId ? { ...w, ...updatedConfig } : w);
     onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
   };
 
@@ -433,58 +441,75 @@ export function DashboardView({
 
       {/* GLOBAL FILTER BAR */}
       {currentDash && (
-        <div className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 px-6 py-2.5 flex flex-wrap items-center gap-3 shrink-0">
-          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-blue-600" />
-            Global Dashboard Filters:
-          </span>
-
-          {categoricalCols.length === 0 ? (
-            <span className="text-xs text-zinc-400 italic">No filterable columns in current dataset.</span>
-          ) : (
-            categoricalCols.slice(0, 6).map(col => {
-              const sourceRows = primaryDataset?.fullData || primaryDataset?.data || [];
-              const uniqueVals = Array.from(new Set(sourceRows.map(r => r[col]).filter(v => v !== null && v !== undefined && v !== ''))).slice(0, 40);
-              const activeFilter = currentDash.filters.find(f => f.column === col);
-
-              return (
-                <div key={col} className="flex items-center gap-1.5">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    {col}:
-                  </label>
-                  <select
-                    value={activeFilter?.value ?? 'all'}
-                    onChange={(e) => handleGlobalFilterChange(col, e.target.value)}
-                    className={cn(
-                      "text-xs border rounded-md px-2 py-0.5 font-medium transition-all focus:outline-none focus:ring-1 focus:ring-blue-500",
-                      activeFilter 
-                        ? "bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300" 
-                        : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
-                    )}
-                  >
-                    <option value="all">All</option>
-                    {uniqueVals.map(val => (
-                      <option key={String(val)} value={String(val)}>{String(val)}</option>
-                    ))}
-                  </select>
-                </div>
-              );
-            })
-          )}
-
-          {currentDash.filters.length > 0 && (
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                {currentDash.filters.length} Filter{currentDash.filters.length > 1 ? 's' : ''} Active
+        <div className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 px-6 py-2.5 flex flex-col gap-2 shrink-0 transition-all">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-blue-600" />
+                Global Dashboard Filters
               </span>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={handleClearAllFilters}
-                className="text-xs text-red-500 hover:text-red-600"
+                onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+                className="text-xs font-semibold bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 h-7 px-2.5 flex items-center gap-1"
               >
-                Clear Filters
+                <span>Filters ({currentDash.filters.length})</span>
+                {isFiltersExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </Button>
+            </div>
+
+            {currentDash.filters.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                  {currentDash.filters.length} Filter{currentDash.filters.length > 1 ? 's' : ''} Active
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearAllFilters}
+                  className="text-xs h-7 text-red-500 hover:text-red-600 font-medium px-2"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {isFiltersExpanded && (
+            <div className="flex flex-wrap items-center gap-3.5 pt-2 border-t border-zinc-100 dark:border-zinc-900">
+              {categoricalCols.length === 0 ? (
+                <span className="text-xs text-zinc-400 italic">No filterable columns in current dataset.</span>
+              ) : (
+                categoricalCols.slice(0, 6).map(col => {
+                  const sourceRows = primaryDataset?.fullData || primaryDataset?.data || [];
+                  const uniqueVals = Array.from(new Set(sourceRows.map(r => r[col]).filter(v => v !== null && v !== undefined && v !== ''))).slice(0, 40);
+                  const activeFilter = currentDash.filters.find(f => f.column === col);
+
+                  return (
+                    <div key={col} className="flex items-center gap-1.5 min-w-[140px]">
+                      <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
+                        {col}:
+                      </label>
+                      <select
+                        value={activeFilter?.value ?? 'all'}
+                        onChange={(e) => handleGlobalFilterChange(col, e.target.value)}
+                        className={cn(
+                          "text-xs border rounded-md px-2 py-1 font-medium transition-all focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-[120px]",
+                          activeFilter 
+                            ? "bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-bold" 
+                            : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
+                        )}
+                      >
+                        <option value="all">All</option>
+                        {uniqueVals.map(val => (
+                          <option key={String(val)} value={String(val)}>{String(val)}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </div>
@@ -681,6 +706,7 @@ export function DashboardView({
                       filters={currentDash.filters}
                       savedKpis={savedKpis}
                       onDataPointClick={handleCrossFilterClick}
+                      onUpdateWidget={(updatedConfig) => handleUpdateWidget(widget.id, updatedConfig)}
                     />
                   </div>
                 </div>
