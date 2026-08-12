@@ -125,7 +125,7 @@ export function DatasetManager({
   const isCleaned = activeDataset.cleaningStatus === 'cleaned';
 
   return (
-    <div className="flex-1 min-w-0 min-h-0 bg-transparent p-6 lg:p-8 pb-24 lg:pb-32 overflow-y-auto custom-scrollbar space-y-6">
+    <div className="min-w-0 bg-transparent p-6 lg:p-8 pb-24 lg:pb-32 space-y-6">
       
       {/* Page Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800 pb-5">

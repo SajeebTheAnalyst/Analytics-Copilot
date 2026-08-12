@@ -248,7 +248,7 @@ export default function App() {
           />
 
           {/* Main View Router Container */}
-          <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-transparent">
+          <main className="flex-1 overflow-y-auto custom-scrollbar bg-transparent relative">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentView}
@@ -256,7 +256,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="flex-1 flex flex-col min-w-0 min-h-0"
+                className="min-h-full flex flex-col"
               >
                 {currentView === 'data-manager' ? (
                   <DatasetManager 

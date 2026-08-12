@@ -481,7 +481,7 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
   }, [activeDatasetObj, datasets, allDictionaryColumns]);
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-transparent p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-6">
+    <div className="flex-1 flex flex-col min-w-0 bg-transparent p-4 sm:p-6 space-y-6">
       
       {/* PAGE HEADER */}
       <div className="glass-panel p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">

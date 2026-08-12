@@ -242,7 +242,7 @@ export function CleaningView({
   }, [selectedDataset, outlierCol]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-zinc-50 dark:bg-[#08080a] overflow-hidden text-zinc-900 dark:text-zinc-100">
+    <div className="flex-1 flex flex-col min-h-0 bg-zinc-50 dark:bg-[#08080a] text-zinc-900 dark:text-zinc-100 pb-20">
       
       {/* ================================================== */}
       {/* 1. TOP HEADER & HEALTH SUMMARY                     */}
@@ -360,12 +360,12 @@ export function CleaningView({
       {/* ================================================== */}
       {/* MAIN WORKSPACE BODY (3-Area Layout)                */}
       {/* ================================================== */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex min-h-0">
         
         {/* -------------------------------------------------- */}
         {/* LEFT PANEL: Quality Issues & Cleaning Tools       */}
         {/* -------------------------------------------------- */}
-        <div className="w-80 glass-panel border-l-0 border-t-0 border-b-0 flex flex-col shrink-0 overflow-hidden">
+        <div className="w-80 glass-panel border-l-0 border-t-0 border-b-0 flex flex-col shrink-0">
           
           {/* Left Panel Tabs */}
           <div className="p-2 border-b border-zinc-200/50 dark:border-zinc-800/50 flex gap-1.5 bg-zinc-50/20 dark:bg-[#0c0d12]/20">
@@ -891,7 +891,7 @@ export function CleaningView({
         {/* -------------------------------------------------- */}
         {/* MAIN AREA: Live Data Preview & Cell Highlighting   */}
         {/* -------------------------------------------------- */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <div className="flex-1 flex flex-col bg-transparent">
           
           {/* Active Preview Action Banner */}
           {previewResult && (

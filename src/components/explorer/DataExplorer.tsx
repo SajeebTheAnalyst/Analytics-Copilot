@@ -213,7 +213,7 @@ export function DataExplorer({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0c0c0e] overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-[#0c0c0e]">
       {/* 1. Explorer Header */}
       <ExplorerHeader
         dataset={dataset}
@@ -298,7 +298,7 @@ export function DataExplorer({
       />
 
       {/* 6. Main Data Grid Toolbar & Table Container */}
-      <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 relative">
         {/* Table Header Bar */}
         <div className="p-3 glass-panel border-l-0 border-r-0 border-t-0 flex items-center justify-between shrink-0 gap-4">
           {/* Global Search Input */}
@@ -352,7 +352,7 @@ export function DataExplorer({
         </div>
 
         {/* Table Body Area */}
-        <div className="flex-1 overflow-auto custom-scrollbar relative">
+        <div className="overflow-x-auto custom-scrollbar relative">
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
             <thead className="sticky top-0 z-10 glass-panel shadow-3xs border-b border-zinc-200/80 dark:border-zinc-800">
               <tr>

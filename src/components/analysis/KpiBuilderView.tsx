@@ -453,7 +453,7 @@ export function KpiBuilderView({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-transparent h-full overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0 bg-transparent">
       {/* 1. Page Header */}
       <div className="p-6 glass-panel border-b-0 shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -611,7 +611,7 @@ export function KpiBuilderView({
       </div>
 
       {/* 4. KPI Library Table / List Workspace */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+      <div className="flex-1 p-6">
         {filteredLibraryKpis.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-zinc-200/50 dark:border-zinc-800/50 rounded-2xl glass-panel">
             <Calculator className="w-10 h-10 text-zinc-300 dark:text-zinc-700 mb-3" />

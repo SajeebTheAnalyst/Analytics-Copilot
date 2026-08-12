@@ -293,7 +293,7 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
     .map(([col]) => col) : [];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
+    <div className="flex-1 flex flex-col bg-transparent">
       
       {/* CONTROL & ACTION HEADER (Hidden during Print) */}
       <div className="no-print glass-panel border-b-0 p-4 shrink-0 flex flex-col gap-4 z-10">
@@ -546,7 +546,7 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
       )}
 
       {/* REPORT SCROLLABLE BODY */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
+      <div className="flex-1 p-4 sm:p-8">
         {!reportData ? (
           <div className="flex flex-col items-center justify-center p-12 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-950 max-w-lg mx-auto my-12">
             <FileText className="w-10 h-10 text-zinc-400 mb-3" />

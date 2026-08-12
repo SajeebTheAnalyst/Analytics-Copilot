@@ -119,7 +119,7 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
+    <div className="flex-1 flex flex-col bg-transparent">
       {/* Canvas */}
       <div className="flex-1 relative overflow-hidden flex"
         ref={containerRef}

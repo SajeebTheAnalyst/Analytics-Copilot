@@ -246,7 +246,7 @@ export function DashboardView({
     .map(([col]) => col) : [];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
+    <div className="flex-1 flex flex-col bg-transparent pb-20">
       
       {/* PAGE HEADER */}
       <div className="glass-panel border-b-0 p-4 sm:p-6 shrink-0 space-y-4 shadow-sm z-10">
@@ -536,7 +536,7 @@ export function DashboardView({
       )}
 
       {/* DASHBOARD GRID CONTENT */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+      <div className="p-4 sm:p-6">
         {!currentDash || currentDash.widgets.length === 0 ? (
           
           /* EMPTY DASHBOARD STATE */
