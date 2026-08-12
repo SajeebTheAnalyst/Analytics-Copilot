@@ -93,7 +93,7 @@ export function Sidebar({
   ];
 
   return (
-    <aside className="w-64 border-r border-zinc-200/85 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-[#07080b]/90 backdrop-blur-md hidden md:flex flex-col shrink-0 overflow-hidden select-none">
+    <aside className="w-64 glass-panel border-r-0 border-t-0 border-b-0 hidden md:flex flex-col shrink-0 overflow-hidden select-none z-10 shadow-[2px_0_12px_rgba(0,0,0,0.02)] dark:shadow-[2px_0_20px_rgba(0,0,0,0.2)]">
       <div className="p-3.5 flex-1 overflow-y-auto custom-scrollbar space-y-5">
         
         {navGroups.map((group, idx) => (
@@ -118,10 +118,10 @@ export function Sidebar({
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-250 text-left group relative overflow-hidden",
                     isActive
-                      ? "bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 font-semibold shadow-[0_2px_8px_-2px_rgba(37,99,235,0.08),0_1px_3px_-1px_rgba(37,99,235,0.04)] border border-zinc-200/60 dark:border-zinc-800/80 scale-[1.01]"
+                      ? "bg-blue-50/80 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-bold shadow-[0_2px_10px_-2px_rgba(37,99,235,0.1)] border border-blue-200/50 dark:border-blue-800/50 scale-[1.02]"
                       : item.isAction && isCopilotOpen
                       ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold border border-blue-100 dark:border-blue-900/30 scale-[1.01]"
-                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/60 hover:text-zinc-900 dark:hover:text-zinc-200 border border-transparent hover:border-zinc-200/40 dark:hover:border-zinc-850/40 hover:pl-3.5"
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-zinc-100 border border-transparent hover:border-zinc-200/50 dark:hover:border-zinc-700/50 hover:pl-4 hover:shadow-sm"
                   )}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 z-10">

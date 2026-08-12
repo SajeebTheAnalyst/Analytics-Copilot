@@ -92,7 +92,7 @@ export function DatasetManager({
   // If no datasets exist in workspace
   if (!activeDataset || datasets.length === 0) {
     return (
-      <div className="flex-1 flex flex-col p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-zinc-50/50 dark:bg-[#050505] ambient-bg justify-center">
+      <div className="flex-1 flex flex-col p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-transparent justify-center">
         <div className="max-w-4xl mx-auto w-full space-y-6 py-8">
           {/* Header */}
           <div className="text-center space-y-2">
@@ -125,7 +125,7 @@ export function DatasetManager({
   const isCleaned = activeDataset.cleaningStatus === 'cleaned';
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505] p-6 lg:p-8 overflow-y-auto custom-scrollbar space-y-6">
+    <div className="flex-1 flex flex-col min-w-0 bg-transparent p-6 lg:p-8 overflow-y-auto custom-scrollbar space-y-6">
       
       {/* Page Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800 pb-5">
@@ -148,7 +148,7 @@ export function DatasetManager({
           <Button 
             variant="outline" 
             size="sm" 
-            className="text-xs h-8.5 border-zinc-250 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-semibold cursor-pointer"
+            className="text-xs h-8.5 border-zinc-250 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-semibold cursor-pointer hover-elevate"
             onClick={() => setShowImportBox(!showImportBox)}
           >
             {showImportBox ? "Hide Upload Form" : "Import New Dataset"}
@@ -158,7 +158,7 @@ export function DatasetManager({
           <Button 
             variant="outline" 
             size="sm" 
-            className="text-xs h-8.5 text-zinc-800 dark:text-zinc-200 border-zinc-250 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-900 gap-1.5 font-bold cursor-pointer transition-all hover:-translate-y-0.25 shadow-2xs"
+            className="text-xs h-8.5 text-zinc-800 dark:text-zinc-200 border-zinc-250 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-900 gap-1.5 font-bold cursor-pointer transition-all hover-elevate shadow-2xs"
             onClick={() => onNavigateView('explorer')}
           >
             <Table className="w-3.5 h-3.5 text-blue-500" />
@@ -167,7 +167,7 @@ export function DatasetManager({
 
           <Button 
             size="sm" 
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8.5 gap-1.5 font-bold cursor-pointer transition-all hover:-translate-y-0.25 shadow-2xs"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8.5 gap-1.5 font-bold cursor-pointer transition-all hover-elevate shadow-2xs"
             onClick={() => onNavigateView('cleaning')}
           >
             <span>Proceed to Data Cleaning →</span>
@@ -177,7 +177,7 @@ export function DatasetManager({
 
       {/* Optional Collapsible Import Form */}
       {showImportBox && (
-        <div className="p-5 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-zinc-200/80 dark:border-zinc-800 rounded-xl shadow-xs animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="p-5 glass-panel rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
           <DataUploader onDatasetsImported={(newDs) => {
             onImport(newDs);
             setShowImportBox(false);
@@ -186,7 +186,7 @@ export function DatasetManager({
       )}
 
       {/* 1. Dataset Information Card */}
-      <div className="glass-panel rounded-xl p-5 shadow-2xs transition-all duration-300 hover:shadow-xs hover:-translate-y-0.25">
+      <div className="glass-panel glass-card rounded-xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-5">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-11 h-11 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 shadow-3xs">
@@ -238,7 +238,7 @@ export function DatasetManager({
           { label: 'Missing Cells', value: health.missingCells.toLocaleString(), desc: `${health.missingCellsPercentage}% of total cells` },
           { label: 'Duplicate Rows', value: health.duplicateRows.toLocaleString(), desc: `${health.duplicateRowsPercentage}% exact matches` },
         ].map((kpi, idx) => (
-          <div key={idx} className="glass-panel rounded-xl p-4.5 shadow-3xs transition-all duration-300 hover:shadow-xs hover:-translate-y-0.5 hover:border-zinc-300/80 dark:hover:border-zinc-700/80">
+          <div key={idx} className="glass-panel glass-card rounded-xl p-4.5">
             <span className="text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block">{kpi.label}</span>
             <p className="text-xl lg:text-2xl font-extrabold font-mono text-zinc-900 dark:text-zinc-50 mt-1.5 leading-none">
               {kpi.value}
@@ -247,7 +247,7 @@ export function DatasetManager({
           </div>
         ))}
 
-        <div className="glass-panel rounded-xl p-4.5 shadow-3xs transition-all duration-300 hover:shadow-xs hover:-translate-y-0.5 hover:border-zinc-300/80 dark:hover:border-zinc-700/80 col-span-2 md:col-span-1">
+        <div className="glass-panel glass-card rounded-xl p-4.5 col-span-2 md:col-span-1">
           <span className="text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block">Health Score</span>
           <div className="flex items-baseline gap-1.5 mt-1.5 leading-none">
             <span className={cn(
@@ -265,7 +265,7 @@ export function DatasetManager({
       </div>
 
       {/* 3. Data Health Assessment */}
-      <div className="glass-panel rounded-xl p-5 space-y-4 shadow-3xs transition-all duration-300 hover:shadow-xs">
+      <div className="glass-panel glass-card rounded-xl p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-3">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-blue-500" />
@@ -313,7 +313,7 @@ export function DatasetManager({
       </div>
 
       {/* 4. Column Profiling Table */}
-      <div className="glass-panel rounded-xl overflow-hidden shadow-2xs transition-all duration-300 hover:shadow-xs">
+      <div className="glass-panel glass-card rounded-xl overflow-hidden">
         <div className="p-4.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center justify-between">
           <div>
             <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50">Column Schema & Profiling</h3>
@@ -397,7 +397,7 @@ export function DatasetManager({
 
       {/* 5. Recent Workspace Datasets */}
       {datasets.length > 1 && (
-        <div className="glass-panel rounded-xl p-5 space-y-4 shadow-3xs transition-all duration-300 hover:shadow-xs">
+        <div className="glass-panel glass-card rounded-xl p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-3">
             <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50 flex items-center gap-2">
               <Layers className="w-4 h-4 text-blue-500" />
@@ -416,10 +416,10 @@ export function DatasetManager({
                   key={dataset.id}
                   onClick={() => onSelectDataset(dataset.id)}
                   className={cn(
-                    "p-3.5 rounded-xl border text-xs transition-all cursor-pointer flex items-center justify-between group shadow-3xs hover:-translate-y-0.25",
+                    "p-3.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between group glass-card",
                     isActive 
-                      ? "bg-blue-50/70 dark:bg-blue-950/30 border-blue-500/80 hover:border-blue-500 shadow-2xs" 
-                      : "bg-zinc-50/50 dark:bg-zinc-950/40 border-zinc-200 dark:border-zinc-800 hover:border-zinc-350 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30"
+                      ? "bg-blue-50/70 dark:bg-blue-950/30 border border-blue-500/80 shadow-2xs" 
+                      : "bg-white/40 dark:bg-zinc-900/30 border border-zinc-200/70 dark:border-zinc-800/75 hover:bg-white dark:hover:bg-zinc-900"
                   )}
                 >
                   <div className="min-w-0 pr-2">

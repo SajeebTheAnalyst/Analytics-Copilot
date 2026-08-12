@@ -227,7 +227,7 @@ export function DataExplorer({
       />
 
       {/* 2. Analytical Summary Bar */}
-      <div className="bg-[#f8fafc]/90 dark:bg-[#090a10]/85 backdrop-blur-md border-b border-zinc-200/80 dark:border-zinc-800/80 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-600 dark:text-zinc-450 shrink-0">
+      <div className="glass-panel px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-600 dark:text-zinc-450 shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1">
             Rows: <span className="font-mono">{dataset.rowCount.toLocaleString()}</span>
@@ -300,7 +300,7 @@ export function DataExplorer({
       {/* 6. Main Data Grid Toolbar & Table Container */}
       <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
         {/* Table Header Bar */}
-        <div className="p-3 bg-white dark:bg-[#0c0c0e] border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 gap-4">
+        <div className="p-3 glass-panel border-l-0 border-r-0 border-t-0 flex items-center justify-between shrink-0 gap-4">
           {/* Global Search Input */}
           <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -354,7 +354,7 @@ export function DataExplorer({
         {/* Table Body Area */}
         <div className="flex-1 overflow-auto custom-scrollbar relative">
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
-            <thead className="sticky top-0 z-10 bg-zinc-100/95 dark:bg-[#0b0c11]/95 backdrop-blur-xs shadow-3xs border-b border-zinc-200/80 dark:border-zinc-800">
+            <thead className="sticky top-0 z-10 glass-panel shadow-3xs border-b border-zinc-200/80 dark:border-zinc-800">
               <tr>
                 <th className="w-12 px-3 py-3 text-zinc-500 font-bold text-center border-r border-zinc-200 dark:border-zinc-800">
                   #
@@ -479,7 +479,7 @@ export function DataExplorer({
         </div>
 
         {/* Table Pagination Bar */}
-        <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0c0c0e] flex items-center justify-between shrink-0 text-xs text-zinc-500">
+        <div className="p-3 glass-panel border-l-0 border-r-0 border-b-0 flex items-center justify-between shrink-0 text-xs text-zinc-500">
           <div>
             Showing{' '}
             <strong className="text-zinc-800 dark:text-zinc-200">

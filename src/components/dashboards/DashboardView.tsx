@@ -246,10 +246,10 @@ export function DashboardView({
     .map(([col]) => col) : [];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-50/50 dark:bg-[#050505]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
       
       {/* PAGE HEADER */}
-      <div className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 shrink-0 space-y-4">
+      <div className="glass-panel border-b-0 p-4 sm:p-6 shrink-0 space-y-4 shadow-sm z-10">
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
@@ -441,7 +441,7 @@ export function DashboardView({
 
       {/* GLOBAL FILTER BAR */}
       {currentDash && (
-        <div className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 px-6 py-2.5 flex flex-col gap-2 shrink-0 transition-all">
+        <div className="glass-panel border-t-0 border-r-0 border-l-0 px-6 py-2.5 flex flex-col gap-2 shrink-0 transition-all z-10">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
@@ -540,7 +540,7 @@ export function DashboardView({
         {!currentDash || currentDash.widgets.length === 0 ? (
           
           /* EMPTY DASHBOARD STATE */
-          <div className="max-w-xl mx-auto my-12 p-8 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl bg-white dark:bg-zinc-950 text-center space-y-4 shadow-xs">
+          <div className="max-w-xl mx-auto my-12 p-8 glass-panel glass-card border-dashed border-2 rounded-3xl text-center space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
               <LayoutDashboard className="w-6 h-6" />
             </div>
@@ -586,8 +586,8 @@ export function DashboardView({
                 <div
                   key={widget.id}
                   className={cn(
-                    "bg-white dark:bg-zinc-950 border rounded-2xl shadow-xs p-5 flex flex-col justify-between group relative transition-all",
-                    mode === 'build' ? "border-blue-200 dark:border-blue-900/60 ring-1 ring-blue-500/10" : "border-zinc-200 dark:border-zinc-800",
+                    "glass-panel glass-card p-5 flex flex-col justify-between group relative transition-all",
+                    mode === 'build' ? "border-blue-200 dark:border-blue-900/60 ring-1 ring-blue-500/10" : "border-zinc-200/50 dark:border-zinc-800/50",
                     spanClass,
                     cardHeight
                   )}

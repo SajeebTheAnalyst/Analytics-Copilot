@@ -69,9 +69,9 @@ export function GroupAndAnalyzePanel({
   }, [analysisResult]);
 
   return (
-    <div className="bg-white dark:bg-[#0c0c0e] border-b border-zinc-200 dark:border-zinc-800 shrink-0 transition-all">
+    <div className="glass-panel border-l-0 border-r-0 border-t-0 shrink-0 transition-all z-10">
       {/* Panel Header */}
-      <div className="px-6 py-2.5 bg-zinc-50/80 dark:bg-zinc-900/40 flex items-center justify-between border-b border-zinc-200/80 dark:border-zinc-800">
+      <div className="px-6 py-2.5 bg-zinc-50/20 dark:bg-zinc-900/20 flex items-center justify-between border-b border-zinc-200/50 dark:border-zinc-800/50">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-blue-500" />
           <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
@@ -124,7 +124,7 @@ export function GroupAndAnalyzePanel({
       {isExpanded && (
         <div className="p-4 space-y-4">
           {/* Controls bar */}
-          <div className="flex flex-wrap items-center gap-4 text-xs bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80">
+          <div className="flex flex-wrap items-center gap-4 text-xs glass-panel p-3 rounded-xl">
             {/* Group By Select */}
             <div className="flex items-center gap-2">
               <label className="font-semibold text-zinc-600 dark:text-zinc-400">Group By:</label>

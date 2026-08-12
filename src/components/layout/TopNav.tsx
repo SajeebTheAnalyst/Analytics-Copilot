@@ -70,7 +70,7 @@ export function TopNav({
 
   return (
     <>
-      <header className="h-14 shrink-0 border-b border-zinc-200/85 dark:border-zinc-800/80 bg-white/85 dark:bg-[#07080b]/90 backdrop-blur-md flex items-center justify-between px-4 lg:px-6 z-20 relative select-none">
+      <header className="h-14 shrink-0 glass-panel border-b-0 flex items-center justify-between px-4 lg:px-6 z-20 relative select-none">
         
         {/* Brand & Active Dataset */}
         <div className="flex items-center gap-4">
@@ -134,7 +134,7 @@ export function TopNav({
 
             {showDatasetDropdown && (
               <div 
-                className="absolute top-full left-0 mt-2 w-80 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border border-zinc-200/85 dark:border-zinc-800 rounded-xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.1),0_0_1px_rgba(0,0,0,0.05)] py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-250"
+                className="absolute top-full left-0 mt-2 w-80 glass-dropdown rounded-xl py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-250"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
@@ -195,7 +195,7 @@ export function TopNav({
           <Button 
             variant="outline" 
             size="sm" 
-            className="h-8.5 text-xs gap-1.5 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 font-semibold transition-all duration-200 hover:-translate-y-0.25 shadow-2xs hover:shadow-xs cursor-pointer"
+            className="h-8.5 text-xs gap-1.5 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 font-semibold transition-all duration-200 hover-elevate cursor-pointer"
             onClick={onImportFiles}
           >
             <Upload className="w-3.5 h-3.5 transition-transform duration-200 hover:-translate-y-0.5" />
@@ -208,9 +208,9 @@ export function TopNav({
             size="sm"
             onClick={onToggleCopilot}
             className={cn(
-              "h-8.5 text-xs gap-1.5 transition-all duration-200 hover:-translate-y-0.25 shadow-2xs font-bold cursor-pointer",
+              "h-8.5 text-xs gap-1.5 transition-all duration-200 hover-elevate font-bold cursor-pointer",
               isCopilotOpen 
-                ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" 
+                ? "bg-blue-600 text-white hover:bg-blue-700" 
                 : "text-blue-600 dark:text-blue-400 border-blue-200/80 dark:border-blue-900/40 bg-blue-50/55 dark:bg-blue-950/20 hover:bg-blue-100/70 dark:hover:bg-blue-900/40"
             )}
           >
@@ -224,7 +224,7 @@ export function TopNav({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8.5 w-8.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150 cursor-pointer"
+            className="h-8.5 w-8.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150 cursor-pointer hover-elevate"
             onClick={() => setShowAbout(true)}
           >
             <Info className="w-4 h-4" />
@@ -233,7 +233,7 @@ export function TopNav({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8.5 w-8.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150 relative cursor-pointer"
+            className="h-8.5 w-8.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150 relative cursor-pointer hover-elevate"
             onClick={toggleTheme}
           >
             <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-amber-500" />
@@ -245,9 +245,9 @@ export function TopNav({
 
       {/* About Modal */}
       {showAbout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-zinc-200 dark:border-zinc-800 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-800/80">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 dark:bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="glass-panel glass-card rounded-xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-250">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-200/80 dark:border-zinc-800/80">
               <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">About Analytics Toolkit</h2>
               <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setShowAbout(false)}>
                 <X className="w-4 h-4" />

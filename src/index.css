@@ -52,6 +52,7 @@
   backdrop-filter: blur(16px);
   border: 1px solid rgba(226, 232, 240, 0.9);
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  transition: all 250ms ease;
 }
 
 .dark .glass-panel {
@@ -59,6 +60,49 @@
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4), 0 0 20px 0 rgba(37, 99, 235, 0.03);
+}
+
+.glass-card {
+  transition: all 250ms ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.05), 0 0 20px rgba(37, 99, 235, 0.06);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.dark .glass-card:hover {
+  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.6), 0 0 25px 0 rgba(37, 99, 235, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(18, 23, 38, 0.9);
+}
+
+.glass-dropdown {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 10px 20px -5px rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass-dropdown {
+  background: rgba(11, 13, 20, 0.85);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6), 0 0 30px rgba(37, 99, 235, 0.05);
+}
+
+.hover-elevate {
+  transition: all 200ms ease;
+}
+
+.hover-elevate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.06);
+}
+
+.dark .hover-elevate:hover {
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.4);
 }
 
 .ambient-bg {

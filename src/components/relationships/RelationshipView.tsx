@@ -119,7 +119,7 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#f8f9fa] dark:bg-[#0c0c0e]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
       {/* Canvas */}
       <div className="flex-1 relative overflow-hidden flex"
         ref={containerRef}
@@ -127,7 +127,7 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
-        <div className="absolute top-4 left-4 z-20 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 shadow-lg max-w-sm">
+        <div className="absolute top-4 left-4 z-20 glass-panel glass-card p-3 max-w-sm shadow-xl">
           <div className="flex items-center gap-2 mb-1">
             <Network className="w-5 h-5 text-blue-500" />
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Relationship Model</h3>
@@ -138,16 +138,16 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
         </div>
 
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
-          <div className="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-sm">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.min(z + 0.1, 2))}>
+          <div className="flex items-center glass-panel p-0.5 shadow-sm">
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover-elevate" onClick={() => setZoom(z => Math.min(z + 0.1, 2))}>
               <ZoomIn className="w-4 h-4" />
             </Button>
             <span className="text-xs font-medium w-10 text-center">{Math.round(zoom * 100)}%</span>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.max(z - 0.1, 0.5))}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover-elevate" onClick={() => setZoom(z => Math.max(z - 0.1, 0.5))}>
               <ZoomOut className="w-4 h-4" />
             </Button>
           </div>
-          <Button variant="outline" size="icon" className="bg-white dark:bg-zinc-900 shadow-sm" onClick={() => { setZoom(1); setPan({x:0, y:0}); }}>
+          <Button variant="outline" size="icon" className="glass-panel shadow-sm hover-elevate" onClick={() => { setZoom(1); setPan({x:0, y:0}); }}>
             <Maximize className="w-4 h-4" />
           </Button>
         </div>
@@ -206,11 +206,11 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
             return (
               <div 
                 key={dataset.id}
-                className="table-node absolute bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg w-[280px] select-none"
+                className="table-node absolute glass-panel glass-card shadow-lg w-[280px] select-none"
                 style={{ left: pos.x, top: pos.y }}
               >
                 <div 
-                  className={cn("bg-zinc-50 dark:bg-zinc-900 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 cursor-move flex items-center justify-between", isExpanded ? "rounded-t-xl" : "rounded-xl border-b-0")}
+                  className={cn("bg-zinc-50/50 dark:bg-zinc-900/50 px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50 cursor-move flex items-center justify-between", isExpanded ? "rounded-t-xl" : "rounded-xl border-b-0")}
                   onPointerDown={(e) => startNodeDrag(e, dataset.id)}
                 >
                   <div className="flex items-center gap-2 overflow-hidden flex-1">

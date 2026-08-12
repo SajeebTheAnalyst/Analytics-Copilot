@@ -122,7 +122,7 @@ export function FilterBuilder({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2.5 bg-zinc-50 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800">
+    <div className="flex flex-wrap items-center gap-2 p-2.5 glass-panel border-l-0 border-r-0 border-t-0">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0 mr-1">
         <Filter className="w-3.5 h-3.5 text-blue-500" />
         <span>Filters:</span>
@@ -163,7 +163,7 @@ export function FilterBuilder({
 
         {/* Filter Popover */}
         {isOpen && (
-          <div className="absolute left-0 top-full mt-2 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-4 z-50 text-xs">
+          <div className="absolute left-0 top-full mt-2 w-80 glass-dropdown rounded-xl p-4 z-50 text-xs animate-in fade-in slide-in-from-top-2 duration-250">
             <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-100 dark:border-zinc-800">
               <span className="font-semibold text-zinc-900 dark:text-zinc-100">Add Column Filter</span>
               <button

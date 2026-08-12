@@ -211,7 +211,7 @@ export default function App() {
 
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
-      <div className="h-full flex flex-col bg-white dark:bg-[#050505] text-zinc-900 dark:text-zinc-50 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 overflow-hidden">
+      <div className="h-full flex flex-col ambient-bg text-zinc-900 dark:text-zinc-50 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 overflow-hidden">
         
         {/* Top Header Navigation */}
         <TopNav 
@@ -248,7 +248,7 @@ export default function App() {
           />
 
           {/* Main View Router Container */}
-          <main className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505] overflow-hidden">
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-transparent">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentView}

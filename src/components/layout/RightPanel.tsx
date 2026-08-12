@@ -250,10 +250,10 @@ export function RightPanel({
       />
 
       {/* Drawer Container */}
-      <aside className="fixed top-0 right-0 h-full w-[440px] max-w-full bg-white dark:bg-[#0c0c0e] border-l border-zinc-200 dark:border-zinc-800 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-250 overflow-hidden font-sans">
+      <aside className="fixed top-0 right-0 h-full w-[440px] max-w-full glass-panel border-r-0 border-t-0 border-b-0 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-250 overflow-hidden font-sans">
         
         {/* Drawer Header */}
-        <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 shrink-0 bg-zinc-50/90 dark:bg-zinc-950/90">
+        <div className="h-14 border-b border-zinc-200/50 dark:border-zinc-800/50 flex items-center justify-between px-4 shrink-0 bg-zinc-50/20 dark:bg-zinc-950/20">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
               <Sparkles className="w-4 h-4" />
@@ -534,10 +534,10 @@ export function RightPanel({
 
         {/* Input Form */}
         {hasDatasets && (
-          <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0c0c0e]">
+          <div className="p-3 glass-panel border-l-0 border-r-0 border-b-0">
             <form 
               onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
-              className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-md p-1 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all"
+              className="flex items-center gap-2 bg-zinc-50/50 dark:bg-zinc-900/40 border border-zinc-200/50 dark:border-zinc-800/50 rounded-md p-1 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all shadow-sm"
             >
               <input
                 ref={inputRef}
@@ -567,7 +567,7 @@ export function RightPanel({
       {/* Add Widget Pre-fill Confirmation Dialog */}
       {widgetModalConfig?.isOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg max-w-md w-full p-5 space-y-4 shadow-xl">
+          <div className="glass-panel glass-card border border-zinc-200 dark:border-zinc-800 rounded-lg max-w-md w-full p-5 space-y-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
               <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 <BarChart2 className="w-4 h-4 text-blue-500" />

@@ -453,9 +453,9 @@ export function KpiBuilderView({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0c0c0e] h-full overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0 bg-transparent h-full overflow-hidden">
       {/* 1. Page Header */}
-      <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/20 shrink-0">
+      <div className="p-6 glass-panel border-b-0 shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -568,7 +568,7 @@ export function KpiBuilderView({
       )}
 
       {/* 3. KPI Library List Controls Bar */}
-      <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-white dark:bg-[#0c0c0e]">
+      <div className="p-4 glass-panel border-t-0 border-l-0 border-r-0 flex flex-wrap items-center justify-between gap-3 shrink-0">
         {/* Search Input */}
         <div className="relative flex-1 max-w-xs">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -613,7 +613,7 @@ export function KpiBuilderView({
       {/* 4. KPI Library Table / List Workspace */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
         {filteredLibraryKpis.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50/50 dark:bg-zinc-900/30">
+          <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-zinc-200/50 dark:border-zinc-800/50 rounded-2xl glass-panel">
             <Calculator className="w-10 h-10 text-zinc-300 dark:text-zinc-700 mb-3" />
             <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
               No Business Metrics Found
@@ -632,9 +632,9 @@ export function KpiBuilderView({
             </Button>
           </div>
         ) : (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
+          <div className="glass-panel rounded-2xl shadow-xs overflow-hidden">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">
+              <thead className="bg-zinc-50/50 dark:bg-zinc-950/30 border-b border-zinc-200/50 dark:border-zinc-800/50 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="px-4 py-3">Metric Name & Description</th>
                   <th className="px-4 py-3">Formula / Aggregation</th>
@@ -644,7 +644,7 @@ export function KpiBuilderView({
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/30">
                 {filteredLibraryKpis.map((kpi) => {
                   const evalResult = evaluatedKpisMap.get(kpi.id);
                   const formulaSummary = generateFormulaSummary(kpi);
@@ -652,7 +652,7 @@ export function KpiBuilderView({
                   return (
                     <tr
                       key={kpi.id}
-                      className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors group"
+                      className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors group"
                     >
                       <td className="px-4 py-3.5 max-w-xs">
                         <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
@@ -742,8 +742,8 @@ export function KpiBuilderView({
 
       {/* 5. Create / Edit KPI Modal Workspace */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-[#0c0c0e] border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="glass-panel glass-card rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
             <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/50 dark:bg-zinc-900/40">
               <div className="flex items-center gap-2">

@@ -481,10 +481,10 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
   }, [activeDatasetObj, datasets, allDictionaryColumns]);
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505] p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-6">
+    <div className="flex-1 flex flex-col min-w-0 bg-transparent p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-6">
       
       {/* PAGE HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4 shrink-0">
+      <div className="glass-panel p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
@@ -526,7 +526,7 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             
             {/* Dataset Selector */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between space-y-1.5">
+            <div className="p-3.5 rounded-xl glass-card flex flex-col justify-between space-y-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Target Dataset</span>
               <select
                 value={selectedDatasetId}
@@ -541,25 +541,25 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
             </div>
 
             {/* Total Rows */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+            <div className="p-3.5 rounded-xl glass-card flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Record Volume</span>
               <p className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">{datasetSummaryMetrics.rows.toLocaleString()} <span className="text-xs font-normal text-zinc-500">Rows</span></p>
             </div>
 
             {/* Total Columns */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+            <div className="p-3.5 rounded-xl glass-card flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Column Count</span>
               <p className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">{datasetSummaryMetrics.cols} <span className="text-xs font-normal text-zinc-500">Fields</span></p>
             </div>
 
             {/* File Type */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+            <div className="p-3.5 rounded-xl glass-card flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Format & File Type</span>
               <p className="text-sm font-bold font-mono text-blue-600 dark:text-blue-400 uppercase">{datasetSummaryMetrics.fileType}</p>
             </div>
 
             {/* Dataset Health Score */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+            <div className="p-3.5 rounded-xl glass-card flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Governance Health</span>
               <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">{datasetSummaryMetrics.health}%</p>
             </div>
@@ -567,7 +567,7 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
           </div>
 
           {/* GLOBAL SEARCH & MULTI-FILTER BAR */}
-          <div className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
+          <div className="glass-panel p-4 space-y-3">
             
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               
@@ -712,11 +712,11 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
           </div>
 
           {/* COLUMN METADATA TABLE */}
-          <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-xs">
+          <div className="glass-panel overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                  <tr className="bg-zinc-50/50 dark:bg-zinc-900/30 border-b border-zinc-200/50 dark:border-zinc-800/50 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                     <th className="py-3 px-4">Column Name</th>
                     <th className="py-3 px-4">Dataset</th>
                     <th className="py-3 px-4">Data Type</th>
@@ -729,7 +729,7 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
                     <th className="py-3 px-4">Used In</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
+                <tbody className="divide-y divide-zinc-200/50 dark:divide-zinc-800/30">
                   {filteredColumns.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="py-12 text-center text-zinc-500 text-xs">
@@ -741,7 +741,7 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
                       <tr 
                         key={col.key} 
                         onClick={() => setSelectedColumn(col)}
-                        className="hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors cursor-pointer group"
+                        className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/40 transition-colors cursor-pointer group"
                       >
                         {/* Column Name */}
                         <td className="py-3 px-4">
@@ -844,8 +844,8 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
 
       {/* COLUMN DETAILS DRAWER / MODAL */}
       {selectedColumn && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex justify-end animate-fade-in no-print">
-          <div className="w-full max-w-xl bg-white dark:bg-zinc-950 h-full border-l border-zinc-200 dark:border-zinc-800 flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex justify-end animate-fade-in no-print">
+          <div className="w-full max-w-xl bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl h-full border-l border-zinc-200/50 dark:border-zinc-800/50 flex flex-col shadow-2xl overflow-hidden">
             
             {/* Drawer Header */}
             <div className="p-4 sm:p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">

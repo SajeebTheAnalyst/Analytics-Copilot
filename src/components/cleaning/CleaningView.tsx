@@ -247,7 +247,7 @@ export function CleaningView({
       {/* ================================================== */}
       {/* 1. TOP HEADER & HEALTH SUMMARY                     */}
       {/* ================================================== */}
-      <div className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 px-5 py-3 shrink-0 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+      <div className="glass-panel border-b-0 border-t-0 border-r-0 border-l-0 px-5 py-3 shrink-0 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-4">
           {onNavigateView && (
             <Button 
@@ -365,10 +365,10 @@ export function CleaningView({
         {/* -------------------------------------------------- */}
         {/* LEFT PANEL: Quality Issues & Cleaning Tools       */}
         {/* -------------------------------------------------- */}
-        <div className="w-80 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col shrink-0 overflow-hidden">
+        <div className="w-80 glass-panel border-l-0 border-t-0 border-b-0 flex flex-col shrink-0 overflow-hidden">
           
           {/* Left Panel Tabs */}
-          <div className="p-2 border-b border-zinc-200 dark:border-zinc-800 flex gap-1.5 bg-zinc-50/50 dark:bg-[#0c0d12]/40">
+          <div className="p-2 border-b border-zinc-200/50 dark:border-zinc-800/50 flex gap-1.5 bg-zinc-50/20 dark:bg-[#0c0d12]/20">
             <button
               onClick={() => setLeftTab('issues')}
               className={cn(
@@ -568,7 +568,7 @@ export function CleaningView({
               <div className="space-y-4">
                 
                 {/* 1. Missing Values Tool */}
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 space-y-2.5">
+                <div className="glass-card p-3 space-y-2.5 rounded-lg">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
                     <Filter className="w-3.5 h-3.5 text-blue-500" />
                     <span>1. Missing Values Handler</span>
@@ -637,7 +637,7 @@ export function CleaningView({
                 </div>
 
                 {/* 2. Text Format Tool */}
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 space-y-2.5">
+                <div className="glass-card p-3 space-y-2.5 rounded-lg">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
                     <Type className="w-3.5 h-3.5 text-amber-500" />
                     <span>2. Text Cleaner & Casing</span>
@@ -690,7 +690,7 @@ export function CleaningView({
                 </div>
 
                 {/* 3. Cast Data Type Tool */}
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 space-y-2.5">
+                <div className="glass-card p-3 space-y-2.5 rounded-lg">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
                     <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
                     <span>3. Data Type Converter</span>
@@ -743,7 +743,7 @@ export function CleaningView({
                 </div>
 
                 {/* 4. Date Standardizer */}
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 space-y-2.5">
+                <div className="glass-card p-3 space-y-2.5 rounded-lg">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
                     <Calendar className="w-3.5 h-3.5 text-purple-500" />
                     <span>4. Date Standardizer</span>
@@ -795,7 +795,7 @@ export function CleaningView({
                 </div>
 
                 {/* 5. Outliers Tool */}
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 space-y-2.5">
+                <div className="glass-card p-3 space-y-2.5 rounded-lg">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                     <span>5. Statistical Outliers (IQR)</span>
@@ -848,7 +848,7 @@ export function CleaningView({
                 </div>
 
                 {/* 6. Clean Headers Tool */}
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 space-y-2.5">
+                <div className="glass-card p-3 space-y-2.5 rounded-lg">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
                     <Sliders className="w-3.5 h-3.5 text-teal-500" />
                     <span>6. Standardize Headers</span>
@@ -891,7 +891,7 @@ export function CleaningView({
         {/* -------------------------------------------------- */}
         {/* MAIN AREA: Live Data Preview & Cell Highlighting   */}
         {/* -------------------------------------------------- */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-zinc-100/50 dark:bg-[#050507]">
+        <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
           
           {/* Active Preview Action Banner */}
           {previewResult && (
