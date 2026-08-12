@@ -5,7 +5,7 @@ import { TopNav } from './components/layout/TopNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { RightPanel } from './components/layout/RightPanel';
 import { DatasetManager } from './components/workspace/DatasetManager';
-import { DataPreview } from './components/workspace/DataPreview';
+import { DataExplorer } from './components/explorer/DataExplorer';
 import { RelationshipView } from './components/relationships/RelationshipView';
 import { CleaningView } from './components/cleaning/CleaningView';
 import { DashboardView } from './components/dashboards/DashboardView';
@@ -271,13 +271,12 @@ export default function App() {
                 onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
               />
             ) : currentView === 'explorer' ? (
-              selectedDataset ? (
-                <DataPreview dataset={selectedDataset} />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400 text-xs">
-                  <p>Upload a dataset to explore raw records and filter columns.</p>
-                </div>
-              )
+              <DataExplorer 
+                dataset={selectedDataset} 
+                allDatasets={datasets}
+                onSelectDataset={setSelectedDatasetId}
+                onNavigateView={(view) => setCurrentView(view)}
+              />
             ) : currentView === 'relationships' ? (
               <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
             ) : currentView === 'kpi-builder' ? (

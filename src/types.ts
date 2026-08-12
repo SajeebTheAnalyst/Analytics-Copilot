@@ -5,10 +5,24 @@ export interface CleaningIssue {
   id: string;
   datasetId: string;
   column?: string;
-  type: 'duplicate_rows' | 'missing_values' | 'whitespace' | 'inconsistent_case' | 'orphan_records' | 'mixed_types';
+  type: 
+    | 'duplicate_rows' 
+    | 'missing_values' 
+    | 'empty_columns' 
+    | 'empty_rows' 
+    | 'invalid_dates' 
+    | 'mixed_dates' 
+    | 'numeric_as_text' 
+    | 'whitespace' 
+    | 'inconsistent_case' 
+    | 'outliers' 
+    | 'inconsistent_categorical' 
+    | 'orphan_records' 
+    | 'mixed_types';
   title: string;
   description: string;
   affectedRowCount: number;
+  affectedCellCount?: number;
   suggestedAction: string;
   riskLevel: RiskLevel;
   sampleBefore: string[];
@@ -23,7 +37,11 @@ export interface CleaningLog {
   datasetName: string;
   issueId: string;
   operation: string;
+  column?: string;
   rowsAffected: number;
+  cellsAffected?: number;
+  previousHealthScore?: number;
+  newHealthScore?: number;
   previousData: Record<string, any>[]; // Snapshot for undo
 }
 
@@ -114,4 +132,57 @@ export interface DashboardPlan {
   datasets: string[];
   kpis: Omit<WidgetConfig, 'id' | 'type'>[];
   charts: Omit<WidgetConfig, 'id'>[];
+}
+
+export type FilterOperator = 
+  | 'equals' 
+  | 'does_not_equal' 
+  | 'contains' 
+  | 'starts_with' 
+  | 'ends_with' 
+  | 'is_empty' 
+  | 'is_not_empty'
+  | 'greater_than' 
+  | 'less_than' 
+  | 'between'
+  | 'before' 
+  | 'after';
+
+export interface ColumnFilter {
+  id: string;
+  column: string;
+  operator: FilterOperator;
+  value: string;
+  secondaryValue?: string;
+}
+
+export interface SortRule {
+  column: string;
+  direction: 'asc' | 'desc';
+}
+
+export interface GroupingConfig {
+  groupByColumn: string;
+  metricColumn: string;
+  aggregation: 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max';
+}
+
+export interface QuickMetricConfig {
+  id: string;
+  column: string;
+  aggregation: 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max';
+}
+
+export interface SavedExplorerView {
+  id: string;
+  datasetId: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  filters: ColumnFilter[];
+  sortRules: SortRule[];
+  visibleColumns: string[];
+  groupingConfig?: GroupingConfig | null;
+  quickMetrics?: QuickMetricConfig[];
+  searchTerm?: string;
 }
