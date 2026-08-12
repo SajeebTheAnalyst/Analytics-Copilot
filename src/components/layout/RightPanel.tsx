@@ -148,13 +148,21 @@ export function RightPanel({ currentView, datasets, suggestions, dashboards = []
         })
       });
 
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch (e) {
+          data = {};
+        }
+      }
 
       if (!response.ok) {
         if (data.error === 'NOT_CONFIGURED') {
           throw new Error('AI Copilot is not configured yet. Please configure the GEMINI_API_KEY environment variable.');
         }
-        throw new Error(data.message || data.error || 'Failed to communicate with AI');
+        throw new Error(data.message || data.error || `API endpoint /api/chat returned status ${response.status}. Please verify your backend server deployment.`);
       }
 
       const aiText = data.text;

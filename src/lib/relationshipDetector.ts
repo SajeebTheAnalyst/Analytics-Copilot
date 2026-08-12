@@ -112,8 +112,10 @@ export function detectRelationships(datasets: Dataset[]): RelationshipSuggestion
             reasons.push(`Partial column name match ("${col1}" and "${col2}")`);
           }
           
-          // 2. Data Overlap (based on sample data)
-          const overlap = checkDataOverlap(ds1.data, ds2.data, col1, col2);
+          // 2. Data Overlap
+          const data1 = ds1.fullData && ds1.fullData.length > 0 ? ds1.fullData : ds1.data;
+          const data2 = ds2.fullData && ds2.fullData.length > 0 ? ds2.fullData : ds2.data;
+          const overlap = checkDataOverlap(data1, data2, col1, col2);
           if (overlap.score > 0.5) {
             confidence += 50 * overlap.score;
             reasons.push(`Significant data overlap detected`);

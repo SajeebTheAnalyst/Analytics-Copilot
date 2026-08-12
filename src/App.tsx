@@ -213,6 +213,8 @@ export default function App() {
                 setIsUploading(false);
               }}
               onRemoveDataset={handleRemove}
+              currentView={currentView}
+              onViewChange={setCurrentView}
             />
 
             <main className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505]">

@@ -1,9 +1,10 @@
 import { Dataset } from '@/types';
-import { Search, Hash, ToggleLeft, Calendar, HelpCircle, CaseSensitive, ArrowUpDown, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
+import { Search, Hash, ToggleLeft, Calendar, HelpCircle, CaseSensitive, ArrowUpDown, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, Download } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { cn, formatBytes } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { formatDistanceToNow } from 'date-fns';
+import Papa from 'papaparse';
 
 interface DataPreviewProps {
   dataset: Dataset;
@@ -22,6 +23,19 @@ export function DataPreview({ dataset }: DataPreviewProps) {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  const handleExportCSV = () => {
+    const exportData = dataset.fullData && dataset.fullData.length > 0 ? dataset.fullData : dataset.data;
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${dataset.name}_cleaned.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -42,7 +56,8 @@ export function DataPreview({ dataset }: DataPreviewProps) {
   };
 
   const filteredAndSortedData = useMemo(() => {
-    let processData = [...dataset.data];
+    const sourceData = dataset.fullData && dataset.fullData.length > 0 ? dataset.fullData : dataset.data;
+    let processData = [...sourceData];
 
     // Search
     if (debouncedSearchTerm) {
@@ -76,7 +91,7 @@ export function DataPreview({ dataset }: DataPreviewProps) {
     }
 
     return processData;
-  }, [dataset.data, debouncedSearchTerm, sortConfig]);
+  }, [dataset.fullData, dataset.data, debouncedSearchTerm, sortConfig]);
 
   const totalPages = Math.ceil(filteredAndSortedData.length / rowsPerPage) || 1;
   const paginatedData = filteredAndSortedData.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -150,15 +165,26 @@ export function DataPreview({ dataset }: DataPreviewProps) {
         <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0c0c0e]">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/50 dark:bg-zinc-900/20">
             <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Table Preview</h3>
-            <div className="relative">
-              <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input 
-                type="text" 
-                placeholder="Search in data..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-1.5 text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-72 text-zinc-900 dark:text-zinc-100 shadow-sm transition-all"
-              />
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="text" 
+                  placeholder="Search in data..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-4 py-1.5 text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-72 text-zinc-900 dark:text-zinc-100 shadow-sm transition-all"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-800"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-500" />
+                <span>Export CSV</span>
+              </Button>
             </div>
           </div>
 

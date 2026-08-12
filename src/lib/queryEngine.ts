@@ -18,7 +18,7 @@ export function executeQuery(
     data = data.filter(row => {
       // Check global filters
       for (const filter of applicableFilters) {
-        if (filter.value !== null && row[filter.column] !== filter.value) return false;
+        if (filter.value !== null && filter.value !== "" && filter.value !== "all" && String(row[filter.column]) !== String(filter.value)) return false;
       }
       // Check widget specific filter
       if (widget.filter) {

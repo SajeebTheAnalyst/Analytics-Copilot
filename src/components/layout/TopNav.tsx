@@ -2,7 +2,7 @@ import { Moon, Sun, Upload, Settings, Database, Network, Sparkles, LayoutDashboa
 import { Button } from '../ui/button';
 import { ViewState } from '@/types';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TopNavProps {
   currentView: ViewState;
@@ -12,6 +12,20 @@ interface TopNavProps {
 
 export function TopNav({ currentView, onViewChange, onImportFiles }: TopNavProps) {
   const [showAbout, setShowAbout] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else if (saved === 'light') {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  };
 
   return (
     <>
@@ -86,7 +100,7 @@ export function TopNav({ currentView, onViewChange, onImportFiles }: TopNavProps
           <Button variant="ghost" size="icon" className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50" onClick={() => setShowAbout(true)}>
             <Info className="w-[18px] h-[18px]" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50" onClick={() => document.documentElement.classList.toggle('dark')}>
+          <Button variant="ghost" size="icon" className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50" onClick={toggleTheme}>
             <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             <span className="sr-only">Toggle theme</span>
