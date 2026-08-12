@@ -22,6 +22,7 @@ import { Dataset, ViewState } from '@/types';
 import { cn, formatBytes } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { formatDistanceToNow } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface SidebarProps {
   datasets: Dataset[];
@@ -92,12 +93,12 @@ export function Sidebar({
   ];
 
   return (
-    <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-[#08080a] hidden md:flex flex-col shrink-0 overflow-hidden select-none">
-      <div className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-5">
+    <aside className="w-64 border-r border-zinc-200/85 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-[#07080b]/90 backdrop-blur-md hidden md:flex flex-col shrink-0 overflow-hidden select-none">
+      <div className="p-3.5 flex-1 overflow-y-auto custom-scrollbar space-y-5">
         
         {navGroups.map((group, idx) => (
           <div key={idx} className="space-y-1">
-            <p className="px-2 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5">
+            <p className="px-2.5 text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5 font-mono">
               {group.title}
             </p>
             {group.items.map((item) => {
@@ -115,19 +116,19 @@ export function Sidebar({
                     }
                   }}
                   className={cn(
-                    "w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-all text-left group",
+                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-250 text-left group relative overflow-hidden",
                     isActive
-                      ? "bg-blue-600 text-white shadow-xs font-semibold"
+                      ? "bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 font-semibold shadow-[0_2px_8px_-2px_rgba(37,99,235,0.08),0_1px_3px_-1px_rgba(37,99,235,0.04)] border border-zinc-200/60 dark:border-zinc-800/80 scale-[1.01]"
                       : item.isAction && isCopilotOpen
-                      ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold"
-                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-100"
+                      ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold border border-blue-100 dark:border-blue-900/30 scale-[1.01]"
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/60 hover:text-zinc-900 dark:hover:text-zinc-200 border border-transparent hover:border-zinc-200/40 dark:hover:border-zinc-850/40 hover:pl-3.5"
                   )}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0 z-10">
                     <Icon className={cn(
-                      "w-4 h-4 shrink-0",
+                      "w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110",
                       isActive 
-                        ? "text-white" 
+                        ? "text-blue-600 dark:text-blue-400" 
                         : item.isAction 
                         ? "text-blue-500 dark:text-blue-400" 
                         : "text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200"
@@ -135,9 +136,12 @@ export function Sidebar({
                     <span className="truncate">{item.label}</span>
                   </div>
                   {item.isAction && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold tracking-wider">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-blue-100/80 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold tracking-wider z-10 transition-colors duration-200 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/60">
                       AI
                     </span>
+                  )}
+                  {isActive && (
+                    <span className="absolute left-0 top-1/4 bottom-1/4 w-0.75 rounded-r bg-blue-600 dark:bg-blue-500" />
                   )}
                 </button>
               );
@@ -146,33 +150,33 @@ export function Sidebar({
         ))}
 
         {/* Datasets Accordion */}
-        <div className="pt-2 border-t border-zinc-200/80 dark:border-zinc-800/80 space-y-2">
+        <div className="pt-3 border-t border-zinc-200/60 dark:border-zinc-800/60 space-y-2">
           <div 
-            className="flex items-center justify-between px-2 cursor-pointer group"
+            className="flex items-center justify-between px-2 cursor-pointer group hover:opacity-90 transition-opacity"
             onClick={() => setDatasetsOpen(!datasetsOpen)}
           >
             <div className="flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5 text-zinc-400" />
-              <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
+              <Database className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 transition-transform duration-300 group-hover:rotate-12" />
+              <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest font-mono">
                 Active Datasets ({datasets.length})
               </p>
             </div>
-            <Button variant="ghost" size="icon" className="h-5 w-5 text-zinc-400 hover:text-zinc-600">
+            <Button variant="ghost" size="icon" className="h-5 w-5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
               {datasetsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             </Button>
           </div>
           
           {datasetsOpen && (
-            <div className="space-y-1.5 px-0.5">
+            <div className="space-y-2 px-0.5">
               {datasets.length === 0 ? (
-                <div className="p-3 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-md bg-white/40 dark:bg-zinc-950/40">
+                <div className="p-3 text-center border border-dashed border-zinc-200 dark:border-zinc-800/80 rounded-lg bg-white/40 dark:bg-zinc-950/40">
                   <p className="text-xs text-zinc-500">No datasets uploaded</p>
                   <button 
                     onClick={() => {
                       onSelectDataset(null);
                       onViewChange('data-manager');
                     }}
-                    className="mt-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                    className="mt-1 text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
                   >
                     + Import dataset
                   </button>
@@ -189,26 +193,26 @@ export function Sidebar({
                         onSelectDataset(dataset.id);
                       }}
                       className={cn(
-                        "rounded-md border text-xs transition-all cursor-pointer overflow-hidden group",
+                        "rounded-lg border text-xs transition-all duration-200 cursor-pointer overflow-hidden group hover:-translate-y-0.5",
                         isSelected 
-                          ? "bg-white dark:bg-zinc-900 border-blue-500/50 shadow-xs ring-1 ring-blue-500/20" 
-                          : "bg-white/60 dark:bg-zinc-900/40 border-zinc-200/80 dark:border-zinc-800/80 hover:bg-white dark:hover:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700"
+                          ? "bg-white dark:bg-zinc-900 border-blue-500/50 shadow-[0_4px_12px_rgba(37,99,235,0.06)] ring-1 ring-blue-500/20" 
+                          : "bg-white/40 dark:bg-zinc-900/30 border-zinc-200/70 dark:border-zinc-800/75 hover:bg-white dark:hover:bg-zinc-900 hover:border-zinc-350 dark:hover:border-zinc-700 hover:shadow-xs"
                       )}
                     >
                       <div className="p-2.5 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <FileSpreadsheet className={cn(
-                            "w-4 h-4 shrink-0", 
+                            "w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110", 
                             dataset.type === 'csv' ? "text-blue-500" : "text-emerald-500"
                           )} />
                           <div className="min-w-0">
                             <p className={cn(
-                              "font-medium truncate text-xs",
-                              isSelected ? "text-zinc-900 dark:text-zinc-100 font-semibold" : "text-zinc-700 dark:text-zinc-300"
+                              "font-bold truncate text-[11px] transition-colors",
+                              isSelected ? "text-zinc-900 dark:text-zinc-100 font-bold" : "text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-950 dark:group-hover:text-zinc-100"
                             )}>
                               {dataset.name}
                             </p>
-                            <p className="text-[10px] text-zinc-400 font-mono">
+                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono font-medium">
                               {dataset.rowCount.toLocaleString()} rows • {dataset.colCount} cols
                             </p>
                           </div>
@@ -226,7 +230,7 @@ export function Sidebar({
                             </span>
                           )}
                           <button
-                            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded"
+                            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded transition-colors duration-150"
                             onClick={(e) => toggleCardExpand(dataset.id, e)}
                           >
                             {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -235,19 +239,19 @@ export function Sidebar({
                       </div>
 
                       {isExpanded && (
-                        <div className="px-2.5 pb-2.5 pt-1 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-950/40 text-[11px] space-y-2">
+                        <div className="px-2.5 pb-2.5 pt-1.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-950/40 text-[11px] space-y-2">
                           <div className="grid grid-cols-2 gap-2 text-zinc-500 dark:text-zinc-400 pt-1">
                             <div>
-                              <span className="block text-[9px] uppercase tracking-wider text-zinc-400">Size</span>
-                              <span className="font-mono text-zinc-700 dark:text-zinc-200">{formatBytes(dataset.size)}</span>
+                              <span className="block text-[9px] uppercase tracking-wider text-zinc-400 font-mono">Size</span>
+                              <span className="font-mono text-zinc-700 dark:text-zinc-200 font-semibold">{formatBytes(dataset.size)}</span>
                             </div>
                             <div>
-                              <span className="block text-[9px] uppercase tracking-wider text-zinc-400">Type</span>
-                              <span className="font-mono uppercase text-zinc-700 dark:text-zinc-200">{dataset.type}</span>
+                              <span className="block text-[9px] uppercase tracking-wider text-zinc-400 font-mono">Type</span>
+                              <span className="font-mono uppercase text-zinc-700 dark:text-zinc-200 font-semibold">{dataset.type}</span>
                             </div>
                           </div>
 
-                          <div className="text-[10px] text-zinc-400">
+                          <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
                             Uploaded {formatDistanceToNow(dataset.uploadTime)} ago
                           </div>
 
@@ -255,7 +259,7 @@ export function Sidebar({
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              className="flex-1 h-6 text-[10px] px-2"
+                              className="flex-1 h-6 text-[10px] px-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors duration-150 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold"
                               onClick={(e) => { 
                                 e.stopPropagation(); 
                                 onRenameDataset(dataset.id); 
@@ -267,7 +271,7 @@ export function Sidebar({
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              className="flex-1 h-6 text-[10px] px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900/40"
+                              className="flex-1 h-6 text-[10px] px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900/40 font-semibold transition-colors duration-150"
                               onClick={(e) => { 
                                 e.stopPropagation(); 
                                 onRemoveDataset(dataset.id); 

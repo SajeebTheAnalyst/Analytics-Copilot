@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { get, set } from 'idb-keyval';
 import { ErrorBoundary } from 'react-error-boundary';
+import { motion, AnimatePresence } from 'motion/react';
 import { TopNav } from './components/layout/TopNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { RightPanel } from './components/layout/RightPanel';
@@ -248,81 +249,92 @@ export default function App() {
 
           {/* Main View Router Container */}
           <main className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505] overflow-hidden">
-            {currentView === 'data-manager' ? (
-              <DatasetManager 
-                datasets={datasets}
-                selectedDatasetId={selectedDatasetId}
-                onSelectDataset={(id) => {
-                  setSelectedDatasetId(id);
-                  setIsUploading(false);
-                }}
-                onImport={handleImport}
-                onRemove={handleRemove}
-                onRename={(id) => setRenamingDatasetId(id)}
-                onNavigateView={(view) => setCurrentView(view)}
-              />
-            ) : currentView === 'cleaning' ? (
-              <CleaningView 
-                datasets={datasets}
-                onApplyIssue={handleApplyIssue}
-                onRejectIssue={handleRejectIssue}
-                onUndoLog={handleUndoLog}
-                onApproveAllSafe={handleApproveAllSafe}
-                onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
-              />
-            ) : currentView === 'explorer' ? (
-              <DataExplorer 
-                dataset={selectedDataset} 
-                allDatasets={datasets}
-                onSelectDataset={setSelectedDatasetId}
-                onNavigateView={(view) => setCurrentView(view)}
-              />
-            ) : currentView === 'relationships' ? (
-              <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
-            ) : currentView === 'kpi-builder' ? (
-              <KpiBuilderView 
-                datasets={datasets} 
-                selectedDatasetId={selectedDatasetId || undefined}
-                onNavigateView={(view) => setCurrentView(view)}
-              />
-            ) : currentView === 'dashboards' ? (
-              <DashboardView 
-                dashboards={dashboards} 
-                datasets={datasets} 
-                relationships={suggestions.filter(s => s.status === 'accepted')}
-                selectedDashId={selectedDashId}
-                selectedDatasetId={selectedDatasetId}
-                onSelectDataset={setSelectedDatasetId}
-                onSelectDashboard={setSelectedDashId}
-                onUpdateDashboard={(id, update) => {
-                  setDashboards(prev => {
-                    const exists = prev.some(d => d.id === id);
-                    if (exists) {
-                      return prev.map(d => d.id === id ? { ...d, ...update } : d);
-                    } else {
-                      const newDash: Dashboard = {
-                        id,
-                        title: update.title || 'New Dashboard',
-                        createdAt: Date.now(),
-                        updatedAt: Date.now(),
-                        widgets: update.widgets || [],
-                        filters: update.filters || [],
-                        ...update
-                      };
-                      return [newDash, ...prev];
-                    }
-                  });
-                }}
-                onDeleteDashboard={(id) => {
-                  setDashboards(prev => prev.filter(d => d.id !== id));
-                  if (selectedDashId === id) setSelectedDashId(null);
-                }}
-              />
-            ) : currentView === 'mis-report' ? (
-              <MisReportView datasets={datasets} dashboards={dashboards} />
-            ) : currentView === 'data-dictionary' ? (
-              <DataDictionaryView datasets={datasets} dashboards={dashboards} />
-            ) : null}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentView}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="flex-1 flex flex-col min-w-0 overflow-hidden"
+              >
+                {currentView === 'data-manager' ? (
+                  <DatasetManager 
+                    datasets={datasets}
+                    selectedDatasetId={selectedDatasetId}
+                    onSelectDataset={(id) => {
+                      setSelectedDatasetId(id);
+                      setIsUploading(false);
+                    }}
+                    onImport={handleImport}
+                    onRemove={handleRemove}
+                    onRename={(id) => setRenamingDatasetId(id)}
+                    onNavigateView={(view) => setCurrentView(view)}
+                  />
+                ) : currentView === 'cleaning' ? (
+                  <CleaningView 
+                    datasets={datasets}
+                    onApplyIssue={handleApplyIssue}
+                    onRejectIssue={handleRejectIssue}
+                    onUndoLog={handleUndoLog}
+                    onApproveAllSafe={handleApproveAllSafe}
+                    onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+                  />
+                ) : currentView === 'explorer' ? (
+                  <DataExplorer 
+                    dataset={selectedDataset} 
+                    allDatasets={datasets}
+                    onSelectDataset={setSelectedDatasetId}
+                    onNavigateView={(view) => setCurrentView(view)}
+                  />
+                ) : currentView === 'relationships' ? (
+                  <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
+                ) : currentView === 'kpi-builder' ? (
+                  <KpiBuilderView 
+                    datasets={datasets} 
+                    selectedDatasetId={selectedDatasetId || undefined}
+                    onNavigateView={(view) => setCurrentView(view)}
+                  />
+                ) : currentView === 'dashboards' ? (
+                  <DashboardView 
+                    dashboards={dashboards} 
+                    datasets={datasets} 
+                    relationships={suggestions.filter(s => s.status === 'accepted')}
+                    selectedDashId={selectedDashId}
+                    selectedDatasetId={selectedDatasetId}
+                    onSelectDataset={setSelectedDatasetId}
+                    onSelectDashboard={setSelectedDashId}
+                    onUpdateDashboard={(id, update) => {
+                      setDashboards(prev => {
+                        const exists = prev.some(d => d.id === id);
+                        if (exists) {
+                          return prev.map(d => d.id === id ? { ...d, ...update } : d);
+                        } else {
+                          const newDash: Dashboard = {
+                            id,
+                            title: update.title || 'New Dashboard',
+                            createdAt: Date.now(),
+                            updatedAt: Date.now(),
+                            widgets: update.widgets || [],
+                            filters: update.filters || [],
+                            ...update
+                          };
+                          return [newDash, ...prev];
+                        }
+                      });
+                    }}
+                    onDeleteDashboard={(id) => {
+                      setDashboards(prev => prev.filter(d => d.id !== id));
+                      if (selectedDashId === id) setSelectedDashId(null);
+                    }}
+                  />
+                ) : currentView === 'mis-report' ? (
+                  <MisReportView datasets={datasets} dashboards={dashboards} />
+                ) : currentView === 'data-dictionary' ? (
+                  <DataDictionaryView datasets={datasets} dashboards={dashboards} />
+                ) : null}
+              </motion.div>
+            </AnimatePresence>
           </main>
 
         </div>

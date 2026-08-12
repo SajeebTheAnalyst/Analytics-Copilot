@@ -227,7 +227,7 @@ export function DataExplorer({
       />
 
       {/* 2. Analytical Summary Bar */}
-      <div className="bg-zinc-100/70 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 px-6 py-2 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-600 dark:text-zinc-400 shrink-0">
+      <div className="bg-[#f8fafc]/90 dark:bg-[#090a10]/85 backdrop-blur-md border-b border-zinc-200/80 dark:border-zinc-800/80 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-600 dark:text-zinc-450 shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1">
             Rows: <span className="font-mono">{dataset.rowCount.toLocaleString()}</span>
@@ -354,9 +354,9 @@ export function DataExplorer({
         {/* Table Body Area */}
         <div className="flex-1 overflow-auto custom-scrollbar relative">
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
-            <thead className="sticky top-0 z-10 bg-zinc-100 dark:bg-zinc-900 shadow-2xs border-b border-zinc-200 dark:border-zinc-800">
+            <thead className="sticky top-0 z-10 bg-zinc-100/95 dark:bg-[#0b0c11]/95 backdrop-blur-xs shadow-3xs border-b border-zinc-200/80 dark:border-zinc-800">
               <tr>
-                <th className="w-12 px-3 py-2.5 text-zinc-500 font-medium text-center border-r border-zinc-200 dark:border-zinc-800">
+                <th className="w-12 px-3 py-3 text-zinc-500 font-bold text-center border-r border-zinc-200 dark:border-zinc-800">
                   #
                 </th>
                 {visibleColumns.map((header) => {
@@ -366,9 +366,9 @@ export function DataExplorer({
 
                   return (
                     <th
-                      key={header}
-                      className="px-3 py-2.5 font-semibold text-zinc-700 dark:text-zinc-300 border-r border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors select-none group"
-                      onClick={(e) => handleToggleSort(header, e.shiftKey)}
+                       key={header}
+                       className="px-3 py-3 font-extrabold text-zinc-900 dark:text-zinc-200 border-r border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors select-none group"
+                       onClick={(e) => handleToggleSort(header, e.shiftKey)}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="flex items-center gap-1.5 truncate">

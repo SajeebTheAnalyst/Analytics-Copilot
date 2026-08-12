@@ -368,14 +368,14 @@ export function CleaningView({
         <div className="w-80 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col shrink-0 overflow-hidden">
           
           {/* Left Panel Tabs */}
-          <div className="p-2 border-b border-zinc-200 dark:border-zinc-800 flex gap-1 bg-zinc-50/50 dark:bg-zinc-900/30">
+          <div className="p-2 border-b border-zinc-200 dark:border-zinc-800 flex gap-1.5 bg-zinc-50/50 dark:bg-[#0c0d12]/40">
             <button
               onClick={() => setLeftTab('issues')}
               className={cn(
-                "flex-1 py-1.5 px-3 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all",
+                "flex-1 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer shadow-3xs",
                 leftTab === 'issues'
-                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/60 dark:border-zinc-700"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 shadow-xs border border-zinc-200/80 dark:border-zinc-700/80"
+                  : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-200"
               )}
             >
               <AlertTriangle className={cn("w-3.5 h-3.5", pendingIssues.length > 0 ? "text-orange-500" : "text-emerald-500")} />
@@ -384,10 +384,10 @@ export function CleaningView({
             <button
               onClick={() => setLeftTab('tools')}
               className={cn(
-                "flex-1 py-1.5 px-3 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all",
+                "flex-1 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer shadow-3xs",
                 leftTab === 'tools'
-                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/60 dark:border-zinc-700"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 shadow-xs border border-zinc-200/80 dark:border-zinc-700/80"
+                  : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-200"
               )}
             >
               <Wrench className="w-3.5 h-3.5 text-blue-500" />
@@ -481,10 +481,10 @@ export function CleaningView({
                           key={issue.id}
                           onClick={() => setSelectedIssueId(isFocused ? null : issue.id)}
                           className={cn(
-                            "p-3 rounded-lg border text-left cursor-pointer transition-all relative overflow-hidden",
+                            "p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 relative overflow-hidden shadow-3xs hover:-translate-y-0.25 hover:shadow-2xs",
                             isFocused
-                              ? "bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 dark:border-blue-500 ring-1 ring-blue-500"
-                              : "bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700"
+                              ? "bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 dark:border-blue-500 ring-1 ring-blue-500 shadow-xs"
+                              : "bg-white/95 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300/85 dark:hover:border-zinc-700"
                           )}
                         >
                           <div className="flex items-start justify-between gap-2">
