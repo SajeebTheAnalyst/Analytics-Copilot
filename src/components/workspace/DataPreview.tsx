@@ -17,11 +17,11 @@ export function DataPreview({ dataset }: DataPreviewProps) {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'numeric': return <Hash className="w-3.5 h-3.5 text-blue-500" title="Numeric" />;
-      case 'boolean': return <ToggleLeft className="w-3.5 h-3.5 text-purple-500" title="Boolean" />;
-      case 'date': return <Calendar className="w-3.5 h-3.5 text-emerald-500" title="Date" />;
-      case 'categorical': return <CaseSensitive className="w-3.5 h-3.5 text-orange-500" title="Categorical" />;
-      default: return <HelpCircle className="w-3.5 h-3.5 text-zinc-400" title="Unknown" />;
+      case 'numeric': return <Hash className="w-3.5 h-3.5 text-blue-500"  />;
+      case 'boolean': return <ToggleLeft className="w-3.5 h-3.5 text-purple-500"  />;
+      case 'date': return <Calendar className="w-3.5 h-3.5 text-emerald-500"  />;
+      case 'categorical': return <CaseSensitive className="w-3.5 h-3.5 text-orange-500"  />;
+      default: return <HelpCircle className="w-3.5 h-3.5 text-zinc-400"  />;
     }
   };
 

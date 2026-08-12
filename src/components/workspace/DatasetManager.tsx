@@ -36,11 +36,11 @@ export function DatasetManager({ datasets, onImport, onRemove, onPreview }: Data
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'numeric': return <Hash className="w-3 h-3 text-blue-500" title="Numeric" />;
-      case 'boolean': return <ToggleLeft className="w-3 h-3 text-purple-500" title="Boolean" />;
-      case 'date': return <Calendar className="w-3 h-3 text-emerald-500" title="Date" />;
-      case 'categorical': return <CaseSensitive className="w-3 h-3 text-orange-500" title="Categorical" />;
-      default: return <HelpCircle className="w-3 h-3 text-zinc-400" title="Unknown" />;
+      case 'numeric': return <Hash className="w-3 h-3 text-blue-500"  />;
+      case 'boolean': return <ToggleLeft className="w-3 h-3 text-purple-500"  />;
+      case 'date': return <Calendar className="w-3 h-3 text-emerald-500"  />;
+      case 'categorical': return <CaseSensitive className="w-3 h-3 text-orange-500"  />;
+      default: return <HelpCircle className="w-3 h-3 text-zinc-400"  />;
     }
   };
 
@@ -98,13 +98,13 @@ export function DatasetManager({ datasets, onImport, onRemove, onPreview }: Data
                       </div>
 
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100" title="Rename">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100" >
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950" title="Preview Data" onClick={() => onPreview(dataset.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"  onClick={() => onPreview(dataset.id)}>
                           <Maximize2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950" title="Remove" onClick={() => onRemove(dataset.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"  onClick={() => onRemove(dataset.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

@@ -89,12 +89,20 @@ export default function App() {
               )}
             </main>
 
-            <RightPanel currentView={currentView} suggestionsCount={suggestions.length} pendingCount={suggestions.filter(s => s.status === 'pending').length} />
+            <RightPanel 
+              currentView={currentView} 
+              datasets={datasets}
+              suggestions={suggestions}
+            />
           </>
         ) : currentView === 'relationships' ? (
           <>
             <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
-            <RightPanel currentView={currentView} suggestionsCount={suggestions.length} pendingCount={suggestions.filter(s => s.status === 'pending').length} />
+            <RightPanel 
+              currentView={currentView} 
+              datasets={datasets}
+              suggestions={suggestions}
+            />
           </>
         ) : null}
       </div>

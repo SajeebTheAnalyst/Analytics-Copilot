@@ -73,6 +73,74 @@ Return your analysis in JSON format matching this schema exactly:
   }
 });
 
+app.post("/api/chat", async (req, res) => {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet." });
+    }
+
+    const { history, metadata, message } = req.body;
+    
+    if (!message && (!history || history.length === 0)) {
+       return res.status(400).json({ error: "Missing message" });
+    }
+
+    const systemInstruction = `You are a professional Senior Data Analyst assisting the user in Analytics Copilot.
+Your job is to help the user understand their datasets, relationships, and analytics workspace.
+The user has provided workspace metadata (datasets, columns, stats, relationships).
+
+IMPORTANT RULES:
+1. NO AUTONOMOUS ACTIONS: You cannot modify data, delete rows, create relationships, or build dashboards yourself. If an action is required (e.g. clean data, build a dashboard), explain what you recommend and ASK FOR PERMISSION.
+2. Example of asking for permission: "I found 324 duplicate rows. I can prepare a cleaning plan for you. Would you like to review it?"
+3. For unsupported future actions (like dashboard generation or data cleaning), state: "I can help you plan that. The [feature] capability will become available in the next stage." Do not pretend to execute it.
+4. NUMERICAL ACCURACY: NEVER invent or fabricate numerical facts. If you need a calculation not present in the metadata, state: "I need to calculate that from the dataset before giving you an accurate number."
+5. EXPLAIN REASONING: Communicate like a professional analyst. Distinguish facts from hypotheses. Ask clarifying questions.
+6. CONTEXT AWARENESS: Use the provided workspace metadata to answer questions about what datasets are loaded and how they connect. Do not ask for information that is already provided in the metadata.
+7. FORMATTING: Use Markdown, bullet lists, and tables when useful. Be concise but professional.
+
+Current Workspace Metadata:
+${JSON.stringify(metadata, null, 2)}
+`;
+
+    // Initialize chat session
+    const chat = ai.chats.create({
+      model: "gemini-3.6-flash",
+      config: {
+        systemInstruction,
+        temperature: 0.2,
+      }
+    });
+
+    // We can simulate history by sending the previous messages if supported by @google/genai.
+    // Or we can just format it into the prompt. The `@google/genai` chat session doesn't easily let us seed history in `create()` in this exact syntax without formatting.
+    // Let's pass the history in a structured way.
+    const formattedHistory = (history || []).map((msg: any) => ({
+       role: msg.role === 'user' ? 'user' : 'model',
+       parts: [{ text: msg.text }]
+    }));
+    
+    if (formattedHistory.length > 0) {
+      const chatWithHistory = ai.chats.create({
+        model: "gemini-3.6-flash",
+        config: {
+          systemInstruction,
+          temperature: 0.2,
+        },
+        history: formattedHistory
+      });
+      const response = await chatWithHistory.sendMessage({ message });
+      return res.json({ text: response.text });
+    } else {
+      const response = await chat.sendMessage({ message });
+      return res.json({ text: response.text });
+    }
+
+  } catch (error: any) {
+    console.error("Error in AI chat:", error);
+    res.status(500).json({ error: error.message || "Failed to communicate with AI" });
+  }
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
