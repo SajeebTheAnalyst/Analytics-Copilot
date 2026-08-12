@@ -229,7 +229,7 @@ export default function App() {
         />
 
         {/* Workspace Body */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex min-h-0 overflow-hidden">
           
           {/* Global Sidebar Navigation */}
           <Sidebar 
@@ -248,7 +248,7 @@ export default function App() {
           />
 
           {/* Main View Router Container */}
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-transparent">
+          <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-transparent">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentView}
@@ -256,7 +256,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="flex-1 flex flex-col min-w-0 overflow-hidden"
+                className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden"
               >
                 {currentView === 'data-manager' ? (
                   <DatasetManager 

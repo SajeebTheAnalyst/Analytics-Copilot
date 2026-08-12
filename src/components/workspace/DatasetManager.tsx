@@ -92,7 +92,7 @@ export function DatasetManager({
   // If no datasets exist in workspace
   if (!activeDataset || datasets.length === 0) {
     return (
-      <div className="flex-1 flex flex-col p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-transparent justify-center">
+      <div className="flex-1 flex flex-col min-h-0 p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-transparent justify-center">
         <div className="max-w-4xl mx-auto w-full space-y-6 py-8">
           {/* Header */}
           <div className="text-center space-y-2">
@@ -125,7 +125,7 @@ export function DatasetManager({
   const isCleaned = activeDataset.cleaningStatus === 'cleaned';
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-transparent p-6 lg:p-8 overflow-y-auto custom-scrollbar space-y-6">
+    <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-transparent p-6 lg:p-8 overflow-y-auto custom-scrollbar space-y-6">
       
       {/* Page Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800 pb-5">
