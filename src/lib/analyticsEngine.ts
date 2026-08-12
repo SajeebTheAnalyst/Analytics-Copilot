@@ -15,19 +15,19 @@ export function executeAnalysis(datasets: Dataset[], plan: AnalyzePlan) {
     return { error: 'Dataset not found or has no data.' };
   }
 
-  let data = [...dataset.fullData];
+  let data = dataset.fullData;
   
-  if (plan.filters) {
-    for (const f of plan.filters) {
-       data = data.filter(row => {
-          const v = row[f.column];
-          if (f.operator === 'equals') return v == f.value;
-          if (f.operator === 'contains') return String(v).toLowerCase().includes(String(f.value).toLowerCase());
-          if (f.operator === 'greater') return Number(v) > Number(f.value);
-          if (f.operator === 'less') return Number(v) < Number(f.value);
-          return true;
-       });
-    }
+  if (plan.filters && plan.filters.length > 0) {
+    data = data.filter(row => {
+      for (const f of plan.filters!) {
+        const v = row[f.column];
+        if (f.operator === 'equals' && v != f.value) return false;
+        if (f.operator === 'contains' && !String(v).toLowerCase().includes(String(f.value).toLowerCase())) return false;
+        if (f.operator === 'greater' && Number(v) <= Number(f.value)) return false;
+        if (f.operator === 'less' && Number(v) >= Number(f.value)) return false;
+      }
+      return true;
+    });
   }
 
   if (plan.type === 'aggregation') {

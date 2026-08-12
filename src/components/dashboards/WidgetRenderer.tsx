@@ -17,9 +17,20 @@ interface WidgetRendererProps {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export function WidgetRenderer({ widget, datasets, relationships, filters }: WidgetRendererProps) {
+  const primaryDataset = datasets.find(d => d.name === widget.datasetId || d.id === widget.datasetId);
+
   const data = useMemo(() => {
     return executeQuery(datasets, relationships, widget, filters);
   }, [datasets, relationships, widget, filters]);
+
+  if (!primaryDataset) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 text-sm p-4 text-center">
+        <span className="text-amber-500 mb-2 font-bold flex items-center gap-1">⚠️ Missing Data</span>
+        <p>Dataset '{widget.datasetId}' is no longer available.</p>
+      </div>
+    );
+  }
 
   if (!data || data.length === 0) {
     return (

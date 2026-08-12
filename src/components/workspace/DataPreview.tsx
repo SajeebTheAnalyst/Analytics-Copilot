@@ -1,6 +1,6 @@
 import { Dataset } from '@/types';
 import { Search, Hash, ToggleLeft, Calendar, HelpCircle, CaseSensitive, ArrowUpDown, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { cn, formatBytes } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -11,9 +11,17 @@ interface DataPreviewProps {
 
 export function DataPreview({ dataset }: DataPreviewProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 20;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -37,8 +45,8 @@ export function DataPreview({ dataset }: DataPreviewProps) {
     let processData = [...dataset.data];
 
     // Search
-    if (searchTerm) {
-      const lowerSearch = searchTerm.toLowerCase();
+    if (debouncedSearchTerm) {
+      const lowerSearch = debouncedSearchTerm.toLowerCase();
       processData = processData.filter(row => 
         Object.values(row).some(val => String(val ?? '').toLowerCase().includes(lowerSearch))
       );
@@ -68,7 +76,7 @@ export function DataPreview({ dataset }: DataPreviewProps) {
     }
 
     return processData;
-  }, [dataset.data, searchTerm, sortConfig]);
+  }, [dataset.data, debouncedSearchTerm, sortConfig]);
 
   const totalPages = Math.ceil(filteredAndSortedData.length / rowsPerPage) || 1;
   const paginatedData = filteredAndSortedData.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -82,7 +90,7 @@ export function DataPreview({ dataset }: DataPreviewProps) {
   // Reset page on new search
   useMemo(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [debouncedSearchTerm]);
 
   const typeCounts = useMemo(() => {
     const counts = { numeric: 0, categorical: 0, date: 0, boolean: 0, unknown: 0 };

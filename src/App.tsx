@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { get, set } from 'idb-keyval';
+import { ErrorBoundary } from 'react-error-boundary';
 import { TopNav } from './components/layout/TopNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { RightPanel } from './components/layout/RightPanel';
@@ -11,6 +13,22 @@ import { Dataset, ViewState, RelationshipSuggestion, Dashboard, DashboardPlan } 
 import { detectRelationships } from '@/lib/relationshipDetector';
 import { detectIssues, applyCleaningAction, undoCleaningAction, restoreOriginal } from '@/lib/dataCleaner';
 
+function ErrorFallback({ error, resetErrorBoundary }: any) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white dark:bg-zinc-950 text-center text-zinc-900 dark:text-zinc-50">
+      <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+      </div>
+      <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
+      <p className="text-zinc-500 mb-6 max-w-md">The application encountered an unexpected error. You can try refreshing the page or clearing the workspace.</p>
+      <div className="flex gap-4">
+        <button onClick={resetErrorBoundary} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Try Again</button>
+        <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Clear Workspace & Reload</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
@@ -18,8 +36,45 @@ export default function App() {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('data-manager');
   const [isUploading, setIsUploading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const [suggestions, setSuggestions] = useState<RelationshipSuggestion[]>([]);
+
+  // Load from IDB on mount
+  useEffect(() => {
+    async function loadWorkspace() {
+      try {
+        const storedDatasets = await get('ac_datasets');
+        const storedDashboards = await get('ac_dashboards');
+        const storedSuggestions = await get('ac_suggestions');
+        if (storedDatasets) setDatasets(storedDatasets);
+        if (storedDashboards) setDashboards(storedDashboards);
+        if (storedSuggestions) setSuggestions(storedSuggestions);
+      } catch (err) {
+        console.error("Failed to load workspace from IndexedDB", err);
+      } finally {
+        setIsInitialized(true);
+      }
+    }
+    loadWorkspace();
+  }, []);
+
+  // Save to IDB on change
+  useEffect(() => {
+    if (!isInitialized) return;
+    set('ac_datasets', datasets).catch(console.error);
+  }, [datasets, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    set('ac_dashboards', dashboards).catch(console.error);
+  }, [dashboards, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    set('ac_suggestions', suggestions).catch(console.error);
+  }, [suggestions, isInitialized]);
+
 
   const handleBuildDashboard = (plan: DashboardPlan) => {
     // Generate IDs for widgets and dashboard
@@ -131,9 +186,14 @@ export default function App() {
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
+  if (!isInitialized) {
+    return <div className="h-full flex items-center justify-center bg-white dark:bg-zinc-950 text-zinc-500">Loading workspace...</div>;
+  }
+
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#050505] text-zinc-900 dark:text-zinc-50 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 overflow-hidden">
-      <TopNav 
+    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
+      <div className="h-full flex flex-col bg-white dark:bg-[#050505] text-zinc-900 dark:text-zinc-50 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 overflow-hidden">
+        <TopNav 
         currentView={currentView} 
         onViewChange={setCurrentView} 
         onImportFiles={() => {
@@ -245,6 +305,7 @@ export default function App() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
       `}</style>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

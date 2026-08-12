@@ -9,27 +9,28 @@ export function executeQuery(
   const primaryDataset = datasets.find(d => d.name === widget.datasetId || d.id === widget.datasetId);
   if (!primaryDataset || !primaryDataset.fullData) return [];
 
-  let data = [...primaryDataset.fullData];
+  let data = primaryDataset.fullData;
 
-  // TODO: Cross-dataset joins if needed (skipped for now, assuming metrics are mostly derived from primary dataset)
   // For filters, we apply them to the data if the filter's dataset matches
   const applicableFilters = filters.filter(f => f.datasetId === primaryDataset.name || f.datasetId === primaryDataset.id);
   
-  for (const filter of applicableFilters) {
-    if (filter.value === null) continue;
-    data = data.filter(row => row[filter.column] === filter.value);
-  }
-  
-  if (widget.filter) {
+  if (applicableFilters.length > 0 || widget.filter) {
     data = data.filter(row => {
-      const val = row[widget.filter!.column];
-      switch (widget.filter!.operator) {
-        case 'equals': return val === widget.filter!.value;
-        case 'greater': return Number(val) > Number(widget.filter!.value);
-        case 'less': return Number(val) < Number(widget.filter!.value);
-        case 'contains': return String(val).toLowerCase().includes(String(widget.filter!.value).toLowerCase());
-        default: return true;
+      // Check global filters
+      for (const filter of applicableFilters) {
+        if (filter.value !== null && row[filter.column] !== filter.value) return false;
       }
+      // Check widget specific filter
+      if (widget.filter) {
+        const val = row[widget.filter.column];
+        switch (widget.filter.operator) {
+          case 'equals': if (val !== widget.filter.value) return false; break;
+          case 'greater': if (Number(val) <= Number(widget.filter.value)) return false; break;
+          case 'less': if (Number(val) >= Number(widget.filter.value)) return false; break;
+          case 'contains': if (!String(val).toLowerCase().includes(String(widget.filter.value).toLowerCase())) return false; break;
+        }
+      }
+      return true;
     });
   }
 

@@ -1,8 +1,9 @@
 import React, { useCallback, useState, useRef } from 'react';
-import { UploadCloud, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Loader2, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { processDataset } from '@/lib/analyzer';
 import { Dataset } from '@/types';
+import { Button } from '../ui/button';
 
 interface DataUploaderProps {
   onDatasetsImported: (datasets: Dataset[]) => void;
@@ -12,6 +13,27 @@ export function DataUploader({ onDatasetsImported }: DataUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDemoData = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsUploading(true);
+    try {
+      const demoCsv = `id,name,category,price,sales,region
+1,Product A,Electronics,99.99,150,North America
+2,Product B,Accessories,19.99,300,Europe
+3,Product C,Electronics,149.99,80,North America
+4,Product D,Clothing,49.99,200,Asia
+5,Product E,Clothing,29.99,400,Europe`;
+
+      const demoFile = new File([demoCsv], "demo_sales.csv", { type: "text/csv" });
+      const dataset = await processDataset(demoFile);
+      onDatasetsImported([dataset]);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -113,6 +135,12 @@ export function DataUploader({ onDatasetsImported }: DataUploaderProps) {
             <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
             <FileSpreadsheet className="w-3 h-3 text-emerald-500" />
             <span>XLSX</span>
+          </div>
+          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 w-full flex justify-center">
+             <Button variant="outline" size="sm" onClick={handleDemoData} className="gap-2">
+                <Database className="w-4 h-4 text-blue-500" />
+                Try Demo Workspace
+             </Button>
           </div>
         </div>
       )}
