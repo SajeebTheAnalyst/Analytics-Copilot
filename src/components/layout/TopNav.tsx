@@ -40,54 +40,54 @@ export function TopNav({ currentView, onViewChange, onImportFiles }: TopNavProps
             </span>
           </div>
           
-          <div className="hidden md:flex items-center bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg">
+          <div className="hidden lg:flex items-center bg-zinc-100 dark:bg-zinc-900/80 p-1 rounded-lg border border-zinc-200/60 dark:border-zinc-800/80 backdrop-blur-sm">
             <button 
               onClick={() => onViewChange('data-manager')}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+                "px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all",
                 currentView === 'data-manager' 
-                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm font-bold" 
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
               )}
             >
-              <Database className="w-4 h-4" />
-              Data
+              <Database className="w-3.5 h-3.5" />
+              Data Manager
             </button>
             <button 
               onClick={() => onViewChange('cleaning')}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+                "px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all",
                 currentView === 'cleaning' 
-                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm font-bold" 
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
               )}
             >
-              <Sparkles className="w-4 h-4" />
-              Cleaning
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              Data Cleaning
             </button>
             <button 
               onClick={() => onViewChange('relationships')}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+                "px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all",
                 currentView === 'relationships' 
-                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm font-bold" 
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
               )}
             >
-              <Network className="w-4 h-4" />
-              Relationships
+              <Network className="w-3.5 h-3.5 text-indigo-500" />
+              Relationships (Data Model)
             </button>
             <button 
               onClick={() => onViewChange('dashboards')}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all",
+                "px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-2 transition-all",
                 currentView === 'dashboards' 
-                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm" 
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm font-bold" 
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
               )}
             >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboards
+              <LayoutDashboard className="w-3.5 h-3.5 text-emerald-500" />
+              Dashboards & MIS Reports
             </button>
           </div>
         </div>

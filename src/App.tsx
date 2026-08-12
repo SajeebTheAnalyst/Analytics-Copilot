@@ -264,6 +264,7 @@ export default function App() {
               onRejectIssue={handleRejectIssue}
               onUndoLog={handleUndoLog}
               onApproveAllSafe={handleApproveAllSafe}
+              onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
             />
             <RightPanel 
               currentView={currentView} 

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Network, ArrowRight, Send, Loader2, Trash2, LayoutDashboard, Check, TrendingUp, TrendingDown, Minus, AlertTriangle, PieChart } from 'lucide-react';
 import { ViewState, Dataset, RelationshipSuggestion, DashboardPlan, Dashboard } from '@/types';
 import { executeAnalysis, AnalyzePlan } from '@/lib/analyticsEngine';
+import { queryCopilot } from '@/lib/copilotEngine';
 import { WidgetRenderer } from '../dashboards/WidgetRenderer';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -138,34 +139,14 @@ export function RightPanel({ currentView, datasets, suggestions, dashboards = []
         } : null
       };
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          history: baseHistory.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.text })),
-          metadata
-        })
-      });
+      const result = await queryCopilot(
+        text,
+        baseHistory.map(m => ({ role: m.role, text: m.text })),
+        metadata,
+        datasets
+      );
 
-      let data: any = {};
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        try {
-          data = await response.json();
-        } catch (e) {
-          data = {};
-        }
-      }
-
-      if (!response.ok) {
-        if (data.error === 'NOT_CONFIGURED') {
-          throw new Error('AI Copilot is not configured yet. Please configure the GEMINI_API_KEY environment variable.');
-        }
-        throw new Error(data.message || data.error || `API endpoint /api/chat returned status ${response.status}. Please verify your backend server deployment.`);
-      }
-
-      const aiText = data.text;
+      const aiText = result.text;
       const { analyzePlan } = parseAssistantMessage(aiText);
 
       const aiMessage: Message = { id: Date.now().toString() + Math.random(), role: 'assistant', text: aiText };

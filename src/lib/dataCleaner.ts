@@ -343,3 +343,220 @@ export function restoreOriginal(dataset: Dataset): Dataset {
   };
   return recalculateDatasetProfiles(updatedDataset);
 }
+
+export function removeNullsCustom(
+  dataset: Dataset,
+  column: string,
+  strategy: 'drop' | 'zero' | 'mean' | 'text',
+  customText = 'Unknown'
+): Dataset {
+  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  let rowsAffected = 0;
+  let newData = [...dataset.fullData];
+
+  if (strategy === 'drop') {
+    newData = newData.filter(row => {
+      const val = row[column];
+      if (val === null || val === undefined || val === '') {
+        rowsAffected++;
+        return false;
+      }
+      return true;
+    });
+  } else if (strategy === 'mean') {
+    const nums = newData.map(r => Number(r[column])).filter(n => !isNaN(n));
+    const meanVal = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+    newData = newData.map(row => {
+      const val = row[column];
+      if (val === null || val === undefined || val === '') {
+        rowsAffected++;
+        return { ...row, [column]: Number(meanVal.toFixed(2)) };
+      }
+      return row;
+    });
+  } else if (strategy === 'zero') {
+    newData = newData.map(row => {
+      const val = row[column];
+      if (val === null || val === undefined || val === '') {
+        rowsAffected++;
+        return { ...row, [column]: 0 };
+      }
+      return row;
+    });
+  } else {
+    newData = newData.map(row => {
+      const val = row[column];
+      if (val === null || val === undefined || val === '') {
+        rowsAffected++;
+        return { ...row, [column]: customText };
+      }
+      return row;
+    });
+  }
+
+  const log: CleaningLog = {
+    id: `log-nulls-${Date.now()}`,
+    timestamp: Date.now(),
+    datasetId: dataset.id,
+    datasetName: dataset.name,
+    issueId: `manual-nulls-${column}`,
+    operation: `Remove Nulls in "${column}" (${strategy})`,
+    rowsAffected,
+    previousData: originalDataSnapshot
+  };
+
+  return recalculateDatasetProfiles({
+    ...dataset,
+    fullData: newData,
+    cleaningLogs: [...(dataset.cleaningLogs || []), log],
+    cleaningStatus: 'cleaned'
+  });
+}
+
+export function cleanHeadersCustom(
+  dataset: Dataset,
+  style: 'snake_case' | 'lowercase' | 'trim'
+): Dataset {
+  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const oldHeaders = dataset.headers;
+  
+  const headerMap: Record<string, string> = {};
+  const newHeaders = oldHeaders.map(h => {
+    let clean = h.trim();
+    if (style === 'lowercase') {
+      clean = clean.toLowerCase();
+    } else if (style === 'snake_case') {
+      clean = clean.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    }
+    headerMap[h] = clean || h;
+    return clean || h;
+  });
+
+  const newData = dataset.fullData.map(row => {
+    const updatedRow: Record<string, any> = {};
+    for (const oldKey of oldHeaders) {
+      const newKey = headerMap[oldKey];
+      updatedRow[newKey] = row[oldKey];
+    }
+    return updatedRow;
+  });
+
+  const log: CleaningLog = {
+    id: `log-headers-${Date.now()}`,
+    timestamp: Date.now(),
+    datasetId: dataset.id,
+    datasetName: dataset.name,
+    issueId: `manual-headers-${style}`,
+    operation: `Clean Headers (${style})`,
+    rowsAffected: dataset.fullData.length,
+    previousData: originalDataSnapshot
+  };
+
+  return recalculateDatasetProfiles({
+    ...dataset,
+    headers: newHeaders,
+    fullData: newData,
+    cleaningLogs: [...(dataset.cleaningLogs || []), log],
+    cleaningStatus: 'cleaned'
+  });
+}
+
+export function castColumnTypeCustom(
+  dataset: Dataset,
+  column: string,
+  targetType: 'numeric' | 'text' | 'date' | 'boolean'
+): Dataset {
+  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  let rowsAffected = 0;
+
+  const newData = dataset.fullData.map(row => {
+    const val = row[column];
+    let converted = val;
+
+    if (targetType === 'numeric') {
+      const num = Number(val);
+      if (!isNaN(num)) {
+        converted = num;
+        if (typeof val !== 'number') rowsAffected++;
+      }
+    } else if (targetType === 'text') {
+      converted = String(val ?? '');
+      if (typeof val !== 'string') rowsAffected++;
+    } else if (targetType === 'boolean') {
+      converted = String(val).toLowerCase() === 'true' || String(val) === '1' || val === true;
+      if (typeof val !== 'boolean') rowsAffected++;
+    } else if (targetType === 'date') {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        converted = d.toISOString().split('T')[0];
+        rowsAffected++;
+      }
+    }
+
+    return { ...row, [column]: converted };
+  });
+
+  const log: CleaningLog = {
+    id: `log-cast-${Date.now()}`,
+    timestamp: Date.now(),
+    datasetId: dataset.id,
+    datasetName: dataset.name,
+    issueId: `manual-cast-${column}`,
+    operation: `Change "${column}" type to ${targetType}`,
+    rowsAffected,
+    previousData: originalDataSnapshot
+  };
+
+  return recalculateDatasetProfiles({
+    ...dataset,
+    fullData: newData,
+    columnTypes: { ...dataset.columnTypes, [column]: targetType },
+    cleaningLogs: [...(dataset.cleaningLogs || []), log],
+    cleaningStatus: 'cleaned'
+  });
+}
+
+export function filterOutliersCustom(
+  dataset: Dataset,
+  column: string,
+  zThreshold = 2.5
+): Dataset {
+  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const nums = dataset.fullData.map(r => Number(r[column])).filter(n => !isNaN(n));
+  if (nums.length === 0) return dataset;
+
+  const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
+  const stdDev = Math.sqrt(nums.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / nums.length);
+
+  if (stdDev === 0) return dataset;
+
+  let rowsAffected = 0;
+  const newData = dataset.fullData.filter(row => {
+    const val = Number(row[column]);
+    if (isNaN(val)) return true;
+    const zScore = Math.abs((val - mean) / stdDev);
+    if (zScore > zThreshold) {
+      rowsAffected++;
+      return false; // drop outlier
+    }
+    return true;
+  });
+
+  const log: CleaningLog = {
+    id: `log-outliers-${Date.now()}`,
+    timestamp: Date.now(),
+    datasetId: dataset.id,
+    datasetName: dataset.name,
+    issueId: `manual-outlier-${column}`,
+    operation: `Filter Outliers in "${column}" (Z-score > ${zThreshold})`,
+    rowsAffected,
+    previousData: originalDataSnapshot
+  };
+
+  return recalculateDatasetProfiles({
+    ...dataset,
+    fullData: newData,
+    cleaningLogs: [...(dataset.cleaningLogs || []), log],
+    cleaningStatus: 'cleaned'
+  });
+}
