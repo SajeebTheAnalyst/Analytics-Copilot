@@ -291,8 +291,28 @@ export default function App() {
                 datasets={datasets} 
                 relationships={suggestions.filter(s => s.status === 'accepted')}
                 selectedDashId={selectedDashId}
+                selectedDatasetId={selectedDatasetId}
+                onSelectDataset={setSelectedDatasetId}
                 onSelectDashboard={setSelectedDashId}
-                onUpdateDashboard={(id, update) => setDashboards(prev => prev.map(d => d.id === id ? { ...d, ...update } : d))}
+                onUpdateDashboard={(id, update) => {
+                  setDashboards(prev => {
+                    const exists = prev.some(d => d.id === id);
+                    if (exists) {
+                      return prev.map(d => d.id === id ? { ...d, ...update } : d);
+                    } else {
+                      const newDash: Dashboard = {
+                        id,
+                        title: update.title || 'New Dashboard',
+                        createdAt: Date.now(),
+                        updatedAt: Date.now(),
+                        widgets: update.widgets || [],
+                        filters: update.filters || [],
+                        ...update
+                      };
+                      return [newDash, ...prev];
+                    }
+                  });
+                }}
                 onDeleteDashboard={(id) => {
                   setDashboards(prev => prev.filter(d => d.id !== id));
                   if (selectedDashId === id) setSelectedDashId(null);
@@ -301,7 +321,7 @@ export default function App() {
             ) : currentView === 'mis-report' ? (
               <MisReportView datasets={datasets} dashboards={dashboards} />
             ) : currentView === 'data-dictionary' ? (
-              <DataDictionaryView datasets={datasets} />
+              <DataDictionaryView datasets={datasets} dashboards={dashboards} />
             ) : null}
           </main>
 

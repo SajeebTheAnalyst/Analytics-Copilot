@@ -97,8 +97,8 @@ export type ViewState =
   | 'mis-report' 
   | 'data-dictionary';
 
-export type WidgetType = 'kpi' | 'line' | 'bar' | 'area' | 'scatter' | 'donut' | 'pie' | 'table';
-export type AggregationFunction = 'sum' | 'count' | 'avg' | 'min' | 'max';
+export type WidgetType = 'kpi' | 'line' | 'bar' | 'area' | 'scatter' | 'donut' | 'pie' | 'table' | 'ranking_table';
+export type AggregationFunction = 'sum' | 'count' | 'avg' | 'min' | 'max' | 'distinct_count';
 
 export type KpiStatus = 'active' | 'needs_attention' | 'invalid';
 export type KpiAggregation = 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max';
@@ -108,8 +108,8 @@ export interface KpiFormatConfig {
   type: KpiFormatType;
   currencySymbol?: string; // e.g. '$'
   decimals: number; // e.g. 0, 1, 2, 3
-  useThousandsSeparator: boolean;
-  compactNotation: boolean; // e.g. 1.25M
+  useThousandsSeparator?: boolean;
+  compactNotation?: boolean; // e.g. 1.25M
 }
 
 export type FormulaOperator = '+' | '-' | '*' | '/' | '(' | ')';
@@ -162,27 +162,41 @@ export interface WidgetConfig {
   id: string;
   type: WidgetType;
   title: string;
+  subtitle?: string;
   datasetId: string;
-  xAxisColumn?: string;
-  yAxisColumn?: string;
+  kpiId?: string; // Optional KPI reference for 'kpi' type
+  xAxisColumn?: string; // Category, date, or dimension column
+  yAxisColumn?: string; // Numeric metric column
   aggregation?: AggregationFunction;
   filter?: { column: string; value: string | number; operator: 'equals' | 'greater' | 'less' | 'contains' };
+  filters?: ColumnFilter[]; // Advanced widget filters
+  topN?: number; // Positive for Top N (5, 10, 20), negative for Bottom N (-5, -10, -20)
+  sortDirection?: 'asc' | 'desc';
+  format?: KpiFormatConfig;
+  gridSpan?: number; // 1 | 2 | 3 | 4 (where 1 = 3 cols, 2 = 6 cols, 3 = 9 cols, 4 = 12 cols in a 12-col layout)
+  height?: string;
 }
 
 export interface DashboardFilter {
   id: string;
   datasetId: string;
   column: string;
+  operator?: FilterOperator;
   value: string | number | null;
+  secondaryValue?: string;
+  dateRangePreset?: 'all' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
 }
 
 export interface Dashboard {
   id: string;
   title: string;
+  description?: string;
+  datasetId?: string;
   createdAt: number;
   updatedAt: number;
   widgets: WidgetConfig[];
   filters: DashboardFilter[];
+  isDemo?: boolean;
 }
 
 export interface DashboardPlan {
