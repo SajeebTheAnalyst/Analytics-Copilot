@@ -1,0 +1,5 @@
+# Netlify redirect rule to proxy backend API calls to your deployed Cloud Run container
+# Replace YOUR_BACKEND_URL with your actual Cloud Run or container deployment URL
+# Example: /api/*  https://analytics-copilot-backend-xyz.a.run.app/api/:splat  200
+
+/api/*  https://YOUR_BACKEND_URL/api/:splat  200
