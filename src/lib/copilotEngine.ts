@@ -13,7 +13,7 @@ export async function queryCopilot(
   metadata: any,
   datasets: Dataset[]
 ): Promise<CopilotResponse> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
+  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
 
   // 1. First, if client API key is available, attempt direct client-side Gemini call
   if (apiKey) {
@@ -146,6 +146,7 @@ function generateLocalCopilotResponse(message: string, datasets: Dataset[], meta
   if (lower.includes('dashboard') || lower.includes('build') || lower.includes('report') || lower.includes('mis')) {
     const plan: DashboardPlan = {
       title: `${primaryDs.name} Executive Dashboard`,
+      datasets: [primaryDs.name],
       kpis: numericCols.slice(0, 3).map((numCol, idx) => {
         const total = primaryDs.fullData.reduce((sum, r) => sum + (Number(r[numCol]) || 0), 0);
         return {

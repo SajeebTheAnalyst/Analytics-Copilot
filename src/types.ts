@@ -29,7 +29,7 @@ export interface CleaningLog {
 
 export interface ColumnProfile {
   name: string;
-  type: "numeric" | "categorical" | "date" | "boolean" | "unknown";
+  type: "numeric" | "categorical" | "date" | "boolean" | "text" | "unknown";
   nullCount: number;
   uniqueCount: number;
   exampleValue: string | number | boolean | null;
@@ -69,7 +69,15 @@ export interface RelationshipSuggestion {
   warnings: string[];
 }
 
-export type ViewState = 'data-manager' | 'relationships' | 'dashboards' | 'copilot' | 'cleaning';
+export type ViewState = 
+  | 'data-manager' 
+  | 'cleaning' 
+  | 'explorer' 
+  | 'relationships' 
+  | 'kpi-builder' 
+  | 'dashboards' 
+  | 'mis-report' 
+  | 'data-dictionary';
 
 export type WidgetType = 'kpi' | 'line' | 'bar' | 'area' | 'scatter' | 'donut' | 'pie' | 'table';
 export type AggregationFunction = 'sum' | 'count' | 'avg' | 'min' | 'max';
