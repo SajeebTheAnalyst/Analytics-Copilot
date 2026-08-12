@@ -1,9 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
 import { Dataset, Dashboard, RelationshipSuggestion, DashboardPlan } from '@/types';
-import { executeAnalysis } from './analyticsEngine';
+import { generateAnalyticsEvidence, AnalyticalEvidence } from './copilotAnalyticsEngine';
 
 export interface CopilotResponse {
   text: string;
+  evidence?: AnalyticalEvidence | null;
   source: 'server' | 'client_gemini' | 'local_engine';
 }
 
@@ -11,69 +12,45 @@ export async function queryCopilot(
   message: string,
   history: { role: string; text: string }[],
   metadata: any,
-  datasets: Dataset[]
+  datasets: Dataset[],
+  dashboards: Dashboard[] = [],
+  activeDashboardId?: string | null
 ): Promise<CopilotResponse> {
+  const primaryDataset = datasets[0] || null;
+
+  // 0. GENERATE DETERMINISTIC EVIDENCE FIRST
+  const evidence = await generateAnalyticsEvidence(
+    message,
+    history,
+    primaryDataset,
+    dashboards,
+    activeDashboardId
+  );
+
   const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
 
-  // 1. First, if client API key is available, attempt direct client-side Gemini call
+  const systemInstruction = `You are AI Analyst Copilot, a senior B2B analytics copilot assisting enterprise users.
+
+CRITICAL ANTI-HALLUCINATION & DETERMINISTIC RULES:
+1. NEVER invent, fabricate, or recalculate numeric values. You must strictly use the calculated facts provided in DETERMINISTIC_EVIDENCE below.
+2. CAUSATION GUARDRAIL: When explaining changes, trends, or performance differences, DO NOT claim direct causation unless explicitly proven. Use non-causal correlation wording such as "coincided with", "associated with", "may indicate", or "possible contributor".
+3. STATUS REASONING: If a KPI status is "Needs Attention" or "Invalid", explain the underlying data issue clearly rather than fabricating a result.
+4. FORMATTING: Use clean markdown sections:
+   - **Answer**: Clear, direct, concise answer containing exact figures from the evidence.
+   - **Key Findings**: Structured bullet points with exact metrics and comparisons.
+   - **Interpretation**: Contextual business insights.
+   - **Recommended Action**: Actionable next step or follow-up recommendation.
+
+DETERMINISTIC_EVIDENCE_CALCULATED_BY_APPLICATION:
+${JSON.stringify(evidence || { note: 'No specific analytical query matched. Default workspace metadata applied.' }, null, 2)}
+
+WORKSPACE METADATA:
+${JSON.stringify(metadata, null, 2)}`;
+
+  // 1. Client-side Gemini call if client API key is configured
   if (apiKey) {
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const systemInstruction = `You are Analytics Copilot, an expert AI data analyst and business intelligence assistant.
-You have access to the user's workspace metadata below.
-
-AVAILABLE WORKSPACE METADATA:
-${JSON.stringify(metadata, null, 2)}
-
-INSTRUCTIONS:
-1. Provide concise, clear, and professional data analytics guidance.
-2. If the user asks for a dashboard, chart, or analysis, you CAN output structured JSON blocks alongside markdown:
-   - Dashboard Plan block format:
-   \`\`\`json
-   {
-     "_dashboardPlan": {
-       "title": "Executive Sales Dashboard",
-       "kpis": [{ "title": "Total Revenue", "datasetId": "ds-1", "yAxisColumn": "sales", "aggregation": "sum" }],
-       "charts": [{ "title": "Sales by Category", "type": "bar", "datasetId": "ds-1", "xAxisColumn": "category", "yAxisColumn": "sales", "aggregation": "sum" }]
-     }
-   }
-   \`\`\`
-   - Inline Chart block format:
-   \`\`\`json
-   {
-     "_inlineChart": {
-       "title": "Monthly Performance",
-       "type": "line",
-       "datasetId": "ds-1",
-       "xAxisColumn": "date",
-       "yAxisColumn": "revenue",
-       "aggregation": "sum"
-     }
-   }
-   \`\`\`
-   - Insight Card block format:
-   \`\`\`json
-   {
-     "_insightCard": {
-       "title": "Avg Order Value",
-       "value": "$124.50",
-       "trend": "up"
-     }
-   }
-   \`\`\`
-   - Local Analysis Execution block format:
-   \`\`\`json
-   {
-     "_analyzePlan": {
-       "type": "aggregation",
-       "datasetId": "ds-1",
-       "metrics": [{ "column": "sales", "aggregation": "sum" }],
-       "dimensions": ["category"]
-     }
-   }
-   \`\`\`
-3. Always tailor your response directly to the user's datasets and question.`;
-
       const contents = [
         ...history.slice(-8).map(h => `${h.role === 'assistant' ? 'Model' : 'User'}: ${h.text}`),
         `User: ${message}`
@@ -85,14 +62,14 @@ INSTRUCTIONS:
       });
 
       if (response && response.text) {
-        return { text: response.text, source: 'client_gemini' };
+        return { text: response.text, evidence, source: 'client_gemini' };
       }
     } catch (err) {
-      console.warn('Client-side Gemini call failed, attempting fallback...', err);
+      console.warn('Client-side Gemini call failed, attempting server proxy fallback...', err);
     }
   }
 
-  // 2. Second, attempt calling /api/chat server proxy if deployed
+  // 2. Server proxy `/api/chat` call
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -100,152 +77,88 @@ INSTRUCTIONS:
       body: JSON.stringify({
         message,
         history: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.text })),
-        metadata
+        metadata,
+        evidence
       })
     });
 
     if (res.ok) {
       const data = await res.json();
       if (data && data.text) {
-        return { text: data.text, source: 'server' };
+        return { text: data.text, evidence, source: 'server' };
       }
     }
   } catch (e) {
-    console.warn('/api/chat unreachable, falling back to local copilot analytics engine', e);
+    console.warn('/api/chat unreachable, using deterministic local engine fallback', e);
   }
 
-  // 3. Fallback: Intelligent Local Analytical Engine (Guaranteeing 0 502 errors)
+  // 3. Intelligent Local Fallback Engine (0 502 errors)
   return {
-    text: generateLocalCopilotResponse(message, datasets, metadata),
+    text: generateFallbackText(message, evidence, primaryDataset),
+    evidence,
     source: 'local_engine'
   };
 }
 
-function generateLocalCopilotResponse(message: string, datasets: Dataset[], metadata: any): string {
-  const lower = message.toLowerCase();
-  const primaryDs = datasets[0];
-
-  if (!primaryDs) {
-    return "Please upload or select a dataset first so I can analyze your data.";
+function generateFallbackText(message: string, evidence: AnalyticalEvidence | null, dataset: Dataset | null): string {
+  if (!dataset) {
+    return "Please import a dataset first so I can analyze your data.";
   }
 
-  // Find numeric and categorical columns
-  const numericCols = primaryDs.headers.filter(h => {
-    const profile = primaryDs.columnProfiles[h];
-    return profile?.type === 'numeric' || primaryDs.fullData.some(r => typeof r[h] === 'number');
-  });
+  if (evidence) {
+    if (evidence.intent === 'DATA_QUALITY' && evidence.qualityDetails) {
+      const q = evidence.qualityDetails;
+      return `### Data Health Assessment for **${evidence.datasetName}**
 
-  const catCols = primaryDs.headers.filter(h => {
-    const profile = primaryDs.columnProfiles[h];
-    return profile?.type === 'text' || profile?.type === 'categorical' || !numericCols.includes(h);
-  });
+- **Health Score**: **${q.healthScore}%**
+- **Total Rows**: ${q.totalRows.toLocaleString()}
+- **Missing Data Cells**: ${q.missingCount.toLocaleString()} (${q.missingPercent}%)
+- **Duplicate Records**: ${q.duplicateCount}
+- **Pending Cleaning Issues**: ${q.pendingIssuesCount}
 
-  const targetNum = numericCols[0] || primaryDs.headers[1] || primaryDs.headers[0];
-  const targetCat = catCols[0] || primaryDs.headers[0];
+**Recommended Action**: Review pending quality issues in the **Data Cleaning** tab before running downstream reporting.`;
+    }
 
-  if (lower.includes('dashboard') || lower.includes('build') || lower.includes('report') || lower.includes('mis')) {
-    const plan: DashboardPlan = {
-      title: `${primaryDs.name} Executive Dashboard`,
-      datasets: [primaryDs.name],
-      kpis: numericCols.slice(0, 3).map((numCol, idx) => {
-        const total = primaryDs.fullData.reduce((sum, r) => sum + (Number(r[numCol]) || 0), 0);
-        return {
-          title: `Total ${numCol.replace(/_/g, ' ')}`,
-          datasetId: primaryDs.id,
-          yAxisColumn: numCol,
-          aggregation: 'sum' as const,
-          formattedValue: total > 1000 ? `${(total / 1000).toFixed(1)}k` : total.toFixed(0)
-        };
-      }),
-      charts: [
-        {
-          title: `${targetNum} by ${targetCat}`,
-          type: 'bar' as const,
-          datasetId: primaryDs.id,
-          xAxisColumn: targetCat,
-          yAxisColumn: targetNum,
-          aggregation: 'sum' as const
-        },
-        numericCols[1] ? {
-          title: `Distribution of ${numericCols[1]}`,
-          type: 'pie' as const,
-          datasetId: primaryDs.id,
-          xAxisColumn: targetCat,
-          yAxisColumn: numericCols[1],
-          aggregation: 'avg' as const
-        } : {
-          title: `Trend Analysis`,
-          type: 'line' as const,
-          datasetId: primaryDs.id,
-          xAxisColumn: targetCat,
-          yAxisColumn: targetNum,
-          aggregation: 'count' as const
-        }
-      ]
-    };
+    if (evidence.intent === 'KPI' && evidence.kpiDetails) {
+      return `### Saved KPI Evaluation for **${evidence.datasetName}**
 
-    return `I've analyzed your **${primaryDs.name}** dataset (${primaryDs.rowCount.toLocaleString()} rows, ${primaryDs.headers.length} columns) and generated an executive dashboard plan for you:
+${evidence.kpiDetails.map(k => `- **${k.name}**: **${k.formattedValue}** (Formula: \`${k.formula}\` | Status: *${k.status}*${k.statusReason ? ` - ${k.statusReason}` : ''})`).join('\n')}
 
-- **Key Metrics**: Analyzed ${numericCols.join(', ')}
-- **Visual Breakdown**: Categorized by ${targetCat}
+**Recommended Action**: Keep monitoring KPIs with status *Needs Attention* or *Invalid* for formula correction or null values.`;
+    }
 
-\`\`\`json
-${JSON.stringify({ _dashboardPlan: plan }, null, 2)}
-\`\`\`
+    if (evidence.intent === 'COLUMN' && evidence.columnDetails) {
+      const c = evidence.columnDetails;
+      return `### Field Metadata for **[${c.columnName}]**
 
-Click **Build Dashboard** below to deploy these charts directly into your workspace.`;
+- **Technical Type**: \`${c.technicalType}\`
+- **Semantic Type**: \`${c.semanticType}\`
+- **Description**: ${c.description}
+- **Data Completeness**: **${c.completenessPercent.toFixed(1)}%** (${c.nullCount} missing values)
+- **Unique Cardinality**: ${c.uniqueCount} distinct values
+- **Sample Values**: \`${c.sampleValues.join('`, `')}\`
+
+**Recommended Action**: You can edit or enrich semantic tags and descriptions in the **Data Dictionary** tab.`;
+    }
+
+    if (evidence.rows && evidence.rows.length > 0) {
+      const topRow = evidence.rows[0];
+      const keys = Object.keys(topRow);
+      return `### Calculated Analysis for **${evidence.datasetName}**
+
+**${evidence.title}**
+
+${evidence.summaryText ? `- **Summary**: ${evidence.summaryText}\n` : ''}
+#### Breakdown (Top Records):
+| ${keys.join(' | ')} |
+| ${keys.map(() => '---').join(' | ')} |
+${evidence.rows.slice(0, 5).map(r => `| ${keys.map(k => r[k] ?? 'N/A').join(' | ')} |`).join('\n')}
+
+**Key Finding**: The data shows a clear distribution across top categories with **${topRow[keys[0]]}** recording the highest metric.
+
+**Recommended Action**: Would you like me to add this breakdown directly as a chart widget to your active dashboard?`;
+    }
   }
 
-  if (lower.includes('clean') || lower.includes('null') || lower.includes('issue') || lower.includes('outlier')) {
-    const pendingIssues = (primaryDs.issues || []).filter(i => i.status === 'pending');
-    return `### Data Quality Assessment for **${primaryDs.name}**
-
-I reviewed your dataset for quality issues:
-- **Total Rows**: ${primaryDs.rowCount.toLocaleString()}
-- **Pending Issues**: ${pendingIssues.length} issue(s) detected
-
-${pendingIssues.length > 0 ? pendingIssues.map(i => `- **${i.title}**: ${i.description} (${i.affectedRowCount} rows affected)`).join('\n') : '- Your dataset is clean and ready for analysis!'}
-
-You can switch to the **Data Cleaning** tab to review, apply or undo these changes.`;
-  }
-
-  // General Summary & Executive Query Response
-  const sampleAnalysis = executeAnalysis(datasets, {
-    type: 'aggregation',
-    datasetId: primaryDs.id,
-    metrics: [{ column: targetNum, aggregation: 'sum' }],
-    dimensions: [targetCat]
-  });
-
-  const totalSum = primaryDs.fullData.reduce((acc, r) => acc + (Number(r[targetNum]) || 0), 0);
-
-  const insightCard = {
-    title: `Total ${targetNum}`,
-    value: totalSum > 1000000 ? `$${(totalSum / 1000000).toFixed(2)}M` : totalSum > 1000 ? `$${(totalSum / 1000).toFixed(1)}K` : totalSum.toFixed(2),
-    trend: 'up'
-  };
-
-  const inlineChart = {
-    title: `Top ${targetCat} by ${targetNum}`,
-    type: 'bar',
-    datasetId: primaryDs.id,
-    xAxisColumn: targetCat,
-    yAxisColumn: targetNum,
-    aggregation: 'sum'
-  };
-
-  return `Here is the analysis for **${primaryDs.name}**:
-
-- **Overall ${targetNum}**: ${insightCard.value} across ${primaryDs.rowCount.toLocaleString()} records.
-- **Top Category**: ${Array.isArray(sampleAnalysis) && sampleAnalysis[0] ? `${sampleAnalysis[0][targetCat]} (${sampleAnalysis[0][`sum_${targetNum}`] || '0'})` : 'N/A'}
-
-\`\`\`json
-${JSON.stringify({ _insightCard: insightCard }, null, 2)}
-\`\`\`
-
-\`\`\`json
-${JSON.stringify({ _inlineChart: inlineChart }, null, 2)}
-\`\`\`
-
-Would you like me to build a complete dashboard or run deeper statistical breakdowns on this dataset?`;
+  return `I have indexed **${dataset.name}** (${dataset.rowCount.toLocaleString()} rows, ${dataset.headers.length} columns). Ask me about totals, top performers, data quality, KPIs, or dashboards!`;
 }

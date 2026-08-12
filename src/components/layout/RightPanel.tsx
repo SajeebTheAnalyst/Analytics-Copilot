@@ -11,11 +11,22 @@ import {
   Minus, 
   PieChart,
   X,
-  Bot
+  Bot,
+  Database,
+  Layers,
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  PlusCircle,
+  BarChart2,
+  FileText,
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 import { ViewState, Dataset, RelationshipSuggestion, DashboardPlan, Dashboard } from '@/types';
 import { executeAnalysis, AnalyzePlan } from '@/lib/analyticsEngine';
 import { queryCopilot } from '@/lib/copilotEngine';
+import { AnalyticalEvidence } from '@/lib/copilotAnalyticsEngine';
 import { WidgetRenderer } from '../dashboards/WidgetRenderer';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -36,14 +47,18 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  evidence?: AnalyticalEvidence | null;
   isSystem?: boolean;
 }
 
-const SUGGESTED_PROMPTS = [
-  "How did sales perform last month?",
-  "Build a sales dashboard.",
-  "Which dataset should I analyze first?",
-  "Give me an executive summary."
+const TASK9_QUICK_QUESTIONS = [
+  "What are the key trends in this dataset?",
+  "Which region generated the most revenue?",
+  "What are the biggest data quality issues?",
+  "Which products are most profitable?",
+  "Explain the current dashboard.",
+  "What should management pay attention to?",
+  "Which KPIs need attention?"
 ];
 
 function parseAssistantMessage(text: string) {
@@ -74,7 +89,7 @@ function parseAssistantMessage(text: string) {
         remainingText = remainingText.replace(match[0], '').trim();
       }
     } catch (e) {
-      // Ignore parse errors for partial/invalid blocks
+      // Ignore parse errors
     }
   }
 
@@ -95,9 +110,34 @@ export function RightPanel({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [expandedEvidenceIds, setExpandedEvidenceIds] = useState<Record<string, boolean>>({});
+
+  // Widget Modal State for "Add to Dashboard"
+  const [widgetModalConfig, setWidgetModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    type: 'bar' | 'line' | 'pie' | 'kpi' | 'table';
+    datasetId: string;
+    xAxisColumn: string;
+    yAxisColumn: string;
+    aggregation: 'sum' | 'avg' | 'count' | 'min' | 'max';
+  } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const activeDataset = datasets[0] || null;
+
+  // Compute dataset health score for context header
+  const healthScore = React.useMemo(() => {
+    if (!activeDataset) return 100;
+    const colProfiles = Object.values(activeDataset.columnProfiles || {});
+    const nullCells = colProfiles.reduce((acc, p) => acc + (p.nullCount || 0), 0);
+    const totalCells = (activeDataset.rowCount || activeDataset.fullData?.length || 1) * (activeDataset.headers?.length || 1);
+    const missingPercent = totalCells > 0 ? (nullCells / totalCells) * 100 : 0;
+    const pendingIssues = (activeDataset.issues || []).filter(i => i.status === 'pending');
+    return Math.max(0, Math.round(100 - (missingPercent * 1.5 + pendingIssues.length * 5)));
+  }, [activeDataset]);
 
   // Scroll to bottom when messages change or drawer opens
   useEffect(() => {
@@ -113,6 +153,10 @@ export function RightPanel({
 
   const suggestionsCount = suggestions.length;
   const pendingCount = suggestions.filter(s => s.status === 'pending').length;
+
+  const toggleEvidence = (id: string) => {
+    setExpandedEvidenceIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const handleSend = async (text: string, isSystem = false, currentHistory?: Message[]) => {
     if (!text.trim() || isLoading) return;
@@ -138,35 +182,12 @@ export function RightPanel({
           type: d.type,
           rowCount: d.rowCount,
           columns: d.headers,
-          columnTypes: d.headers.map(h => ({ name: h, type: d.columnProfiles[h]?.type || 'unknown' })),
-          cleaningStatus: d.cleaningStatus,
-          detectedIssues: (d.issues || []).filter(i => i.status === 'pending').map(i => ({
-            type: i.type,
-            title: i.title,
-            risk: i.riskLevel,
-            affectedRows: i.affectedRowCount
-          }))
-        })),
-        relationships: {
-          totalDetected: suggestionsCount,
-          pendingReview: pendingCount,
-          approved: suggestions.filter(s => s.status === 'accepted').map(s => `${s.sourceDatasetId}.${s.sourceColumn} -> ${s.targetDatasetId}.${s.targetColumn} (${s.type})`)
-        },
-        dashboards: dashboards.map(d => ({
-          id: d.id,
-          title: d.title,
-          widgetsCount: d.widgets.length
+          columnTypes: d.headers.map(h => ({ name: h, type: d.columnProfiles?.[h]?.type || 'unknown' })),
+          cleaningStatus: d.cleaningStatus
         })),
         activeDashboard: activeDashboard ? {
           title: activeDashboard.title,
-          widgets: activeDashboard.widgets.map(w => ({
-            title: w.title,
-            type: w.type,
-            datasetId: w.datasetId,
-            aggregation: w.aggregation,
-            xAxisColumn: w.xAxisColumn,
-            yAxisColumn: w.yAxisColumn
-          }))
+          widgetsCount: activeDashboard.widgets.length
         } : null
       };
 
@@ -174,27 +195,22 @@ export function RightPanel({
         text,
         baseHistory.map(m => ({ role: m.role, text: m.text })),
         metadata,
-        datasets
+        datasets,
+        dashboards,
+        activeDashboardId
       );
 
-      const aiText = result.text;
-      const { analyzePlan } = parseAssistantMessage(aiText);
-
-      const aiMessage: Message = { id: Date.now().toString() + Math.random(), role: 'assistant', text: aiText };
-      if (analyzePlan) {
-        aiMessage.isSystem = true;
-      }
+      const aiMessage: Message = { 
+        id: Date.now().toString() + Math.random(), 
+        role: 'assistant', 
+        text: result.text,
+        evidence: result.evidence
+      };
       
       newHistory = [...newHistory, aiMessage];
       setMessages(newHistory);
-
-      if (analyzePlan) {
-        const result = executeAnalysis(datasets, analyzePlan);
-        const resultText = `[System Analytics Engine Result]:\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
-        await handleSend(resultText, true, newHistory);
-      }
     } catch (err: any) {
-      setError(err.message || 'An error occurred while connecting to the AI.');
+      setError(err.message || 'An error occurred while connecting to the AI Analyst.');
     } finally {
       if (!isSystem) {
         setIsLoading(false);
@@ -203,8 +219,31 @@ export function RightPanel({
     }
   };
 
+  const handleConfirmAddWidget = () => {
+    if (!widgetModalConfig || !onBuildDashboard || !activeDataset) return;
+
+    const plan: DashboardPlan = {
+      title: `${widgetModalConfig.title} Dashboard`,
+      datasets: [activeDataset.name],
+      kpis: [],
+      charts: [
+        {
+          title: widgetModalConfig.title,
+          type: widgetModalConfig.type as any,
+          datasetId: widgetModalConfig.datasetId,
+          xAxisColumn: widgetModalConfig.xAxisColumn,
+          yAxisColumn: widgetModalConfig.yAxisColumn,
+          aggregation: widgetModalConfig.aggregation
+        }
+      ]
+    };
+
+    onBuildDashboard(plan);
+    setWidgetModalConfig(null);
+    onClose();
+  };
+
   const hasDatasets = datasets.length > 0;
-  const showInitialState = hasDatasets && messages.length === 0;
 
   return (
     <>
@@ -215,17 +254,17 @@ export function RightPanel({
       />
 
       {/* Drawer Container */}
-      <aside className="fixed top-0 right-0 h-full w-[400px] max-w-full bg-white dark:bg-[#0c0c0e] border-l border-zinc-200 dark:border-zinc-800 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-250 overflow-hidden">
+      <aside className="fixed top-0 right-0 h-full w-[440px] max-w-full bg-white dark:bg-[#0c0c0e] border-l border-zinc-200 dark:border-zinc-800 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-250 overflow-hidden font-sans">
         
         {/* Drawer Header */}
-        <div className="h-13 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 shrink-0 bg-zinc-50/80 dark:bg-zinc-950/80">
+        <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 shrink-0 bg-zinc-50/90 dark:bg-zinc-950/90">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100">AI Analytics Copilot</h3>
-              <p className="text-[10px] text-zinc-400 font-medium">Contextual Assistant</p>
+              <h3 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100">AI Analyst</h3>
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">Ask questions about your data and analysis.</p>
             </div>
           </div>
 
@@ -252,7 +291,38 @@ export function RightPanel({
           </div>
         </div>
 
-        {/* Chat Messages */}
+        {/* Compact Context Header Bar */}
+        {activeDataset && (
+          <div className="bg-zinc-100/80 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-800 px-3 py-2 flex items-center justify-between gap-2 text-[11px] shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1">
+                <Database className="w-3 h-3 text-blue-500 shrink-0" />
+                {activeDataset.name}
+              </span>
+              <span className="text-zinc-400">|</span>
+              <span className="text-zinc-600 dark:text-zinc-400 shrink-0">
+                {(activeDataset.rowCount || activeDataset.fullData?.length || 0).toLocaleString()} rows
+              </span>
+              <span className="text-zinc-400">|</span>
+              <span className="text-zinc-600 dark:text-zinc-400 shrink-0">
+                {activeDataset.headers?.length || 0} cols
+              </span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-medium text-zinc-400">Health:</span>
+              <span className={cn(
+                "px-1.5 py-0.5 rounded text-[10px] font-semibold",
+                healthScore >= 90 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" :
+                healthScore >= 70 ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" :
+                "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
+              )}>
+                {healthScore}%
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Chat Messages Area */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4">
           {!hasDatasets ? (
             <div className="flex-1 flex items-center justify-center text-center p-4">
@@ -265,21 +335,21 @@ export function RightPanel({
                 </p>
               </div>
             </div>
-          ) : showInitialState ? (
-            <div className="flex-1 flex flex-col justify-end gap-5 animate-in fade-in duration-300">
+          ) : messages.length === 0 ? (
+            <div className="flex-1 flex flex-col justify-end gap-4 animate-in fade-in duration-300">
               <div className="space-y-2">
-                <div className="w-8 h-8 rounded-md bg-blue-600 flex items-center justify-center text-white">
-                  <Sparkles className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center text-white">
+                  <Sparkles className="w-3.5 h-3.5" />
                 </div>
-                <div className="bg-zinc-50 dark:bg-zinc-900/80 p-3.5 rounded-lg text-xs text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800/80 leading-relaxed">
-                  <p className="font-semibold mb-1 text-zinc-900 dark:text-zinc-100">Dataset Loaded & Context Synced</p>
-                  <p>I have indexed column statistics and table schemas across your active workspace.</p>
+                <div className="bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-lg text-xs text-zinc-800 dark:text-zinc-200 border border-blue-200/50 dark:border-blue-900/30 leading-relaxed">
+                  <p className="font-semibold mb-0.5 text-blue-900 dark:text-blue-300">Context Synced & Ready</p>
+                  <p className="text-zinc-600 dark:text-zinc-400">Ask any question about metrics, trends, quality, or KPIs. All numeric calculations are deterministically computed first.</p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Suggested Prompts</span>
-                {SUGGESTED_PROMPTS.map((prompt, i) => (
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Quick Questions</span>
+                {TASK9_QUICK_QUESTIONS.map((prompt, i) => (
                   <button
                     key={i}
                     onClick={() => handleSend(prompt)}
@@ -295,14 +365,16 @@ export function RightPanel({
             <div className="flex flex-col gap-3">
               {messages.filter(m => !m.isSystem).map((msg) => {
                 const { plan, inlineChart, insightCard, remainingText } = msg.role === 'assistant' ? parseAssistantMessage(msg.text) : { plan: null, inlineChart: null, insightCard: null, remainingText: msg.text };
+                const ev = msg.evidence;
+                const isExpanded = expandedEvidenceIds[msg.id];
 
                 return (
-                  <div key={msg.id} className={cn("flex flex-col max-w-[92%]", msg.role === 'user' ? "self-end" : "self-start")}>
+                  <div key={msg.id} className={cn("flex flex-col max-w-[95%]", msg.role === 'user' ? "self-end" : "self-start")}>
                     <div className={cn(
-                      "p-3 rounded-md text-xs leading-relaxed",
+                      "p-3 rounded-lg text-xs leading-relaxed shadow-2xs",
                       msg.role === 'user' 
                         ? "bg-blue-600 text-white" 
-                        : "bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60"
+                        : "bg-zinc-50 dark:bg-zinc-900/90 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800"
                     )}>
                       {msg.role === 'assistant' ? (
                         <div className="flex flex-col gap-3">
@@ -311,40 +383,101 @@ export function RightPanel({
                               <Markdown>{remainingText}</Markdown>
                             </div>
                           )}
-                          {insightCard && (
-                            <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md p-3 flex items-center justify-between">
-                              <div>
-                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">{insightCard.title}</span>
-                                <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{insightCard.value}</span>
-                              </div>
-                              <div className={cn(
-                                "w-8 h-8 rounded-md flex items-center justify-center",
-                                insightCard.trend === 'up' ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" :
-                                insightCard.trend === 'down' ? "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" :
-                                "bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
-                              )}>
-                                {insightCard.trend === 'up' ? <TrendingUp className="w-4 h-4" /> : 
-                                 insightCard.trend === 'down' ? <TrendingDown className="w-4 h-4" /> : 
-                                 <Minus className="w-4 h-4" />}
-                              </div>
+
+                          {/* Analysis Evidence Panel */}
+                          {ev && (
+                            <div className="mt-1 border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden bg-white dark:bg-zinc-950">
+                              <button
+                                onClick={() => toggleEvidence(msg.id)}
+                                className="w-full px-2.5 py-1.5 bg-zinc-100/80 dark:bg-zinc-900/80 flex items-center justify-between text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Activity className="w-3.5 h-3.5 text-blue-500" />
+                                  Analysis Evidence ({ev.intent})
+                                </span>
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </button>
+
+                              {isExpanded && (
+                                <div className="p-2.5 space-y-2 text-[11px] border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+                                  <p className="font-medium text-zinc-900 dark:text-zinc-100">{ev.title}</p>
+                                  
+                                  {ev.rows && ev.rows.length > 0 && (
+                                    <div className="overflow-x-auto custom-scrollbar border border-zinc-200 dark:border-zinc-800 rounded">
+                                      <table className="w-full text-left text-[10px]">
+                                        <thead className="bg-zinc-100 dark:bg-zinc-900 font-semibold text-zinc-600 dark:text-zinc-400">
+                                          <tr>
+                                            {Object.keys(ev.rows[0]).map((h, i) => (
+                                              <th key={i} className="px-2 py-1 border-b border-zinc-200 dark:border-zinc-800">{h}</th>
+                                            ))}
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {ev.rows.map((row, idx) => (
+                                            <tr key={idx} className="border-b border-zinc-100 dark:border-zinc-800/50">
+                                              {Object.values(row).map((val: any, vIdx) => (
+                                                <td key={vIdx} className="px-2 py-1 text-zinc-800 dark:text-zinc-200">
+                                                  {typeof val === 'number' ? val.toLocaleString() : String(val)}
+                                                </td>
+                                              ))}
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+
+                                  {ev.qualityDetails && (
+                                    <div className="grid grid-cols-2 gap-2 p-2 bg-zinc-100 dark:bg-zinc-900 rounded">
+                                      <div><span className="text-zinc-400">Health:</span> <strong className="text-emerald-600">{ev.qualityDetails.healthScore}%</strong></div>
+                                      <div><span className="text-zinc-400">Missing %:</span> <strong>{ev.qualityDetails.missingPercent}%</strong></div>
+                                      <div><span className="text-zinc-400">Duplicates:</span> <strong>{ev.qualityDetails.duplicateCount}</strong></div>
+                                      <div><span className="text-zinc-400">Pending Issues:</span> <strong>{ev.qualityDetails.pendingIssuesCount}</strong></div>
+                                    </div>
+                                  )}
+
+                                  {ev.kpiDetails && (
+                                    <div className="space-y-1">
+                                      {ev.kpiDetails.map((k, i) => (
+                                        <div key={i} className="p-1.5 bg-zinc-100 dark:bg-zinc-900 rounded flex items-center justify-between">
+                                          <span className="font-semibold">{k.name}</span>
+                                          <span className="font-mono text-blue-600 dark:text-blue-400">{k.formattedValue}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
-                          {inlineChart && (
-                            <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md p-3 h-56 flex flex-col">
-                              <h4 className="font-semibold text-xs mb-2 text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-                                <PieChart className="w-3.5 h-3.5 text-blue-500" />
-                                {inlineChart.title}
-                              </h4>
-                              <div className="flex-1 min-h-0">
-                                <WidgetRenderer 
-                                  widget={{ id: 'inline', ...inlineChart }}
-                                  datasets={datasets}
-                                  relationships={suggestions.filter(s => s.status === 'accepted')}
-                                  filters={dashboards.find(d => d.id === activeDashboardId)?.filters || []}
-                                />
-                              </div>
+
+                          {/* "Add to Dashboard" Action Button */}
+                          {(ev?.recommendedWidget || inlineChart) && (
+                            <div className="mt-1 pt-2 border-t border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-500 font-medium">Recommended Visualization</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[11px] bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800"
+                                onClick={() => {
+                                  const rec = ev?.recommendedWidget || inlineChart;
+                                  setWidgetModalConfig({
+                                    isOpen: true,
+                                    title: rec.title || 'Calculated Metric',
+                                    type: rec.type || 'bar',
+                                    datasetId: rec.datasetId || activeDataset?.id || '',
+                                    xAxisColumn: rec.xAxisColumn || activeDataset?.headers[0] || '',
+                                    yAxisColumn: rec.yAxisColumn || activeDataset?.headers[1] || '',
+                                    aggregation: rec.aggregation || 'sum'
+                                  });
+                                }}
+                              >
+                                <PlusCircle className="w-3 h-3 mr-1" />
+                                Add to Dashboard
+                              </Button>
                             </div>
                           )}
+
                           {plan && (
                             <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
                               <div className="p-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900/50">
@@ -355,16 +488,6 @@ export function RightPanel({
                                 <div>
                                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Title</span>
                                   <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{plan.title}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-zinc-600 dark:text-zinc-400">
-                                  <div>
-                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Metrics</span>
-                                    <span>{plan.kpis.length} KPIs</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Charts</span>
-                                    <span>{plan.charts.length} Widgets</span>
-                                  </div>
                                 </div>
                                 <Button 
                                   size="sm" 
@@ -397,7 +520,7 @@ export function RightPanel({
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
-                    <span className="text-[11px] text-zinc-400">Analyzing dataset...</span>
+                    <span className="text-[11px] text-zinc-500">Calculating deterministic evidence & generating response...</span>
                   </div>
                 </div>
               )}
@@ -423,7 +546,7 @@ export function RightPanel({
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Ask AI Copilot..."
+                placeholder="Ask a question about your data..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 disabled={isLoading}
@@ -444,6 +567,95 @@ export function RightPanel({
           </div>
         )}
       </aside>
+
+      {/* Add Widget Pre-fill Confirmation Dialog */}
+      {widgetModalConfig?.isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg max-w-md w-full p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-blue-500" />
+                Confirm Add Widget to Dashboard
+              </h3>
+              <button onClick={() => setWidgetModalConfig(null)} className="text-zinc-400 hover:text-zinc-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">Widget Title</label>
+                <input 
+                  type="text" 
+                  value={widgetModalConfig.title}
+                  onChange={(e) => setWidgetModalConfig({ ...widgetModalConfig, title: e.target.value })}
+                  className="w-full px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">Chart Type</label>
+                  <select 
+                    value={widgetModalConfig.type}
+                    onChange={(e) => setWidgetModalConfig({ ...widgetModalConfig, type: e.target.value as any })}
+                    className="w-full px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                  >
+                    <option value="bar">Bar Chart</option>
+                    <option value="line">Line Chart</option>
+                    <option value="pie">Pie Chart</option>
+                    <option value="table">Table</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">Aggregation</label>
+                  <select 
+                    value={widgetModalConfig.aggregation}
+                    onChange={(e) => setWidgetModalConfig({ ...widgetModalConfig, aggregation: e.target.value as any })}
+                    className="w-full px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                  >
+                    <option value="sum">SUM</option>
+                    <option value="avg">AVG</option>
+                    <option value="count">COUNT</option>
+                    <option value="min">MIN</option>
+                    <option value="max">MAX</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">X Axis (Dimension)</label>
+                  <input 
+                    type="text" 
+                    value={widgetModalConfig.xAxisColumn}
+                    onChange={(e) => setWidgetModalConfig({ ...widgetModalConfig, xAxisColumn: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">Y Axis (Metric)</label>
+                  <input 
+                    type="text" 
+                    value={widgetModalConfig.yAxisColumn}
+                    onChange={(e) => setWidgetModalConfig({ ...widgetModalConfig, yAxisColumn: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <Button variant="ghost" size="sm" onClick={() => setWidgetModalConfig(null)} className="h-8 text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleConfirmAddWidget} className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white">
+                Confirm & Add to Dashboard
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
