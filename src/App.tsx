@@ -249,23 +249,18 @@ export default function App() {
           {/* Main View Router Container */}
           <main className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-[#050505] overflow-hidden">
             {currentView === 'data-manager' ? (
-              datasets.length === 0 || isUploading ? (
-                <DatasetManager 
-                  datasets={datasets}
-                  onImport={handleImport}
-                  onRemove={handleRemove}
-                  onPreview={(id) => {
-                    setSelectedDatasetId(id);
-                    setIsUploading(false);
-                  }}
-                />
-              ) : selectedDataset ? (
-                <DataPreview dataset={selectedDataset} />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400 text-xs">
-                  <p>Select a dataset from the sidebar or top dropdown to view details.</p>
-                </div>
-              )
+              <DatasetManager 
+                datasets={datasets}
+                selectedDatasetId={selectedDatasetId}
+                onSelectDataset={(id) => {
+                  setSelectedDatasetId(id);
+                  setIsUploading(false);
+                }}
+                onImport={handleImport}
+                onRemove={handleRemove}
+                onRename={(id) => setRenamingDatasetId(id)}
+                onNavigateView={(view) => setCurrentView(view)}
+              />
             ) : currentView === 'cleaning' ? (
               <CleaningView 
                 datasets={datasets}
