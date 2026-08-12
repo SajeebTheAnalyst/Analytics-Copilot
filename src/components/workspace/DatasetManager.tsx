@@ -285,7 +285,7 @@ export function DatasetManager({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-            <div className="p-4 bg-zinc-50/60 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-850 rounded-xl">
+            <div className="p-4 glass-surface rounded-xl">
               <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block mb-1">Missing Value Columns</span>
               <p className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
                 {health.issueBreakdown.missingValuesColumns} column{health.issueBreakdown.missingValuesColumns === 1 ? '' : 's'} affected
@@ -293,7 +293,7 @@ export function DatasetManager({
               <p className="text-[11px] text-zinc-550 dark:text-zinc-450 mt-1 font-semibold">{health.missingCells} total missing cells</p>
             </div>
 
-            <div className="p-4 bg-zinc-50/60 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-850 rounded-xl">
+            <div className="p-4 glass-surface rounded-xl">
               <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block mb-1">Duplicate Records</span>
               <p className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
                 {health.issueBreakdown.duplicateRowsCount} duplicate row{health.issueBreakdown.duplicateRowsCount === 1 ? '' : 's'}
@@ -301,7 +301,7 @@ export function DatasetManager({
               <p className="text-[11px] text-zinc-550 dark:text-zinc-450 mt-1 font-semibold">{health.duplicateRowsPercentage}% of total records</p>
             </div>
 
-            <div className="p-4 bg-zinc-50/60 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-850 rounded-xl">
+            <div className="p-4 glass-surface rounded-xl">
               <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block mb-1">Invalid Date Formats</span>
               <p className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
                 {health.issueBreakdown.invalidDatesCount} non-standard date entries
@@ -314,7 +314,7 @@ export function DatasetManager({
 
       {/* 4. Column Profiling Table */}
       <div className="glass-panel glass-card rounded-xl overflow-hidden">
-        <div className="p-4.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center justify-between">
+        <div className="p-4.5 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-black/20 flex items-center justify-between backdrop-blur-md">
           <div>
             <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50">Column Schema & Profiling</h3>
             <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
@@ -326,7 +326,7 @@ export function DatasetManager({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-zinc-100/50 dark:bg-zinc-950/50 border-b border-zinc-200/80 dark:border-zinc-800 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest select-none">
+              <tr className="bg-white/40 dark:bg-white/5 border-b border-zinc-200/80 dark:border-zinc-800/80 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest select-none backdrop-blur-md">
                 <th className="py-3 px-4 font-sans">Column Name</th>
                 <th className="py-3 px-4 font-sans">Inferred Type</th>
                 <th className="py-3 px-4 font-sans">Completeness</th>
@@ -416,10 +416,10 @@ export function DatasetManager({
                   key={dataset.id}
                   onClick={() => onSelectDataset(dataset.id)}
                   className={cn(
-                    "p-3.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between group glass-card",
+                    "p-3.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between group glass-card glass-surface",
                     isActive 
-                      ? "bg-blue-50/70 dark:bg-blue-950/30 border border-blue-500/80 shadow-2xs" 
-                      : "bg-white/40 dark:bg-zinc-900/30 border border-zinc-200/70 dark:border-zinc-800/75 hover:bg-white dark:hover:bg-zinc-900"
+                      ? "bg-blue-50/70 dark:bg-blue-950/30 border-blue-500/80 shadow-2xs" 
+                      : "hover:bg-white/80 dark:hover:bg-white/5"
                   )}
                 >
                   <div className="min-w-0 pr-2">
