@@ -10,6 +10,12 @@ if (process.env.NODE_ENV !== "production") {
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
+// Request logging middleware for diagnostics
+app.use((req, _res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.path}`);
+  next();
+});
+
 // CORS configuration for production Vercel frontend and development
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -66,11 +72,14 @@ app.get("/api/health", async (_req, res) => {
 
   res.json({
     status: "ok",
+    timestamp: new Date().toISOString(),
     environment: {
       NODE_ENV: process.env.NODE_ENV,
       VERCEL: !!process.env.VERCEL,
       GROQ_API_KEY_PRESENT: keyExists,
       GROQ_API_KEY_PREFIX: keyExists ? process.env.GROQ_API_KEY?.substring(0, 4) : null,
+      PORT: process.env.PORT,
+      AVAILABLE_ENV_VARS: Object.keys(process.env).filter(k => !k.includes("KEY") && !k.includes("SECRET") && !k.includes("TOKEN")),
     },
     config: {
       modelName,
@@ -79,22 +88,31 @@ app.get("/api/health", async (_req, res) => {
   });
 });
 
-// Initialize Groq
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || "dummy_key_not_configured",
-});
+console.log("[SERVER_INIT] Initializing Groq client...");
+let groq: Groq;
+try {
+  groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY || "dummy_key_not_configured",
+  });
+  console.log("[SERVER_INIT] Groq client initialized successfully.");
+} catch (e: any) {
+  console.error("[SERVER_INIT] Groq client initialization failed:", e.message);
+}
 
 app.post("/api/analyze", async (req, res) => {
+  console.log("[API_REQUEST] /api/analyze started");
   try {
     const keyExists = !!process.env.GROQ_API_KEY;
     console.log(`[API_REQUEST] /api/analyze - KEY_PRESENT: ${keyExists}`);
     
     if (!keyExists) {
+      console.log("[API_REQUEST] /api/analyze - ERROR: NOT_CONFIGURED");
       return res.status(401).json({ error: "NOT_CONFIGURED", message: "Groq API key is not configured in the environment." });
     }
     const { stats } = req.body;
     
     if (!stats) {
+      console.log("[API_REQUEST] /api/analyze - ERROR: Missing stats data");
       return res.status(400).json({ error: "Missing stats data" });
     }
 
@@ -122,6 +140,8 @@ Return your analysis in JSON format matching this schema exactly:
 
     let response;
     try {
+      console.log("[API_REQUEST] /api/analyze - Calling Groq API...");
+      console.time("groq_analyze");
       response = await groq.chat.completions.create({
         model: selectedModel,
         messages: [
@@ -130,13 +150,16 @@ Return your analysis in JSON format matching this schema exactly:
         ],
         response_format: { type: "json_object" },
       });
+      console.timeEnd("groq_analyze");
       console.log(`[COPILOT_AUDIT] Response (Analyze) -> Status: SUCCESS`);
     } catch (apiError: any) {
-      console.log(`[COPILOT_AUDIT] Response (Analyze) -> Status: FAILED`);
+      console.timeEnd("groq_analyze");
+      console.error(`[COPILOT_AUDIT] Response (Analyze) -> Status: FAILED, Error: ${apiError.message}`);
       throw apiError;
     }
 
     const text = response.choices[0]?.message?.content;
+    console.log(`[API_REQUEST] /api/analyze - Groq response received (length: ${text?.length || 0})`);
     if (!text) {
       throw new Error("No response text from Groq");
     }
@@ -177,15 +200,18 @@ Return your analysis in JSON format matching this schema exactly:
 });
 
 app.post("/api/chat", async (req, res) => {
+  console.log("[API_REQUEST] /api/chat started");
   try {
     const keyExists = !!process.env.GROQ_API_KEY;
     console.log(`[API_REQUEST] /api/chat - KEY_PRESENT: ${keyExists}`);
 
     if (!keyExists) {
+      console.log("[API_REQUEST] /api/chat - ERROR: NOT_CONFIGURED");
       return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet. Please provide a GROQ_API_KEY in the Secrets panel." });
     }
 
     const { history, metadata, message, evidence } = req.body;
+    console.log(`[API_REQUEST] /api/chat - Message: "${message?.substring(0, 50)}...", History length: ${history?.length || 0}`);
     
     if (!message && (!history || history.length === 0)) {
        return res.status(400).json({ error: "Missing message" });
@@ -236,18 +262,23 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
 
     let response;
     try {
+      console.log("[API_REQUEST] /api/chat - Calling Groq API...");
+      console.time("groq_chat");
       response = await groq.chat.completions.create({
         model: selectedModel,
         messages,
         temperature: 0.2,
       });
+      console.timeEnd("groq_chat");
       console.log(`[COPILOT_AUDIT] Response -> Status: SUCCESS`);
     } catch (apiError: any) {
-      console.log(`[COPILOT_AUDIT] Response -> Status: FAILED, Error: ${apiError.message}`);
+      console.timeEnd("groq_chat");
+      console.error(`[COPILOT_AUDIT] Response -> Status: FAILED, Error: ${apiError.message}`);
       throw apiError;
     }
 
     const text = response.choices[0]?.message?.content;
+    console.log(`[API_REQUEST] /api/chat - Groq response received (length: ${text?.length || 0})`);
 
     if (!text) {
       throw new Error("Empty response from AI");
@@ -293,30 +324,55 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 async function startServer() {
-  if (process.env.VERCEL) {
+  // Defensive check for production serverless environments
+  const isVercel = !!process.env.VERCEL;
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  if (isVercel) {
+    console.log("[SERVER_START] Running in Vercel environment - skipping app.listen()");
     return;
   }
 
-  if (process.env.NODE_ENV !== "production") {
+  if (isProduction) {
+    console.log("[SERVER_START] Running in production mode...");
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      // Avoid sending files for API routes that fell through
+      if (req.path.startsWith("/api/")) {
+        return res.status(404).json({ error: "API route not found" });
+      }
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+    
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[SERVER_START] Production server listening on port ${PORT}`);
+    });
+    return;
+  }
+
+  // Development mode
+  console.log("[SERVER_START] Running in development mode...");
+  try {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[SERVER_START] Development server listening on port ${PORT}`);
     });
+  } catch (err: any) {
+    console.error("[SERVER_START] Failed to start development server:", err.message);
+    process.exit(1);
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+console.log("[SERVER_LOAD] server.ts module loaded");
+startServer().catch(err => {
+  console.error("[SERVER_FATAL] Top-level server error:", err);
+});
 
 export default app;
