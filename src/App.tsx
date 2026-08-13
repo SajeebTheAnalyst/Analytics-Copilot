@@ -336,20 +336,20 @@ export default function App() {
               </motion.div>
             </AnimatePresence>
           </main>
-
+          
+          {/* Collapsible AI Copilot Panel */}
+          <RightPanel 
+            isOpen={isCopilotOpen}
+            onClose={() => setIsCopilotOpen(false)}
+            currentView={currentView} 
+            datasets={datasets}
+            suggestions={suggestions}
+            dashboards={dashboards}
+            activeDashboardId={selectedDashId}
+            onBuildDashboard={handleBuildDashboard}
+            onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+          />
         </div>
-
-        {/* Collapsible AI Copilot Drawer */}
-        <RightPanel 
-          isOpen={isCopilotOpen}
-          onClose={() => setIsCopilotOpen(false)}
-          currentView={currentView} 
-          datasets={datasets}
-          suggestions={suggestions}
-          dashboards={dashboards}
-          activeDashboardId={selectedDashId}
-          onBuildDashboard={handleBuildDashboard}
-        />
 
         {/* Dataset Rename Modal */}
         <RenameModal 

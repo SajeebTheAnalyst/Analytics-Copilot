@@ -41,6 +41,8 @@ CRITICAL ANTI-HALLUCINATION & DETERMINISTIC RULES:
    - **Interpretation**: Contextual business insights.
    - **Recommended Action**: Actionable next step or follow-up recommendation.
 
+5. ACTIONABLE CLEANING: If the DETERMINISTIC_EVIDENCE contains a 'cleaningAction' field, you MUST mention that you have prepared a preview of the requested changes. Explicitly ask the user to "Confirm and Apply" the changes using the provided action card.
+
 DETERMINISTIC_EVIDENCE_CALCULATED_BY_APPLICATION:
 ${JSON.stringify(evidence || { note: 'No specific analytical query matched. Default workspace metadata applied.' }, null, 2)}
 
@@ -106,6 +108,19 @@ function generateFallbackText(message: string, evidence: AnalyticalEvidence | nu
   }
 
   if (evidence) {
+    if (evidence.intent === 'ACTIONABLE_CLEANING' && evidence.cleaningAction) {
+      const a = evidence.cleaningAction;
+      return `### Actionable Cleaning: **${a.description}**
+      
+I have identified the requested operation for the **${a.column}** column.
+
+- **Operation**: ${a.actionType.toUpperCase()}
+- **Target Column**: ${a.column}
+- **Affected Rows**: ${a.affectedRowCount.toLocaleString()}
+
+**Recommended Action**: Review the preview card below and click **"Confirm and Apply"** to execute the change and update the audit trail.`;
+    }
+
     if (evidence.intent === 'DATA_QUALITY' && evidence.qualityDetails) {
       const q = evidence.qualityDetails;
       return `### Data Health Assessment for **${evidence.datasetName}**

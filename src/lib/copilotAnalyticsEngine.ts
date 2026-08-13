@@ -17,7 +17,18 @@ export type AnalyticalIntent =
   | 'DASHBOARD'
   | 'MIS'
   | 'COLUMN'
+  | 'ACTIONABLE_CLEANING'
   | 'GENERAL';
+
+export interface ActionableCleaningPreview {
+  actionType: 'nulls' | 'headers' | 'cast' | 'outliers' | 'text' | 'date' | 'issue';
+  column?: string;
+  params?: any;
+  description: string;
+  affectedRowCount: number;
+  sampleBefore: string[];
+  sampleAfter: string[];
+}
 
 export interface AnalyticalEvidence {
   intent: AnalyticalIntent;
@@ -67,6 +78,7 @@ export interface AnalyticalEvidence {
     activeFilters: string[];
     widgetsSummary: { title: string; type: string; valueOrResult: string }[];
   };
+  cleaningAction?: ActionableCleaningPreview;
   filterContext?: string;
   recommendedWidget?: {
     title: string;
@@ -163,7 +175,84 @@ export async function generateAnalyticsEvidence(
     if (previousDimension && previousMetric) break;
   }
 
-  // 1. DATA QUALITY INTENT
+  // 1. ACTIONABLE CLEANING INTENT
+  if (
+    lower.includes('convert') || 
+    lower.includes('format') || 
+    lower.includes('standardize') || 
+    lower.includes('trim') ||
+    lower.includes('lowercase') ||
+    lower.includes('uppercase') ||
+    lower.includes('titlecase') ||
+    lower.includes('remove nulls') ||
+    lower.includes('fill nulls') ||
+    lower.includes('drop outliers') ||
+    (lower.includes('clean') && dataset.headers.some(h => lower.includes(h.toLowerCase())))
+  ) {
+    const targetHeader = dataset.headers.find(h => lower.includes(h.toLowerCase()));
+    
+    if (targetHeader) {
+      let actionType: ActionableCleaningPreview['actionType'] = 'issue';
+      let params: any = {};
+      let description = '';
+      let sampleBefore: string[] = [];
+      let sampleAfter: string[] = [];
+
+      const profile = dataset.columnProfiles?.[targetHeader];
+      const samples = dataset.fullData.slice(0, 3).map(r => String(r[targetHeader] || 'null'));
+
+      if (lower.includes('date') || lower.includes('format') || lower.includes('standardize')) {
+        actionType = 'date';
+        params = { dateFormat: lower.includes('us') ? 'MM/DD/YYYY' : lower.includes('eu') ? 'DD/MM/YYYY' : 'YYYY-MM-DD' };
+        description = `Standardize "${targetHeader}" to ${params.dateFormat} format.`;
+        sampleBefore = samples;
+        sampleAfter = samples.map(s => {
+          const d = new Date(s);
+          if (isNaN(d.getTime())) return 'null';
+          if (params.dateFormat === 'MM/DD/YYYY') return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+          return d.toISOString().split('T')[0];
+        });
+      } else if (lower.includes('trim') || lower.includes('whitespace')) {
+        actionType = 'text';
+        params = { action: 'trim' };
+        description = `Trim leading and trailing whitespace from "${targetHeader}".`;
+        sampleBefore = samples.map(s => ` "${s}" `);
+        sampleAfter = samples;
+      } else if (lower.includes('lowercase') || lower.includes('uppercase') || lower.includes('title')) {
+        actionType = 'text';
+        const action = lower.includes('lower') ? 'lowercase' : lower.includes('upper') ? 'uppercase' : 'titlecase';
+        params = { action };
+        description = `Convert "${targetHeader}" to ${action}.`;
+        sampleBefore = samples;
+        sampleAfter = samples.map(s => action === 'lowercase' ? s.toLowerCase() : action === 'uppercase' ? s.toUpperCase() : s.charAt(0).toUpperCase() + s.slice(1).toLowerCase());
+      } else if (lower.includes('null') || lower.includes('missing')) {
+        actionType = 'nulls';
+        const strategy = lower.includes('drop') ? 'drop' : lower.includes('zero') ? 'zero' : lower.includes('mean') ? 'mean' : 'mode';
+        params = { strategy };
+        description = `${strategy === 'drop' ? 'Drop rows with' : 'Fill'} nulls in "${targetHeader}" using ${strategy} strategy.`;
+        sampleBefore = samples;
+        sampleAfter = samples.map(s => s === 'null' ? (strategy === 'zero' ? '0' : 'Calculated Value') : s);
+      }
+
+      return {
+        intent: 'ACTIONABLE_CLEANING',
+        datasetId: dataset.id,
+        datasetName: dataset.name,
+        title: `Requested Cleaning Action: ${targetHeader}`,
+        cleaningAction: {
+          actionType,
+          column: targetHeader,
+          params,
+          description,
+          affectedRowCount: profile?.nullCount || dataset.rowCount,
+          sampleBefore,
+          sampleAfter
+        }
+      };
+    }
+  }
+
+  // 1. DATA QUALITY INTENT (READ-ONLY)
   if (
     lower.includes('clean') || 
     lower.includes('quality') || 
