@@ -2,7 +2,7 @@
 
 > An AI-powered, multi-dataset analytics workspace for connecting, cleaning, analyzing, and visualizing real-world data.
 
-[🚀 Live Demo](https://analyticscopilot.netlify.app/)
+[🚀 Live Demo](https://analyticscopilot.vercel.app/)
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
@@ -10,7 +10,7 @@
 ![Express](https://img.shields.io/badge/Express-000000?style=flat&logo=express&logoColor=white)
 ![Gemini API](https://img.shields.io/badge/Gemini_API-8E75B2?style=flat&logo=google&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)
-![Netlify](https://img.shields.io/badge/Netlify-00C7B7?style=flat&logo=netlify&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat&logo=vercel&logoColor=white)
 
 ---
 
@@ -29,7 +29,7 @@ Unlike simple CSV viewers or basic LLM wrappers, Analytics Copilot combines a **
 
 ## 🚀 Live Demo
 
-Access the live production instance at: **[https://analyticscopilot.netlify.app/](https://analyticscopilot.netlify.app/)**
+Access the live production instance at: **[https://analyticscopilot.vercel.app/](https://analyticscopilot.vercel.app/)**
 
 > **Try without uploading**: Click **"Try Demo Workspace"** on the upload screen to instantly explore a pre-populated multi-column business sales dataset without needing your own CSV/Excel files.
 

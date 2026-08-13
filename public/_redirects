@@ -1,4 +1,5 @@
-# Netlify redirect rule to proxy backend API calls to your deployed Cloud Run container
+# Redirect rules to proxy backend API calls to your deployed backend container.
+# For Vercel, this is handled via vercel.json in the root. For Netlify, this file handles the rule.
 # Replace YOUR_BACKEND_URL with your actual Cloud Run or container deployment URL
 # Example: /api/*  https://analytics-copilot-backend-xyz.a.run.app/api/:splat  200
 

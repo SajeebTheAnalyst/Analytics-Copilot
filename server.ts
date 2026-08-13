@@ -9,11 +9,11 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
-// CORS configuration for production Netlify frontend and development
+// CORS configuration for production Vercel frontend and development
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = [
-    "https://analyticscopilot.netlify.app",
+    "https://analyticscopilot.vercel.app",
     process.env.APP_URL,
   ].filter(Boolean);
 
@@ -175,6 +175,12 @@ ${JSON.stringify(metadata, null, 2)}
 });
 
 async function startServer() {
+  if (process.env.VERCEL) {
+    // On Vercel serverless, we don't start the listener or serve static files via Express.
+    // Vercel's CDN serves the static build, and routes /api/* to this function.
+    return;
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -195,3 +201,5 @@ async function startServer() {
 }
 
 startServer();
+
+export default app;
