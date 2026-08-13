@@ -109,6 +109,12 @@ export interface AnalyticalEvidence {
   };
   cleaningAction?: ActionableCleaningPreview;
   filterContext?: string;
+  schema?: {
+    column: string;
+    type: string;
+    semanticType?: string;
+    description?: string;
+  }[];
   recommendedWidget?: {
     title: string;
     type: 'bar' | 'line' | 'pie' | 'kpi' | 'table';
@@ -120,7 +126,7 @@ export interface AnalyticalEvidence {
 }
 
 /**
- * Identify matching dataset columns from user message text
+ * Identify matching dataset columns from user message text with semantic awareness
  */
 export function findMatchingColumns(dataset: Dataset, text: string): {
   measureCols: string[];
@@ -132,41 +138,55 @@ export function findMatchingColumns(dataset: Dataset, text: string): {
   const dimensionCols: string[] = [];
   const dateCols: string[] = [];
 
+  // Keywords for metrics
+  const metricKeywords = ['sum', 'total', 'avg', 'average', 'mean', 'count', 'max', 'min', 'highest', 'lowest', 'revenue', 'profit', 'sales', 'cost', 'amount', 'price', 'quantity', 'value', 'margin', 'share', 'percent'];
+  
+  // Keywords for dimensions
+  const dimensionKeywords = ['by', 'group', 'breakdown', 'region', 'category', 'segment', 'customer', 'product', 'item', 'sku', 'branch', 'store', 'city', 'country', 'status', 'type'];
+
   for (const h of dataset.headers || []) {
     const colLower = h.toLowerCase();
     const profile = dataset.columnProfiles?.[h];
     const isNum = profile?.type === 'numeric' || dataset.fullData?.some(r => typeof r[h] === 'number');
     const isDate = profile?.type === 'date' || colLower.includes('date') || colLower.includes('time') || colLower.includes('year') || colLower.includes('month');
 
-    // Check if column name or common alias is in prompt
-    const matches = textLower.includes(colLower) || 
-      (colLower.includes('sales') && (textLower.includes('revenue') || textLower.includes('sale'))) ||
-      (colLower.includes('revenue') && (textLower.includes('sales') || textLower.includes('revenue'))) ||
-      (colLower.includes('profit') && textLower.includes('profit')) ||
-      (colLower.includes('region') && textLower.includes('region')) ||
-      (colLower.includes('product') && textLower.includes('product')) ||
-      (colLower.includes('category') && textLower.includes('categor'));
+    // Direct match or semantic alias
+    const hasDirectMatch = textLower.includes(colLower);
+    const hasAliasMatch = 
+      (colLower.includes('sales') && (textLower.includes('revenue') || textLower.includes('sale') || textLower.includes('money') || textLower.includes('turnover'))) ||
+      (colLower.includes('revenue') && (textLower.includes('sales') || textLower.includes('revenue') || textLower.includes('money'))) ||
+      (colLower.includes('profit') && (textLower.includes('profit') || textLower.includes('margin') || textLower.includes('earnings'))) ||
+      (colLower.includes('cost') && (textLower.includes('cost') || textLower.includes('expense') || textLower.includes('spend'))) ||
+      (colLower.includes('region') && (textLower.includes('region') || textLower.includes('area') || textLower.includes('location') || textLower.includes('territory'))) ||
+      (colLower.includes('product') && (textLower.includes('product') || textLower.includes('item') || textLower.includes('sku'))) ||
+      (colLower.includes('category') && (textLower.includes('categor') || textLower.includes('group') || textLower.includes('segment'))) ||
+      (colLower.includes('customer') && (textLower.includes('customer') || textLower.includes('client') || textLower.includes('user')));
 
-    if (matches || textLower.length < 15) { // If query is short, default include top columns
-      if (isDate) {
-        dateCols.push(h);
-      } else if (isNum) {
-        measureCols.push(h);
-      } else {
-        dimensionCols.push(h);
-      }
+    if (hasDirectMatch || hasAliasMatch) {
+      if (isDate) dateCols.push(h);
+      else if (isNum) measureCols.push(h);
+      else dimensionCols.push(h);
     }
   }
 
-  // Fallback defaults if no explicit match found in headers
+  // Heuristics for metrics if none found
   if (measureCols.length === 0) {
-    const defaultNum = dataset.headers.find(h => dataset.columnProfiles?.[h]?.type === 'numeric' || dataset.fullData?.some(r => typeof r[h] === 'number'));
-    if (defaultNum) measureCols.push(defaultNum);
+    const commonMetrics = ['amount', 'total', 'price', 'quantity', 'value', 'sales', 'revenue', 'profit', 'cost'];
+    const found = dataset.headers.find(h => {
+      const l = h.toLowerCase();
+      return commonMetrics.some(m => l.includes(m)) && (dataset.columnProfiles?.[h]?.type === 'numeric');
+    });
+    if (found) measureCols.push(found);
   }
 
+  // Heuristics for dimensions if none found
   if (dimensionCols.length === 0) {
-    const defaultDim = dataset.headers.find(h => dataset.columnProfiles?.[h]?.type !== 'numeric' && h !== measureCols[0]);
-    if (defaultDim) dimensionCols.push(defaultDim);
+    const commonDims = ['region', 'category', 'product', 'customer', 'status', 'type', 'name'];
+    const found = dataset.headers.find(h => {
+      const l = h.toLowerCase();
+      return commonDims.some(d => l.includes(d)) && (dataset.columnProfiles?.[h]?.type !== 'numeric');
+    });
+    if (found) dimensionCols.push(found);
   }
 
   return { measureCols, dimensionCols, dateCols };
@@ -589,10 +609,51 @@ export async function generateAnalyticsEvidence(
     if (Array.isArray(groupResult) && groupResult.length > 0) {
       const metricKey = `${aggType}_${targetMetric}`;
       const sortedRows = [...groupResult].sort((a, b) => (Number(b[metricKey]) || 0) - (Number(a[metricKey]) || 0));
-      const topRows = sortedRows.slice(0, 10);
+      
+      // Calculate Total for percentages
+      const totalVal = sortedRows.reduce((acc, r) => acc + (Number(r[metricKey]) || 0), 0);
+      
+      const topRows = sortedRows.slice(0, 15).map(r => {
+        const val = Number(r[metricKey]) || 0;
+        return {
+          ...r,
+          [metricKey]: typeof r[metricKey] === 'number' ? Math.round(r[metricKey] * 100) / 100 : r[metricKey],
+          share_of_total: totalVal > 0 ? `${((val / totalVal) * 100).toFixed(1)}%` : '0%'
+        };
+      });
 
       const topItem = topRows[0];
-      const summaryText = topItem ? `Highest ${targetDimension}: ${topItem[targetDimension]} with ${aggType.toUpperCase()}(${targetMetric}) = ${Number(topItem[metricKey]).toLocaleString()}` : '';
+      let summaryText = topItem ? `Highest ${targetDimension}: ${topItem[targetDimension]} with ${aggType.toUpperCase()}(${targetMetric}) = ${Number(topItem[metricKey]).toLocaleString()} (${topItem.share_of_total} of total)` : '';
+
+      // SECONDARY BREAKDOWN (Drill-down)
+      // If user asks "why" or "breakdown", find another dimension to pivot by for the top item
+      let secondaryRows: any[] = [];
+      if (lower.includes('why') || lower.includes('breakdown') || lower.includes('reason') || lower.includes('detail')) {
+        const otherDimension = dimensionCols.find(d => d !== targetDimension) || dataset.headers.find(h => h !== targetDimension && h !== targetMetric && dataset.columnProfiles?.[h]?.type !== 'numeric');
+        
+        if (otherDimension && topItem) {
+          // Filter data for the top item
+          const filteredData = dataset.fullData.filter(r => String(r[targetDimension]) === String(topItem[targetDimension]));
+          const subDataset: Dataset = { ...dataset, fullData: filteredData, rowCount: filteredData.length };
+          
+          const subResult = executeAnalysis([subDataset], {
+            type: 'aggregation',
+            datasetId: dataset.id,
+            metrics: [{ column: targetMetric, aggregation: aggType }],
+            dimensions: [otherDimension]
+          });
+
+          if (Array.isArray(subResult)) {
+            secondaryRows = subResult
+              .sort((a, b) => (Number(b[metricKey]) || 0) - (Number(a[metricKey]) || 0))
+              .slice(0, 5)
+              .map(r => ({
+                [otherDimension]: r[otherDimension],
+                [metricKey]: r[metricKey]
+              }));
+          }
+        }
+      }
 
       return {
         intent: lower.includes('trend') ? 'TREND' : 'COMPARATIVE',
@@ -602,11 +663,18 @@ export async function generateAnalyticsEvidence(
         metricName: targetMetric,
         dimensionName: targetDimension,
         summaryText,
-        headers: [targetDimension, `${aggType.toUpperCase()}(${targetMetric})`],
-        rows: topRows.map(r => ({
-          [targetDimension]: r[targetDimension],
-          [metricKey]: typeof r[metricKey] === 'number' ? Math.round(r[metricKey] * 100) / 100 : r[metricKey]
-        })),
+        headers: [targetDimension, `${aggType.toUpperCase()}(${targetMetric})`, 'Share of Total'],
+        rows: topRows,
+        stats: {
+          total: totalVal,
+          avg: totalVal / sortedRows.length,
+          count: sortedRows.length,
+          top_item: topItem,
+          secondary_breakdown: secondaryRows.length > 0 ? {
+            dimension: dimensionCols.find(d => d !== targetDimension) || 'Secondary',
+            rows: secondaryRows
+          } : undefined
+        },
         recommendedWidget: {
           title: `${targetMetric.replace(/_/g, ' ')} by ${targetDimension.replace(/_/g, ' ')}`,
           type: dateCols.includes(targetDimension) || lower.includes('trend') ? 'line' : 'bar',
@@ -638,10 +706,87 @@ export async function generateAnalyticsEvidence(
         title: `Overall ${aggType.toUpperCase()} of ${targetMetric}`,
         metricName: targetMetric,
         summaryText: `Total ${aggType.toUpperCase()}(${targetMetric}): ${typeof val === 'number' ? val.toLocaleString() : val}`,
-        rows: [{ Metric: targetMetric, Aggregation: aggType.toUpperCase(), Value: val }]
+        rows: [{ Metric: targetMetric, Aggregation: aggType.toUpperCase(), Value: val }],
+        stats: {
+          metric: targetMetric,
+          aggregation: aggType,
+          value: val
+        }
       };
+    }
+  }
+
+  // 6. GENERAL DATASET CONTEXT (Fallback for broad questions)
+  if (lower.includes('data') || lower.includes('dataset') || lower.includes('tell me about') || lower.includes('summarize') || lower.includes('what is this') || lower.includes('structure') || lower.includes('columns')) {
+    const health = calculateDatasetHealth(dataset);
+    const metaMap = await getSavedColumnMetadata();
+    
+    // Create compact schema
+    const schema = dataset.headers.slice(0, 20).map(h => {
+      const profile = dataset.columnProfiles?.[h];
+      const meta = metaMap[`${dataset.id}::${h}`];
+      const techType = normalizeTechnicalType(profile?.type);
+      const samples = dataset.fullData.slice(0, 3).map(r => r[h]).filter(v => v !== null && v !== undefined);
+      
+      return {
+        column: h,
+        type: techType,
+        semanticType: meta?.semanticTypeOverride || inferSemanticType(h, techType, profile?.uniqueCount || 0, dataset.rowCount, samples),
+        description: meta?.description || ''
+      };
+    });
+
+    return {
+      intent: 'GENERAL',
+      datasetId: dataset.id,
+      datasetName: dataset.name,
+      title: `General Profile for ${dataset.name}`,
+      summaryText: `This dataset contains ${dataset.rowCount.toLocaleString()} rows and ${dataset.headers.length} columns.`,
+      schema,
+      qualityDetails: {
+        healthScore: health.score,
+        totalRows: dataset.rowCount,
+        missingCount: health.missingCells,
+        missingPercent: health.missingCellsPercentage,
+        duplicateCount: health.duplicateRows,
+        invalidDateCount: health.issueBreakdown.invalidDatesCount,
+        pendingIssuesCount: health.issuesCount,
+        issuesList: []
+      },
+      stats: {
+        dimensions: dimensionCols.slice(0, 5),
+        measures: measureCols.slice(0, 5),
+        rowCount: dataset.rowCount,
+        colCount: dataset.headers.length
+      }
+    };
+  }
+
+  // 7. SURGICAL RAW ROW SAMPLING (For specific entity lookups)
+  const isSpecificLookup = lower.includes('where') || lower.includes('find') || lower.includes('show me') || lower.includes('list') || lower.includes('who');
+  if (isSpecificLookup) {
+    const searchTerms = lower.split(' ').filter(word => word.length > 3 && !metricKeywords.includes(word) && !dimensionKeywords.includes(word));
+    if (searchTerms.length > 0) {
+      const sampledRows = dataset.fullData
+        .filter(r => searchTerms.some(term => Object.values(r).some(val => String(val).toLowerCase().includes(term))))
+        .slice(0, 5);
+      
+      if (sampledRows.length > 0) {
+        return {
+          intent: 'DESCRIPTIVE',
+          datasetId: dataset.id,
+          datasetName: dataset.name,
+          title: `Filtered Sample Records matching "${searchTerms.join(', ')}"`,
+          rows: sampledRows,
+          headers: dataset.headers.slice(0, 10), // Limit columns for token safety
+          stats: { matchCount: sampledRows.length }
+        };
+      }
     }
   }
 
   return null;
 }
+
+const metricKeywords = ['sum', 'total', 'avg', 'average', 'mean', 'count', 'max', 'min', 'highest', 'lowest', 'revenue', 'profit', 'sales', 'cost', 'amount', 'price', 'quantity', 'value', 'margin', 'share', 'percent'];
+const dimensionKeywords = ['by', 'group', 'breakdown', 'region', 'category', 'segment', 'customer', 'product', 'item', 'sku', 'branch', 'store', 'city', 'country', 'status', 'type'];

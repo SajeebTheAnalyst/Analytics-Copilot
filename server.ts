@@ -102,10 +102,14 @@ Return your analysis in JSON format matching this schema exactly:
     res.json(parsedResponse);
   } catch (error: any) {
     console.error("Error analyzing data:", error);
-    const status = error.message?.includes('permission') || error.message?.includes('key') ? 403 : 500;
-    res.status(status).json({ 
-      error: error.message || "Failed to analyze data",
-      code: error.status || error.code || 'UNKNOWN'
+    // Extract status code and message if available from SDK error
+    const statusCode = error.status || error.code || 500;
+    const errorMessage = error.message || "Failed to analyze data";
+    
+    res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ 
+      error: errorMessage,
+      code: error.status || error.code || 'UNKNOWN',
+      details: error.details || undefined
     });
   }
 });
@@ -123,49 +127,66 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const systemInstruction = `You are a professional Senior Data Analyst assisting the user in Analytics Copilot.
-Your job is to help the user understand their datasets, relationships, and analytics workspace.
+Your job is to act as a highly competent, detail-oriented data partner. You don't just answer questions; you provide context, identify trends, and offer evidence-based interpretations.
+
+CORE ANALYST PIPELINE:
+1. Understand the user's analytical intent from their question.
+2. Rely EXCLUSIVELY on the DETERMINISTIC_EVIDENCE provided below. This evidence is surgically calculated from the dataset to minimize token usage while maintaining 100% accuracy.
+3. If "schema" is provided, use it to understand the available columns, their types, and descriptions.
+4. If "rows" or "stats" are present, use the exact values for rankings, percentages, and breakdowns.
+5. If a "secondary_breakdown" is present, use it to explain the drivers behind the primary metrics.
+6. Provide a precise, professional answer followed by brief key findings and a recommended action.
 
 CRITICAL ANTI-HALLUCINATION & DETERMINISTIC RULES:
-1. NEVER invent, fabricate, or recalculate numerical facts. You MUST strictly use the calculated evidence provided in DETERMINISTIC_EVIDENCE_CALCULATED_BY_APPLICATION below.
-2. CAUSATION GUARDRAIL: When explaining changes, trends, or performance differences, DO NOT claim direct causation unless explicitly proven. Use non-causal correlation wording such as "coincided with", "associated with", "may indicate", or "possible contributor".
-3. STATUS REASONING: If a KPI status is "Needs Attention" or "Invalid", explain the underlying data issue clearly rather than fabricating a result.
+1. NEVER invent, fabricate, or recalculate numerical facts. You MUST strictly use the surgical evidence provided in DETERMINISTIC_EVIDENCE_CALCULATED_BY_APPLICATION.
+2. CAUSATION GUARDRAIL: When explaining performance, use non-causal wording such as "was associated with", "contributed to", "coincided with", or "is primarily driven by".
+3. NO GENERIC ANSWERS: Use the surgical evidence to build the best possible analyst response. If the evidence is insufficient, state exactly what is missing based on the "schema".
 4. FORMATTING: Use clean markdown sections:
-   - **Answer**: Clear, direct, concise answer containing exact figures from the evidence.
-   - **Key Findings**: Structured bullet points with exact metrics and comparisons.
-   - **Interpretation**: Contextual business insights.
-   - **Recommended Action**: Actionable next step or follow-up recommendation.
+   - **Analyst Answer**: Direct, evidence-based response with exact figures.
+   - **Key Findings**: Structured bullet points highlighting rankings, percentages, or anomalies.
+   - **Business Context**: Interpretation of what this means for the business.
+   - **Next Step**: A logical follow-up analysis or action.
 
 DETERMINISTIC_EVIDENCE_CALCULATED_BY_APPLICATION:
 ${JSON.stringify(evidence || { note: "No specific analytical query matched. Default workspace metadata applied." }, null, 2)}
-
-Current Workspace Metadata:
-${JSON.stringify(metadata, null, 2)}
 `;
 
-    // Initialize chat session
-    const formattedHistory = (history || []).map((msg: any) => ({
-       role: msg.role === 'user' ? 'user' : 'model',
-       parts: [{ text: msg.text }]
-    }));
-    
-    const chat = ai.chats.create({
+    // Use generateContent with contents array for multi-turn support in a stateless environment
+    const contents = [
+      ...(history || []).map((msg: any) => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.text }]
+      })),
+      {
+        role: 'user',
+        parts: [{ text: message }]
+      }
+    ];
+
+    const response = await ai.models.generateContent({
       model: "gemini-3.6-flash",
+      contents,
       config: {
         systemInstruction,
         temperature: 0.2,
       },
-      history: formattedHistory
     });
 
-    const response = await chat.sendMessage({ message });
+    if (!response.text) {
+      throw new Error("Empty response from AI");
+    }
+
     return res.json({ text: response.text });
 
   } catch (error: any) {
     console.error("Error in AI chat:", error);
-    const status = error.message?.includes('permission') || error.message?.includes('key') ? 403 : 500;
-    res.status(status).json({ 
-      error: error.message || "Failed to communicate with AI",
-      code: error.status || error.code || 'UNKNOWN'
+    const statusCode = error.status || error.code || 500;
+    const errorMessage = error.message || "Failed to communicate with AI";
+
+    res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ 
+      error: errorMessage,
+      code: error.status || error.code || 'UNKNOWN',
+      details: error.details || undefined
     });
   }
 });

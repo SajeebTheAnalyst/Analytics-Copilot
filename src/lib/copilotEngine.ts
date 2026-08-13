@@ -46,14 +46,15 @@ export async function queryCopilot(
       }
     } else {
       const errorData = await res.json();
-      throw new Error(errorData.message || errorData.error || 'Failed to communicate with AI');
+      const error = new Error(errorData.message || errorData.error || 'Failed to communicate with AI');
+      (error as any).code = errorData.code;
+      (error as any).details = errorData.details;
+      throw error;
     }
   } catch (e: any) {
-    console.warn('/api/chat error, using deterministic local engine fallback', e);
-    // If it's a known error from server, propagate it to UI if possible
-    if (e.message && (e.message.includes('NOT_CONFIGURED') || e.message.includes('permission'))) {
-      throw e;
-    }
+    console.warn('/api/chat error', e);
+    // Propagate all errors to UI so user can see the real reason
+    throw e;
   }
 
   // 3. Intelligent Local Fallback Engine (for safety)
