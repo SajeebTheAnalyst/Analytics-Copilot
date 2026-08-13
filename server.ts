@@ -6,6 +6,12 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// Force Gemini API mode by clearing GCP env vars that trigger Vertex auto-detection
+// This must happen BEFORE the SDK is initialized to prevent auth hijacking
+delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+delete process.env.GOOGLE_CLOUD_PROJECT;
+delete process.env.GCP_PROJECT;
+
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
@@ -42,7 +48,8 @@ app.get("/api/health", (_req, res) => {
 });
 
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || "",
+  apiKey: (process.env.GEMINI_API_KEY || "").trim(),
+  vertexai: false,
   httpOptions: {
     headers: {
       "User-Agent": "aistudio-build",
@@ -50,8 +57,54 @@ const ai = new GoogleGenAI({
   },
 });
 
+// Diagnostic endpoint to verify API key in production
+app.get("/api/test-auth", async (req, res) => {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(401).json({ status: "error", message: "GEMINI_API_KEY is missing from environment" });
+    }
+    
+    const testAi = new GoogleGenAI({ 
+      apiKey: process.env.GEMINI_API_KEY.trim(), 
+      vertexai: false,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+    const response = await testAi.models.generateContent({
+      model: "gemini-3.6-flash",
+      contents: "ping",
+    });
+    
+    res.json({ 
+      status: "ok", 
+      model: "gemini-3.6-flash",
+      sdkMode: (testAi as any).apiClient?.isVertexAI?.() ? "vertex" : "genai",
+      testResponse: !!response.text 
+    });
+  } catch (err: any) {
+    console.error("DIAGNOSTIC_FAILURE:", err);
+    res.status(err.status || 500).json({ 
+      status: "error", 
+      message: err.message,
+      code: err.status || err.code || "UNKNOWN",
+      diagnostics: {
+        isVertex: (ai as any).apiClient?.isVertexAI?.(),
+        envVertex: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT)
+      }
+    });
+  }
+});
+
 app.post("/api/analyze", async (req, res) => {
   try {
+    const isVertexDetected = !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT);
+    console.log("DIAGNOSTIC: /api/analyze called");
+    console.log("DIAGNOSTIC: GEMINI_API_KEY exists:", !!process.env.GEMINI_API_KEY);
+    console.log("DIAGNOSTIC: Vertex/GCP Env Detected:", isVertexDetected);
+    
     if (!process.env.GEMINI_API_KEY) {
       return res.status(401).json({ error: "NOT_CONFIGURED", message: "Gemini API key is not configured in the environment." });
     }
@@ -102,13 +155,18 @@ Return your analysis in JSON format matching this schema exactly:
     res.json(parsedResponse);
   } catch (error: any) {
     console.error("Error analyzing data:", error);
-    // Extract status code and message if available from SDK error
     const statusCode = error.status || error.code || 500;
-    const errorMessage = error.message || "Failed to analyze data";
+    const isAuthError = statusCode === 401 || (error.message && error.message.includes("UNAUTHENTICATED"));
     
     res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ 
-      error: errorMessage,
+      error: error.message || "Failed to analyze data",
       code: error.status || error.code || 'UNKNOWN',
+      diagnostics: {
+        apiKeyPresent: !!process.env.GEMINI_API_KEY,
+        envVertex: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT),
+        sdkIsVertex: (ai as any).apiClient?.isVertexAI?.(),
+        isAuthError
+      },
       details: error.details || undefined
     });
   }
@@ -116,6 +174,11 @@ Return your analysis in JSON format matching this schema exactly:
 
 app.post("/api/chat", async (req, res) => {
   try {
+    const isVertexDetected = !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT);
+    console.log("DIAGNOSTIC: /api/chat called");
+    console.log("DIAGNOSTIC: GEMINI_API_KEY exists:", !!process.env.GEMINI_API_KEY);
+    console.log("DIAGNOSTIC: Vertex/GCP Env Detected:", isVertexDetected);
+
     if (!process.env.GEMINI_API_KEY) {
       return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet. Please provide a GEMINI_API_KEY in the Secrets panel." });
     }
@@ -172,20 +235,28 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
       },
     });
 
-    if (!response.text) {
+    const text = response.text;
+
+    if (!text) {
       throw new Error("Empty response from AI");
     }
 
-    return res.json({ text: response.text });
+    return res.json({ text });
 
   } catch (error: any) {
     console.error("Error in AI chat:", error);
     const statusCode = error.status || error.code || 500;
-    const errorMessage = error.message || "Failed to communicate with AI";
+    const isAuthError = statusCode === 401 || (error.message && error.message.includes("UNAUTHENTICATED"));
 
     res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ 
-      error: errorMessage,
+      error: error.message || "Failed to communicate with AI",
       code: error.status || error.code || 'UNKNOWN',
+      diagnostics: {
+        apiKeyPresent: !!process.env.GEMINI_API_KEY,
+        envVertex: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT),
+        sdkIsVertex: (ai as any).apiClient?.isVertexAI?.(),
+        isAuthError
+      },
       details: error.details || undefined
     });
   }

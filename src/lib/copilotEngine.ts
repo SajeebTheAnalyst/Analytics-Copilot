@@ -39,17 +39,35 @@ export async function queryCopilot(
       })
     });
 
-    if (res.ok) {
+    const contentType = res.headers.get('content-type');
+    if (!res.ok) {
+      let errorMessage = `Server error (${res.status})`;
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+        const error = new Error(errorMessage);
+        (error as any).code = errorData.code;
+        (error as any).details = errorData.details;
+        throw error;
+      } else {
+        const text = await res.text();
+        if (text.includes('server error') || text.includes('Runtime.ImportModuleError')) {
+          errorMessage = "AI Service is temporarily unavailable (Serverless Function Error). Please check the server logs.";
+        } else if (text.length > 0 && text.length < 200) {
+          errorMessage = text;
+        }
+        throw new Error(errorMessage);
+      }
+    }
+
+    if (contentType && contentType.includes('application/json')) {
       const data = await res.json();
       if (data && data.text) {
         return { text: data.text, evidence, source: 'server' };
       }
+      throw new Error('Incomplete response from AI service');
     } else {
-      const errorData = await res.json();
-      const error = new Error(errorData.message || errorData.error || 'Failed to communicate with AI');
-      (error as any).code = errorData.code;
-      (error as any).details = errorData.details;
-      throw error;
+      throw new Error('AI service returned an unexpected response format (not JSON)');
     }
   } catch (e: any) {
     console.warn('/api/chat error', e);
