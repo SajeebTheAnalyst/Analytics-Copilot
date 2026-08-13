@@ -120,11 +120,21 @@ export function DatasetManager({
               { step: '03', title: 'Quality Audit', desc: 'Identify duplicates, missing cells, and outliers instantly.' },
               { step: '04', title: 'Clean & Workspace', desc: 'Standardize schema and proceed to custom dashboards.' },
             ].map((pipeline, idx) => (
-              <div key={idx} className="p-4 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/40 dark:bg-zinc-900/10 text-xs space-y-1.5 backdrop-blur-sm relative overflow-hidden group">
-                <span className="font-mono text-[10px] font-extrabold text-blue-600 dark:text-blue-400 block tracking-widest">{pipeline.step}</span>
-                <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{pipeline.title}</h3>
-                <p className="text-[11px] text-zinc-500 leading-relaxed font-semibold">{pipeline.desc}</p>
-                <div className="absolute right-2 bottom-2 text-[20px] font-extrabold text-zinc-100/10 dark:text-zinc-900/10 group-hover:scale-105 transition-transform select-none font-mono">
+              <div 
+                key={idx} 
+                onMouseMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const y = e.clientY - rect.top;
+                  e.currentTarget.style.setProperty("--mouse-x", `${x}px`);
+                  e.currentTarget.style.setProperty("--mouse-y", `${y}px`);
+                }}
+                className="p-4 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/15 text-xs space-y-1.5 backdrop-blur-sm relative overflow-hidden group transition-all duration-300 hover:shadow-md hover:border-zinc-300/60 dark:hover:border-zinc-700/60 hover:-translate-y-[1px] interactive-glow interactive-glow-bg"
+              >
+                <span className="font-mono text-[10px] font-extrabold text-blue-600 dark:text-blue-400 block tracking-widest z-10 relative">{pipeline.step}</span>
+                <h3 className="font-bold text-zinc-900 dark:text-zinc-100 z-10 relative">{pipeline.title}</h3>
+                <p className="text-[11px] text-zinc-500 leading-relaxed font-semibold z-10 relative">{pipeline.desc}</p>
+                <div className="absolute right-2 bottom-1.5 text-[22px] font-mono font-extrabold text-zinc-150/15 dark:text-zinc-850/15 group-hover:scale-110 transition-transform select-none z-0">
                   {idx + 1}
                 </div>
               </div>

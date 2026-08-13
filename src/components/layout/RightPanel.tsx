@@ -470,21 +470,17 @@ export function RightPanel({
     <>
       <aside 
         className={cn(
-          "h-full border-l border-zinc-200/50 dark:border-zinc-800/50 flex flex-col font-sans bg-white/70 dark:bg-[#09090b]/70 backdrop-blur-xl shrink-0 relative overflow-hidden",
-          isOpen ? "opacity-100" : "w-0 opacity-0 border-l-0"
+          "h-full border-l border-zinc-200/40 dark:border-zinc-800/40 flex flex-col font-sans bg-white/50 dark:bg-[#06080e]/40 backdrop-blur-2xl shrink-0 relative overflow-hidden",
+          isOpen ? "opacity-100 shadow-[-12px_0_40px_rgba(0,0,0,0.03)] dark:shadow-[-20px_0_50px_rgba(0,0,0,0.4)]" : "w-0 opacity-0 border-l-0"
         )}
         style={{ 
           width: isOpen ? `${panelWidth}px` : '0',
-          transition: isResizing ? 'none' : 'width 400ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease-in-out, border-color 300ms ease-in-out'
+          transition: isResizing ? 'none' : 'width 300ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 250ms ease-in-out'
         }}
       >
-        {/* Animated Accent Border */}
+        {/* Animated Subtle Premium Glowing Aura */}
         {isOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.6 }}
-            className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 to-blue-500 bg-[length:200%_100%] animate-[shimmer_3s_infinite_linear] z-[70]"
-          />
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500/70 via-indigo-500/70 to-blue-500/70 bg-[length:200%_100%] animate-[shimmer_3s_infinite_linear] z-[70] opacity-80" />
         )}
 
         {/* Resize Handle */}
@@ -669,21 +665,28 @@ export function RightPanel({
                     <button
                       key={idx}
                       onClick={() => handleSend(item.text)}
-                      className="text-left group relative p-4 rounded-2xl bg-white/40 dark:bg-zinc-900/40 border border-zinc-200/50 dark:border-zinc-800/50 hover:border-blue-500/50 transition-all duration-300 hover:shadow-md active:scale-[0.98] backdrop-blur-sm"
+                      onMouseMove={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        e.currentTarget.style.setProperty("--mouse-x", `${x}px`);
+                        e.currentTarget.style.setProperty("--mouse-y", `${y}px`);
+                      }}
+                      className="text-left group relative p-4 rounded-2xl bg-white/50 dark:bg-[#0c0e16]/60 border border-zinc-200/50 dark:border-zinc-800/40 hover:border-blue-500/40 transition-all duration-300 hover:shadow-[0_8px_20px_rgba(0,0,0,0.02)] active:scale-[0.98] backdrop-blur-md interactive-glow interactive-glow-bg overflow-hidden"
                     >
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center justify-between gap-3 z-10 relative">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={cn(
-                            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                            item.color === 'blue' ? "bg-blue-500/10 text-blue-500 group-hover:bg-blue-500 group-hover:text-white" :
-                            item.color === 'amber' ? "bg-amber-500/10 text-amber-500 group-hover:bg-amber-500 group-hover:text-white" :
-                            "bg-violet-500/10 text-violet-500 group-hover:bg-violet-500 group-hover:text-white"
+                            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-350",
+                            item.color === 'blue' ? "bg-blue-500/10 text-blue-500 group-hover:bg-blue-600 group-hover:text-white" :
+                            item.color === 'amber' ? "bg-amber-500/10 text-amber-500 group-hover:bg-amber-600 group-hover:text-white" :
+                            "bg-violet-500/10 text-violet-500 group-hover:bg-violet-600 group-hover:text-white"
                           )}>
                             <item.icon className="w-4 h-4" />
                           </div>
-                          <span className="text-[12px] font-bold text-zinc-700 dark:text-zinc-200 truncate group-hover:translate-x-1 transition-transform">{item.text}</span>
+                          <span className="text-[12px] font-extrabold text-zinc-700 dark:text-zinc-200 truncate group-hover:translate-x-0.5 transition-transform">{item.text}</span>
                         </div>
-                        <ArrowRight className="w-4 h-4 text-zinc-300 group-hover:text-blue-500 transition-colors shrink-0" />
+                        <ArrowRight className="w-4 h-4 text-zinc-350 group-hover:text-blue-500 transition-colors shrink-0 group-hover:translate-x-0.5" />
                       </div>
                     </button>
                   ))}
@@ -722,10 +725,10 @@ export function RightPanel({
                       </div>
 
                       <div className={cn(
-                        "rounded-2xl text-[13px] leading-relaxed transition-all duration-300 shadow-sm max-w-[90%]",
+                        "rounded-2xl text-[13px] leading-relaxed transition-all duration-200 w-full",
                         msg.role === 'user' 
-                          ? "bg-blue-600 text-white px-5 py-3 rounded-tr-sm" 
-                          : "bg-white/50 dark:bg-zinc-900/50 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60 p-6 rounded-tl-sm space-y-4 w-full backdrop-blur-sm"
+                          ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4.5 py-2.5 rounded-tr-xs shadow-[0_4px_14px_rgba(37,99,235,0.15)] max-w-[85%] font-medium" 
+                          : "bg-white/75 dark:bg-[#0c0e16]/65 text-zinc-800 dark:text-zinc-100 border border-zinc-200/50 dark:border-zinc-800/40 p-5 rounded-tl-xs space-y-4 w-full backdrop-blur-md shadow-[0_8px_24px_-4px_rgba(0,0,0,0.02)] dark:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)]"
                       )}>
                         {msg.role === 'assistant' ? (
                           <div className="flex flex-col gap-4">

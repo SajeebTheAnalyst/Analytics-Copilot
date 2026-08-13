@@ -116,32 +116,32 @@ export function Sidebar({
                     }
                   }}
                   className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-250 text-left group relative overflow-hidden",
+                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ease-out text-left group relative overflow-hidden",
                     isActive
-                      ? "bg-blue-50/80 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-bold shadow-[0_2px_10px_-2px_rgba(37,99,235,0.1)] border border-blue-200/50 dark:border-blue-800/50 scale-[1.02]"
+                      ? "bg-blue-50/70 dark:bg-blue-950/25 text-blue-700 dark:text-blue-300 font-bold shadow-[0_4px_12px_rgba(37,99,235,0.04)] border border-blue-200/60 dark:border-blue-900/40 hover:scale-[1.01]"
                       : item.isAction && isCopilotOpen
-                      ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold border border-blue-100 dark:border-blue-900/30 scale-[1.01]"
-                      : "text-zinc-600 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-zinc-100 border border-transparent hover:border-zinc-200/50 dark:hover:border-zinc-700/50 hover:pl-4 hover:shadow-sm"
+                      ? "bg-blue-50/50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-semibold border border-blue-100/60 dark:border-blue-900/30"
+                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 bg-transparent hover:bg-white/60 dark:hover:bg-white/5 border border-transparent hover:border-zinc-200/50 dark:hover:border-zinc-800/60 hover:pl-3.5 hover:shadow-[0_2px_8px_-4px_rgba(0,0,0,0.03)]"
                   )}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 z-10">
                     <Icon className={cn(
-                      "w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110",
+                      "w-4 h-4 shrink-0 transition-all duration-200 group-hover:scale-105",
                       isActive 
                         ? "text-blue-600 dark:text-blue-400" 
                         : item.isAction 
                         ? "text-blue-500 dark:text-blue-400" 
-                        : "text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200"
+                        : "text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200"
                     )} />
                     <span className="truncate">{item.label}</span>
                   </div>
                   {item.isAction && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-blue-100/80 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold tracking-wider z-10 transition-colors duration-200 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/60">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-blue-100/60 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold tracking-wider z-10 transition-colors duration-200 group-hover:bg-blue-200/70 dark:group-hover:bg-blue-900/60">
                       AI
                     </span>
                   )}
                   {isActive && (
-                    <span className="absolute left-0 top-1/4 bottom-1/4 w-0.75 rounded-r bg-blue-600 dark:bg-blue-500" />
+                    <span className="absolute left-0 top-1/4 bottom-1/4 w-[3px] rounded-r bg-blue-600 dark:bg-blue-500 shadow-[1px_0_6px_rgba(37,99,235,0.4)]" />
                   )}
                 </button>
               );

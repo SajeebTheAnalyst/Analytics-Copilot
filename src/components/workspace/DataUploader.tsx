@@ -178,12 +178,19 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
 
       {/* Main Drag-and-Drop Box */}
       <div
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          e.currentTarget.style.setProperty("--mouse-x", `${x}px`);
+          e.currentTarget.style.setProperty("--mouse-y", `${y}px`);
+        }}
         className={cn(
-          "relative flex flex-col items-center justify-center border border-dashed rounded-md transition-all cursor-pointer overflow-hidden bg-white dark:bg-zinc-950",
+          "relative flex flex-col items-center justify-center border border-dashed rounded-xl transition-all cursor-pointer overflow-hidden bg-white/75 dark:bg-zinc-950/75 backdrop-blur-md interactive-glow interactive-glow-bg",
           compact ? "p-6" : "p-10",
           isDragging 
-            ? "border-blue-500 bg-blue-50/40 dark:bg-blue-950/20 scale-[1.005]" 
-            : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/40",
+            ? "border-blue-500/60 bg-blue-50/30 dark:bg-blue-950/15 scale-[1.005] shadow-[0_4px_20px_rgba(59,130,246,0.06)]" 
+            : "border-zinc-200/80 dark:border-zinc-800/80 hover:border-zinc-350 dark:hover:border-zinc-700/60 hover:bg-zinc-50/25 dark:hover:bg-zinc-900/10",
           isUploading && "pointer-events-none opacity-90 border-blue-500/50"
         )}
         onDragEnter={handleDrag}
@@ -203,8 +210,8 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
         />
         
         {isUploading ? (
-          <div className="flex flex-col items-center text-center space-y-3 w-full max-w-sm">
-            <div className="w-10 h-10 rounded-md bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800/80 flex items-center justify-center text-blue-600 dark:text-blue-400">
+          <div className="flex flex-col items-center text-center space-y-3 w-full max-w-sm z-10">
+            <div className="w-10 h-10 rounded-xl bg-blue-50/85 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-xs animate-float">
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
             
@@ -234,16 +241,16 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
             </p>
           </div>
         ) : (
-          <div className="flex flex-col items-center text-center space-y-3.5">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/30 flex items-center justify-center text-blue-650 dark:text-blue-400 shadow-3xs">
-              <UploadCloud className="w-6 h-6 animate-pulse" />
+          <div className="flex flex-col items-center text-center space-y-3.5 z-10">
+            <div className="w-12 h-12 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100/60 dark:border-blue-900/20 flex items-center justify-center text-blue-650 dark:text-blue-400 shadow-3xs animate-float">
+              <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
 
             <div>
               <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                 Drag and drop your spreadsheet here
               </p>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">
                 or click to browse local files
               </p>
             </div>
@@ -253,7 +260,7 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
                 type="button" 
                 variant="outline" 
                 size="sm" 
-                className="text-xs h-8 px-4 border-zinc-300 dark:border-zinc-700 font-semibold shadow-3xs"
+                className="text-xs h-8 px-4 border-zinc-250 hover:bg-zinc-100 dark:border-zinc-800/80 font-bold shadow-3xs hover-elevate transition-all duration-200"
                 onClick={(e) => {
                   e.stopPropagation();
                   fileInputRef.current?.click();
@@ -265,9 +272,9 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
 
             <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-400 tracking-wider uppercase pt-1">
               <span>Supported Formats:</span>
-              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-600 dark:text-zinc-300">.CSV</span>
-              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-600 dark:text-zinc-300">.XLSX</span>
-              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-600 dark:text-zinc-300">.XLS</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.CSV</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.XLSX</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.XLS</span>
             </div>
           </div>
         )}

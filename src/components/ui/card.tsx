@@ -1,9 +1,28 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("rounded-xl border border-zinc-200/80 bg-white/70 backdrop-blur-md text-zinc-950 dark:border-zinc-800/80 dark:bg-zinc-950/70 dark:text-zinc-50 shadow-sm transition-all duration-300 ease-out hover:shadow-md hover:border-zinc-300/80 dark:hover:border-zinc-700/80 hover:translate-y-[-1px]", className)} {...props} />
-))
+const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, onMouseMove, ...props }, ref) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    e.currentTarget.style.setProperty("--mouse-x", `${x}px`);
+    e.currentTarget.style.setProperty("--mouse-y", `${y}px`);
+    if (onMouseMove) onMouseMove(e);
+  };
+
+  return (
+    <div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      className={cn(
+        "rounded-xl border border-zinc-200/80 bg-white/75 backdrop-blur-md text-zinc-950 dark:border-zinc-800/85 dark:bg-zinc-950/75 dark:text-zinc-50 shadow-sm transition-all duration-300 ease-out hover:shadow-md hover:border-zinc-300/80 dark:hover:border-zinc-750 hover:translate-y-[-1.5px] interactive-glow interactive-glow-bg overflow-hidden relative",
+        className
+      )}
+      {...props}
+    />
+  );
+})
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
