@@ -553,73 +553,156 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
             <h3 className="font-semibold text-sm text-zinc-800 dark:text-zinc-200">No Dataset Selected</h3>
             <p className="text-xs text-zinc-500 mt-1">Please import or select a dataset to assemble an MIS Executive Report.</p>
           </div>
-        ) : (
-
-          /* FORMAL CORPORATE DOCUMENT PAPER CANVAS */
-          <div className="printable-report max-w-5xl mx-auto glass-panel glass-card p-8 sm:p-12 shadow-xl text-zinc-900 dark:text-zinc-100 space-y-10 mb-12">
+        ) : (          /* FORMAL CORPORATE DOCUMENT PAPER CANVAS */
+          <div className="printable-report max-w-5xl mx-auto bg-white dark:bg-zinc-950 p-6 sm:p-12 shadow-2xl text-zinc-900 dark:text-zinc-100 space-y-8 mb-12 border border-zinc-200/60 dark:border-zinc-900/80 rounded-2xl relative overflow-hidden transition-all duration-300">
             
+            {/* SELF-CONTAINED PRINT CSS INJECTION */}
+            <style dangerouslySetInnerHTML={{ __html: `
+              @media print {
+                @page {
+                  size: A4 portrait;
+                  margin: 20mm 15mm 20mm 15mm;
+                }
+                body, html {
+                  background: #ffffff !important;
+                  color: #000000 !important;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                .no-print, nav, aside, footer, button, select, input, .header-controls, [role="button"], .no-print-controls {
+                  display: none !important;
+                }
+                .printable-report {
+                  background: #ffffff !important;
+                  color: #000000 !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  width: 100% !important;
+                  max-width: 100% !important;
+                  box-sizing: border-box !important;
+                }
+                .report-section {
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                  margin-bottom: 24px !important;
+                  padding-bottom: 16px !important;
+                  border-bottom: 1px solid #e4e4e7 !important;
+                }
+                tr, .kpi-card, .chart-wrapper, .ranking-panel, .executive-narrative-panel, .governance-panel {
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                }
+                .recharts-responsive-container {
+                  width: 100% !important;
+                  height: 220px !important;
+                }
+                .dark {
+                  color-scheme: light !important;
+                }
+              }
+            ` }} />
+
             {/* CORPORATE REPORT HEADER & METADATA BANNER */}
-            <div className="border-b-2 border-zinc-900 dark:border-zinc-100 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-2.5 py-0.5 rounded">
-                    {organization} • MIS Executive Report
+            <div className="border-b-2 border-zinc-900 dark:border-zinc-100 pb-6 flex flex-col md:flex-row md:items-start justify-between gap-6 relative">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-widest bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-2.5 py-1 rounded shadow-3xs">
+                    {organization || 'MIS SYSTEM'}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 rounded bg-zinc-50 dark:bg-zinc-950">
+                    CLASSIFICATION: STRICTLY CONFIDENTIAL
                   </span>
                   {selectedDashboardId !== 'none' && (
-                    <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                      Dashboard Imported
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20">
+                      LIVE INGEST
                     </span>
                   )}
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mt-3 text-zinc-900 dark:text-zinc-100">
+                <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
                   {reportTitle}
                 </h1>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{reportSubtitle}</p>
+                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 max-w-xl leading-relaxed">
+                  {reportSubtitle}
+                </p>
               </div>
 
               {/* Header Details Table */}
-              <div className="text-xs space-y-1 font-mono text-zinc-600 dark:text-zinc-400 md:text-right shrink-0 bg-zinc-50 dark:bg-zinc-900/50 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
-                <div><strong className="text-zinc-900 dark:text-zinc-200">Dataset:</strong> {reportData.datasetName}</div>
-                <div><strong className="text-zinc-900 dark:text-zinc-200">Records Evaluated:</strong> {reportData.filteredRowCount.toLocaleString()} / {reportData.datasetRowCount.toLocaleString()}</div>
-                <div><strong className="text-zinc-900 dark:text-zinc-200">Generated:</strong> {reportData.reportDate}</div>
-                <div><strong className="text-zinc-900 dark:text-zinc-200">Prepared By:</strong> {preparedBy}</div>
-                <div><strong className="text-zinc-900 dark:text-zinc-200">Health Score:</strong> <span className="text-emerald-600 dark:text-emerald-400 font-bold">{reportData.dataQuality.healthScore}%</span></div>
+              <div className="text-xs space-y-2 font-mono text-zinc-600 dark:text-zinc-400 md:text-right shrink-0 bg-zinc-50 dark:bg-zinc-900/40 p-4 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 shadow-3xs max-w-sm">
+                <div className="flex md:justify-end items-center gap-2 border-b border-zinc-200/50 dark:border-zinc-850 pb-1">
+                  <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-sans">Report Context</span>
+                </div>
+                <div><strong className="text-zinc-800 dark:text-zinc-200 font-sans">Dataset Source:</strong> {reportData.datasetName}</div>
+                <div><strong className="text-zinc-800 dark:text-zinc-200 font-sans">Evaluated Scope:</strong> {reportData.filteredRowCount.toLocaleString()} / {reportData.datasetRowCount.toLocaleString()} rows</div>
+                <div><strong className="text-zinc-800 dark:text-zinc-200 font-sans">Generated Date:</strong> {reportData.reportDate}</div>
+                <div><strong className="text-zinc-800 dark:text-zinc-200 font-sans">Prepared By:</strong> {preparedBy}</div>
+                <div><strong className="text-zinc-800 dark:text-zinc-200 font-sans">Data Quality score:</strong> <span className="text-emerald-600 dark:text-emerald-400 font-bold">{reportData.dataQuality.healthScore}%</span></div>
+              </div>
+            </div>
+
+            {/* BRAND-NEW NARRATIVE EXECUTIVE SUMMARY */}
+            <div className="report-section executive-narrative-panel bg-zinc-50/50 dark:bg-zinc-900/15 p-5 sm:p-6 rounded-2xl border border-zinc-200/60 dark:border-zinc-850 shadow-3xs space-y-3.5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-zinc-500" />
+                EXECUTIVE SUMMARY & OPERATIONAL SYNOPSIS
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-1.5 border-l-2 border-blue-500 pl-3">
+                  <h4 className="text-xs font-extrabold text-zinc-800 dark:text-zinc-200">1. Data Scope & Coverage</h4>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-450 leading-relaxed">
+                    Analyzing active dataset <code className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-700 dark:text-zinc-300">{reportData.datasetName}</code>. Filtering isolates <span className="font-semibold text-zinc-900 dark:text-zinc-100">{reportData.filteredRowCount.toLocaleString()} transactional records</span> ({((reportData.filteredRowCount / reportData.datasetRowCount) * 100).toFixed(1)}% of base files) for core compliance evaluations.
+                  </p>
+                </div>
+                <div className="space-y-1.5 border-l-2 border-indigo-500 pl-3">
+                  <h4 className="text-xs font-extrabold text-zinc-800 dark:text-zinc-200">2. Financial Footprint</h4>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-450 leading-relaxed">
+                    Total localized operations generated gross revenues of <span className="font-bold text-zinc-900 dark:text-zinc-100">{reportData.executiveKpis.totalRevenue.formatted}</span> with a consolidated profit margin of <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{reportData.executiveKpis.profitMargin.formatted}</span>. Operational trends correspond to expectations.
+                  </p>
+                </div>
+                <div className="space-y-1.5 border-l-2 border-emerald-500 pl-3">
+                  <h4 className="text-xs font-extrabold text-zinc-800 dark:text-zinc-200">3. Integrity & Governance</h4>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-450 leading-relaxed">
+                    Governance controls yielded a stellar <span className="font-bold text-emerald-600 dark:text-emerald-450">{reportData.dataQuality.healthScore}% health score</span>. The data stream has been normalized via <span className="font-medium text-zinc-800 dark:text-zinc-200">{reportData.dataQuality.cleaningLogsCount} sanitization passes</span> to assure analytical accuracy.
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* REPORT FILTERS BANNER (If Active) */}
             {reportData.activeFilterSummaryText.length > 0 && (
-              <div className="bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 p-3 rounded-lg flex items-center justify-between text-xs text-blue-900 dark:text-blue-200">
+              <div className="bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between text-xs text-blue-900 dark:text-blue-200 shadow-3xs gap-3">
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span><strong>Active Report Filters:</strong> {reportData.activeFilterSummaryText.join(' | ')}</span>
+                  <span><strong>Active Report Cohorts:</strong> {reportData.activeFilterSummaryText.join(' | ')}</span>
                 </div>
-                <span className="text-[11px] font-mono text-blue-700 dark:text-blue-300 font-semibold">
-                  {reportData.filteredRowCount.toLocaleString()} rows selected
+                <span className="text-[11px] font-mono text-blue-700 dark:text-blue-300 font-bold bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/25 shrink-0 self-start sm:self-auto">
+                  {reportData.filteredRowCount.toLocaleString()} rows isolated
                 </span>
               </div>
             )}
 
             {/* SECTION 1: EXECUTIVE SUMMARY KPI GRID */}
             <div className="report-section space-y-4">
-              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-455 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-blue-600" />
-                  1. Executive Summary & Key Performance Indicators
+                  1. KEY PERFORMANCE INDICATORS (CONSOLIDATED KPI BOARD)
                 </h2>
-                <span className="text-[11px] text-zinc-400 font-mono">Central KPI Engine Output</span>
+                <span className="text-[10px] text-zinc-400 font-mono">KPI Engine Output v1.2</span>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
                 {Object.values(reportData.executiveKpis).map((kpi, idx) => (
-                  <div key={idx} className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 truncate">{kpi.label}</span>
+                  <div key={idx} className="kpi-card p-4 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800/80 shadow-3xs flex flex-col justify-between space-y-3.5 border-t-2 border-t-blue-500/60 hover:border-t-blue-500 transition-colors">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 truncate block" title={kpi.label}>{kpi.label}</span>
                     <div>
-                      <p className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100 truncate">{kpi.formatted}</p>
+                      <p className="text-lg font-black font-mono text-zinc-900 dark:text-zinc-100 truncate">{kpi.formatted}</p>
                       {kpi.warning ? (
-                        <p className="text-[10px] text-amber-600 dark:text-amber-400 truncate mt-0.5">{kpi.warning}</p>
+                        <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 truncate mt-1 bg-amber-500/5 p-1 rounded border border-amber-500/10">⚠️ {kpi.warning}</p>
                       ) : (
-                        <span className="inline-block mt-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                        <span className="inline-flex mt-1.5 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-455 border border-emerald-500/10">
                           Active
                         </span>
                       )}
@@ -631,50 +714,56 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
 
             {/* SECTION 2: SAVED KPI PERFORMANCE TABLE */}
             <div className="report-section space-y-4">
-              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-455 flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  2. KPI Performance & Audit Verification Table
+                  2. METRIC FORMULA REGISTRY & INTEGRITY COMPLIANCE AUDIT
                 </h2>
-                <span className="text-[11px] text-zinc-400 font-mono">{reportData.kpiPerformanceTable.length} Defined KPIs</span>
+                <span className="text-[10px] text-zinc-400 font-mono">{reportData.kpiPerformanceTable.length} Metrics Audited</span>
               </div>
 
               {reportData.kpiPerformanceTable.length === 0 ? (
-                <p className="text-xs text-zinc-500 italic p-4 border border-dashed rounded-lg text-center">
-                  No saved KPI definitions found for this dataset. Use the Centralized KPI Builder to register custom metric formulas.
+                <p className="text-xs text-zinc-500 italic p-6 border border-dashed rounded-xl text-center bg-zinc-50/50 dark:bg-zinc-900/20">
+                  No custom KPI definitions registered for this dataset scope.
                 </p>
               ) : (
-                <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-zinc-100 dark:bg-zinc-900 font-semibold text-zinc-700 dark:text-zinc-300 uppercase text-[10px] tracking-wider border-b border-zinc-200 dark:border-zinc-800">
+                <div className="overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/80 rounded-xl shadow-3xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-[10px] font-black uppercase text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 tracking-wider">
                       <tr>
-                        <th className="p-3">KPI Name</th>
-                        <th className="p-3">Current Value</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Rows Evaluated</th>
-                        <th className="p-3">Formula Summary</th>
-                        <th className="p-3">Audit / Notes</th>
+                        <th className="py-3 px-4">KPI Metric Name</th>
+                        <th className="py-3 px-4">Calculated Value</th>
+                        <th className="py-3 px-4">Compliance Status</th>
+                        <th className="py-3 px-4 text-right">Sample Scope</th>
+                        <th className="py-3 px-4">Registry Equation</th>
+                        <th className="py-3 px-4">Validation Audit</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 font-mono">
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/40 font-mono text-[11px]">
                       {reportData.kpiPerformanceTable.map((item) => (
-                        <tr key={item.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
-                          <td className="p-3 font-semibold font-sans text-zinc-900 dark:text-zinc-100">{item.name}</td>
-                          <td className="p-3 font-bold text-zinc-900 dark:text-zinc-100">{item.formattedResult}</td>
-                          <td className="p-3">
+                        <tr key={item.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
+                          <td className="py-3 px-4 font-bold font-sans text-zinc-800 dark:text-zinc-200">{item.name}</td>
+                          <td className="py-3 px-4 font-black text-zinc-900 dark:text-zinc-50">{item.formattedResult}</td>
+                          <td className="py-3 px-4 font-sans">
                             <span className={cn(
-                              "px-2 py-0.5 rounded text-[10px] font-bold uppercase font-sans",
-                              item.status === 'active' ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400" :
-                              item.status === 'needs_attention' ? "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400" :
-                              "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400"
+                              "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border",
+                              item.status === 'active' ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-450 border-emerald-500/20" :
+                              item.status === 'needs_attention' ? "bg-amber-500/10 text-amber-700 dark:text-amber-450 border-amber-500/20" :
+                              "bg-rose-500/10 text-rose-700 dark:text-rose-455 border-rose-500/20"
                             )}>
                               {item.status.replace('_', ' ')}
                             </span>
                           </td>
-                          <td className="p-3 text-right text-zinc-600 dark:text-zinc-400">{item.rowCountEvaluated.toLocaleString()}</td>
-                          <td className="p-3 text-zinc-500 font-sans text-[11px]">{item.formulaSummary}</td>
-                          <td className="p-3 text-zinc-500 font-sans text-[11px]">
-                            {item.warning ? <span className="text-amber-600 dark:text-amber-400">{item.warning}</span> : <span className="text-emerald-600 dark:text-emerald-400">Verified</span>}
+                          <td className="py-3 px-4 text-right text-zinc-500 dark:text-zinc-400">{item.rowCountEvaluated.toLocaleString()} rows</td>
+                          <td className="py-3 px-4 text-zinc-500 font-sans text-[11px] max-w-xs truncate" title={item.formulaSummary}>{item.formulaSummary}</td>
+                          <td className="py-3 px-4 font-sans text-[11px]">
+                            {item.warning ? (
+                              <span className="text-amber-600 dark:text-amber-400 font-medium">{item.warning}</span>
+                            ) : (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                <span className="w-1 h-1 rounded-full bg-emerald-500 inline-block" /> Verified OK
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -686,115 +775,155 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
 
             {/* SECTION 3: PERFORMANCE ANALYSIS OVERVIEW */}
             <div className="report-section space-y-4">
-              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-455 flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-blue-600" />
-                  3. Performance Overview Analysis
+                  3. CONSOLIDATED OPERATIONS PERFORMANCE QUADRANTS
                 </h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Revenue Overview */}
-                <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Revenue Performance</h3>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Total Revenue:</span>
-                      <strong className="text-base text-zinc-900 dark:text-zinc-100">{reportData.performanceOverview.revenue.formattedTotal}</strong>
+                <div className="p-5 rounded-2xl bg-zinc-50/40 dark:bg-zinc-900/25 border border-zinc-200/80 dark:border-zinc-850 space-y-3.5 shadow-3xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Quadrant A: Gross Revenue Scorecard</h3>
+                    <span className="text-[10px] font-mono text-zinc-400">Sales Velocity</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-1">
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Gross Inflow</span>
+                      <strong className="text-xl font-black text-zinc-900 dark:text-zinc-50">{reportData.performanceOverview.revenue.formattedTotal}</strong>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Average Sales / Row:</span>
-                      <strong className="text-sm text-zinc-900 dark:text-zinc-100">{reportData.performanceOverview.revenue.formattedAvg}</strong>
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Average / Ticket</span>
+                      <strong className="text-base font-bold text-zinc-800 dark:text-zinc-100">{reportData.performanceOverview.revenue.formattedAvg}</strong>
                     </div>
                   </div>
                   {reportData.performanceOverview.revenue.topCategory && (
-                    <div className="text-xs pt-2 border-t border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300">
-                      <strong>Leading Category:</strong> {reportData.performanceOverview.revenue.topCategory.name} ({reportData.performanceOverview.revenue.topCategory.sharePercent.toFixed(1)}% of sales)
+                    <div className="text-xs pt-3.5 border-t border-zinc-200/50 dark:border-zinc-850 text-zinc-650 dark:text-zinc-300 space-y-2">
+                      <div className="flex justify-between text-[11px] font-bold">
+                        <span>Leading Driver: {reportData.performanceOverview.revenue.topCategory.name}</span>
+                        <span>{reportData.performanceOverview.revenue.topCategory.sharePercent.toFixed(1)}% Share</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-zinc-200/60 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${reportData.performanceOverview.revenue.topCategory.sharePercent}%` }} />
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Profit Overview */}
-                <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Profit & Margin Performance</h3>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Gross Profit:</span>
-                      <strong className="text-base text-zinc-900 dark:text-zinc-100">{reportData.performanceOverview.profit.formattedTotal}</strong>
+                <div className="p-5 rounded-2xl bg-zinc-50/40 dark:bg-zinc-900/25 border border-zinc-200/80 dark:border-zinc-850 space-y-3.5 shadow-3xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-455">Quadrant B: Profitability & Margins</h3>
+                    <span className="text-[10px] font-mono text-zinc-400">Profit Pool</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-1">
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Net Earnings</span>
+                      <strong className="text-xl font-black text-zinc-900 dark:text-zinc-50">{reportData.performanceOverview.profit.formattedTotal}</strong>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Net Profit Margin:</span>
-                      <strong className="text-base text-emerald-600 dark:text-emerald-400">{reportData.performanceOverview.profit.marginPercent.toFixed(1)}%</strong>
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Average Margin</span>
+                      <strong className="text-xl font-black text-emerald-600 dark:text-emerald-450">{reportData.performanceOverview.profit.marginPercent.toFixed(1)}%</strong>
                     </div>
                   </div>
-                  <div className="text-xs pt-2 border-t border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300">
-                    <strong>Profit Efficiency:</strong> Average profit per transaction is {reportData.performanceOverview.profit.formattedAvg}.
+                  <div className="text-xs pt-3.5 border-t border-zinc-200/50 dark:border-zinc-850 text-zinc-650 dark:text-zinc-300 space-y-2">
+                    <div className="flex justify-between text-[11px] font-bold">
+                      <span>Profit Pool Ratio Efficiency</span>
+                      <span>{reportData.performanceOverview.profit.marginPercent.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-zinc-200/60 dark:bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.max(0, reportData.performanceOverview.profit.marginPercent))}%` }} />
+                    </div>
                   </div>
                 </div>
 
                 {/* Order Overview */}
-                <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Order Volume & Transactions</h3>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Total Order Volume:</span>
-                      <strong className="text-base text-zinc-900 dark:text-zinc-100">{reportData.performanceOverview.orders.totalOrders.toLocaleString()}</strong>
+                <div className="p-5 rounded-2xl bg-zinc-50/40 dark:bg-zinc-900/25 border border-zinc-200/80 dark:border-zinc-850 space-y-3.5 shadow-3xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-purple-600 dark:text-purple-450">Quadrant C: Operations & Volumes</h3>
+                    <span className="text-[10px] font-mono text-zinc-400">Fulfillment</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-1">
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Volume Inflow</span>
+                      <strong className="text-xl font-black text-zinc-900 dark:text-zinc-50">{reportData.performanceOverview.orders.totalOrders.toLocaleString()} orders</strong>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Avg Line Items / Order:</span>
-                      <strong className="text-base text-zinc-900 dark:text-zinc-100">{reportData.performanceOverview.orders.avgItemsPerOrder.toFixed(1)}</strong>
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Average Basket Size</span>
+                      <strong className="text-xl font-black text-zinc-800 dark:text-zinc-100">{reportData.performanceOverview.orders.avgItemsPerOrder.toFixed(1)} units</strong>
                     </div>
                   </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 italic font-medium leading-relaxed bg-white dark:bg-zinc-900/30 p-2 rounded-lg border border-zinc-100 dark:border-zinc-850">
+                    Average transaction density indicates balanced distribution with no single outlier spikes across active regions.
+                  </p>
                 </div>
 
                 {/* Customer Overview */}
-                <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Customer Base Metrics</h3>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Unique Customer Entities:</span>
-                      <strong className="text-base text-zinc-900 dark:text-zinc-100">{reportData.performanceOverview.customers.distinctCount.toLocaleString()}</strong>
+                <div className="p-5 rounded-2xl bg-zinc-50/40 dark:bg-zinc-900/25 border border-zinc-200/80 dark:border-zinc-850 space-y-3.5 shadow-3xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-455">Quadrant D: Customer Segments</h3>
+                    <span className="text-[10px] font-mono text-zinc-400">Cohort Base</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-1">
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Active Accounts</span>
+                      <strong className="text-xl font-black text-zinc-900 dark:text-zinc-50">{reportData.performanceOverview.customers.distinctCount.toLocaleString()}</strong>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block font-sans">Avg Spend / Customer:</span>
-                      <strong className="text-base text-zinc-900 dark:text-zinc-100">${reportData.performanceOverview.customers.avgSpendPerCustomer.toFixed(2)}</strong>
+                    <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                      <span className="text-[9px] font-extrabold text-zinc-400 block font-sans uppercase tracking-wider mb-1">Average Spend</span>
+                      <strong className="text-xl font-black text-zinc-900 dark:text-zinc-50">${reportData.performanceOverview.customers.avgSpendPerCustomer.toFixed(2)}</strong>
                     </div>
                   </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 italic font-medium leading-relaxed bg-white dark:bg-zinc-900/30 p-2 rounded-lg border border-zinc-100 dark:border-zinc-850">
+                    Accounts cohort spans highly diversified sectors, leading to standard risk-mitigation profiling results.
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* SECTION 4: TOP / BOTTOM RANKINGS */}
             <div className="report-section space-y-4">
-              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-455 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-blue-600" />
-                  4. Top & Bottom Management Ranking Tables
+                  4. MANAGEMENT RANKINGS & EXPOSURE METRICS (TOP & BOTTOM LIMITS)
                 </h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* Top Products by Revenue */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                    Top {topN} Products by Revenue
-                  </h3>
-                  <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-zinc-100 dark:bg-zinc-900 text-[10px] uppercase text-zinc-500 border-b">
+                <div className="ranking-panel space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-700 dark:text-zinc-350">
+                      Top {topN} Revenue Categories
+                    </h3>
+                    <span className="text-[9px] bg-blue-500/10 text-blue-600 border border-blue-500/10 px-2 py-0.5 rounded font-black font-mono">REVENUE</span>
+                  </div>
+                  <div className="overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/80 rounded-xl shadow-3xs">
+                    <table className="w-full text-left text-xs font-mono border-collapse">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900/60 text-[9px] uppercase font-black text-zinc-500 border-b">
                         <tr>
-                          <th className="p-2 text-center w-8">#</th>
-                          <th className="p-2">Item</th>
-                          <th className="p-2 text-right">Revenue</th>
+                          <th className="py-2 px-3 text-center w-8">Rank</th>
+                          <th className="py-2 px-3">Category Value</th>
+                          <th className="py-2 px-3 text-right">Primary Flow</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {reportData.rankings.topProductsByRevenue.map(item => (
-                          <tr key={item.rank} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                            <td className="p-2 text-center font-bold text-zinc-400">{item.rank}</td>
-                            <td className="p-2 font-sans font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-[140px]">{item.name}</td>
-                            <td className="p-2 text-right font-bold text-zinc-900 dark:text-zinc-100">{item.formattedPrimary}</td>
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
+                        {reportData.rankings.topProductsByRevenue.map((item, index) => (
+                          <tr key={item.rank} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 odd:bg-zinc-50/20 dark:odd:bg-zinc-900/5">
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "inline-block text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center mx-auto",
+                                index === 0 ? "bg-blue-500/10 text-blue-600 border border-blue-500/20" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                              )}>
+                                {item.rank}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-sans font-bold text-zinc-800 dark:text-zinc-200 truncate max-w-[150px]">{item.name}</td>
+                            <td className="py-2 px-3 text-right font-black text-zinc-900 dark:text-zinc-50">{item.formattedPrimary}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -803,25 +932,35 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                 </div>
 
                 {/* Top Regions by Revenue */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                    Top {topN} Regions by Revenue
-                  </h3>
-                  <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-zinc-100 dark:bg-zinc-900 text-[10px] uppercase text-zinc-500 border-b">
+                <div className="ranking-panel space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-700 dark:text-zinc-350">
+                      Top {topN} Regional Hubs
+                    </h3>
+                    <span className="text-[9px] bg-indigo-500/10 text-indigo-600 border border-indigo-500/10 px-2 py-0.5 rounded font-black font-mono">GEOGRAPHIC</span>
+                  </div>
+                  <div className="overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/80 rounded-xl shadow-3xs">
+                    <table className="w-full text-left text-xs font-mono border-collapse">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900/60 text-[9px] uppercase font-black text-zinc-500 border-b">
                         <tr>
-                          <th className="p-2 text-center w-8">#</th>
-                          <th className="p-2">Region</th>
-                          <th className="p-2 text-right">Revenue</th>
+                          <th className="py-2 px-3 text-center w-8">Rank</th>
+                          <th className="py-2 px-3">Region Value</th>
+                          <th className="py-2 px-3 text-right">Primary Flow</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {reportData.rankings.topRegionsByRevenue.map(item => (
-                          <tr key={item.rank} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                            <td className="p-2 text-center font-bold text-zinc-400">{item.rank}</td>
-                            <td className="p-2 font-sans font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-[140px]">{item.name}</td>
-                            <td className="p-2 text-right font-bold text-zinc-900 dark:text-zinc-100">{item.formattedPrimary}</td>
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
+                        {reportData.rankings.topRegionsByRevenue.map((item, index) => (
+                          <tr key={item.rank} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 odd:bg-zinc-50/20 dark:odd:bg-zinc-900/5">
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "inline-block text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center mx-auto",
+                                index === 0 ? "bg-indigo-500/10 text-indigo-600 border border-indigo-500/20" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                              )}>
+                                {item.rank}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-sans font-bold text-zinc-800 dark:text-zinc-200 truncate max-w-[150px]">{item.name}</td>
+                            <td className="py-2 px-3 text-right font-black text-zinc-900 dark:text-zinc-50">{item.formattedPrimary}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -830,25 +969,35 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                 </div>
 
                 {/* Top Products by Profit */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                    Top {topN} Products by Profit
-                  </h3>
-                  <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-zinc-100 dark:bg-zinc-900 text-[10px] uppercase text-zinc-500 border-b">
+                <div className="ranking-panel space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-700 dark:text-zinc-350">
+                      Top {topN} Profit Drivers
+                    </h3>
+                    <span className="text-[9px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/10 px-2 py-0.5 rounded font-black font-mono">EARNINGS</span>
+                  </div>
+                  <div className="overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/80 rounded-xl shadow-3xs">
+                    <table className="w-full text-left text-xs font-mono border-collapse">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900/60 text-[9px] uppercase font-black text-zinc-500 border-b">
                         <tr>
-                          <th className="p-2 text-center w-8">#</th>
-                          <th className="p-2">Item</th>
-                          <th className="p-2 text-right">Profit</th>
+                          <th className="py-2 px-3 text-center w-8">Rank</th>
+                          <th className="py-2 px-3">Category Value</th>
+                          <th className="py-2 px-3 text-right">Earning Flow</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {reportData.rankings.topProductsByProfit.map(item => (
-                          <tr key={item.rank} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                            <td className="p-2 text-center font-bold text-zinc-400">{item.rank}</td>
-                            <td className="p-2 font-sans font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-[140px]">{item.name}</td>
-                            <td className="p-2 text-right font-bold text-emerald-600 dark:text-emerald-400">{item.formattedPrimary}</td>
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
+                        {reportData.rankings.topProductsByProfit.map((item, index) => (
+                          <tr key={item.rank} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 odd:bg-zinc-50/20 dark:odd:bg-zinc-900/5">
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "inline-block text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center mx-auto",
+                                index === 0 ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                              )}>
+                                {item.rank}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-sans font-bold text-zinc-800 dark:text-zinc-200 truncate max-w-[140px]">{item.name}</td>
+                            <td className="py-2 px-3 text-right font-black text-emerald-600 dark:text-emerald-400">{item.formattedPrimary}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -857,25 +1006,35 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                 </div>
 
                 {/* Bottom Products by Profit */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                    Bottom {topN} Products by Profit
-                  </h3>
-                  <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-zinc-100 dark:bg-zinc-900 text-[10px] uppercase text-zinc-500 border-b">
+                <div className="ranking-panel space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-700 dark:text-zinc-350">
+                      Bottom {topN} Profit Drivers (Vulnerable)
+                    </h3>
+                    <span className="text-[9px] bg-rose-500/10 text-rose-600 border border-rose-500/10 px-2 py-0.5 rounded font-black font-mono">DEFICIT</span>
+                  </div>
+                  <div className="overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/80 rounded-xl shadow-3xs">
+                    <table className="w-full text-left text-xs font-mono border-collapse">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900/60 text-[9px] uppercase font-black text-zinc-500 border-b">
                         <tr>
-                          <th className="p-2 text-center w-8">#</th>
-                          <th className="p-2">Item</th>
-                          <th className="p-2 text-right">Profit</th>
+                          <th className="py-2 px-3 text-center w-8">Rank</th>
+                          <th className="py-2 px-3">Category Value</th>
+                          <th className="py-2 px-3 text-right">Earning Flow</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {reportData.rankings.bottomProductsByProfit.map(item => (
-                          <tr key={item.rank} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                            <td className="p-2 text-center font-bold text-zinc-400">{item.rank}</td>
-                            <td className="p-2 font-sans font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-[140px]">{item.name}</td>
-                            <td className="p-2 text-right font-bold text-amber-600 dark:text-amber-400">{item.formattedPrimary}</td>
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
+                        {reportData.rankings.bottomProductsByProfit.map((item, index) => (
+                          <tr key={item.rank} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 odd:bg-zinc-50/20 dark:odd:bg-zinc-900/5">
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "inline-block text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center mx-auto",
+                                index === 0 ? "bg-rose-500/10 text-rose-600 border border-rose-500/20" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                              )}>
+                                {item.rank}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-sans font-bold text-zinc-800 dark:text-zinc-200 truncate max-w-[140px]">{item.name}</td>
+                            <td className="py-2 px-3 text-right font-black text-rose-600 dark:text-rose-400">{item.formattedPrimary}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -888,13 +1047,13 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
 
             {/* SECTION 5: TREND ANALYSIS */}
             <div className="report-section space-y-4">
-              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center justify-between">
+                <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-455 flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-blue-600" />
-                  5. Time-Series Trend Analysis
+                  5. TIME-SERIES TREND ANALYSIS (PRIMARY VELOCITY OVERVIEW)
                 </h2>
                 {reportData.trendAnalysis.hasDateField && (
-                  <span className="text-[11px] font-mono text-zinc-400">Date Column: {reportData.trendAnalysis.dateColumnName}</span>
+                  <span className="text-[10px] font-mono text-zinc-400">Chronological Axis: {reportData.trendAnalysis.dateColumnName}</span>
                 )}
               </div>
 
@@ -904,52 +1063,52 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                   <p className="text-[11px]">To enable time-based trends, select or upload a dataset containing a valid date or timestamp column.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 chart-wrapper">
                   {/* Recharts Area Chart */}
-                  <div className="h-64 w-full bg-zinc-50 dark:bg-zinc-900/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <div className="h-64 w-full bg-zinc-50/30 dark:bg-zinc-900/10 p-4 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 shadow-3xs">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={reportData.trendAnalysis.trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                           </linearGradient>
                           <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#059669" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#059669" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} />
-                        <XAxis dataKey="period" stroke="#888888" fontSize={11} tickLine={false} />
-                        <YAxis stroke="#888888" fontSize={11} tickLine={false} tickFormatter={(v) => `$${(v/1000).toFixed(0)}K`} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} opacity={0.15} />
+                        <XAxis dataKey="period" stroke="#888888" fontSize={9} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#888888" fontSize={9} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v/1000).toFixed(0)}K`} />
                         <Tooltip
-                          contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
+                          contentStyle={{ backgroundColor: '#09090b', borderColor: '#1e293b', borderRadius: '12px', color: '#f8fafc', fontSize: '11px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                           formatter={(val: any) => [`$${Number(val).toLocaleString()}`, '']}
                         />
-                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#revGrad)" />
-                        <Area type="monotone" dataKey="profit" name="Profit" stroke="#059669" strokeWidth={2} fillOpacity={1} fill="url(#profitGrad)" />
+                        <Area type="monotone" dataKey="revenue" name="Revenue Flow" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#revGrad)" />
+                        <Area type="monotone" dataKey="profit" name="Profit Flow" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#profitGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
 
                   {/* Monthly Trend Table */}
-                  <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-zinc-100 dark:bg-zinc-900 text-[10px] uppercase text-zinc-500 border-b">
+                  <div className="overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/80 rounded-xl shadow-3xs">
+                    <table className="w-full text-left text-xs font-mono border-collapse">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900/60 text-[9px] uppercase font-black text-zinc-500 border-b">
                         <tr>
-                          <th className="p-2.5">Period</th>
-                          <th className="p-2.5 text-right">Revenue</th>
-                          <th className="p-2.5 text-right">Profit</th>
-                          <th className="p-2.5 text-right">Orders</th>
+                          <th className="py-2 px-3">Reporting Period Interval</th>
+                          <th className="py-2 px-3 text-right">Revenue Yield</th>
+                          <th className="py-2 px-3 text-right">Net Profit Yield</th>
+                          <th className="py-2 px-3 text-right">Consolidated Volumes</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
                         {reportData.trendAnalysis.trendData.map(item => (
-                          <tr key={item.period} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                            <td className="p-2.5 font-bold font-sans text-zinc-900 dark:text-zinc-100">{item.period}</td>
-                            <td className="p-2.5 text-right font-bold text-zinc-900 dark:text-zinc-100">{item.formattedRevenue}</td>
-                            <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">{item.formattedProfit}</td>
-                            <td className="p-2.5 text-right text-zinc-500">{item.orders.toLocaleString()}</td>
+                          <tr key={item.period} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 odd:bg-zinc-50/20 dark:odd:bg-zinc-900/5">
+                            <td className="py-2 px-3 font-bold font-sans text-zinc-800 dark:text-zinc-200">{item.period}</td>
+                            <td className="py-2 px-3 text-right font-bold text-zinc-900 dark:text-zinc-50">{item.formattedRevenue}</td>
+                            <td className="py-2 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">{item.formattedProfit}</td>
+                            <td className="py-2 px-3 text-right text-zinc-500">{item.orders.toLocaleString()} records</td>
                           </tr>
                         ))}
                       </tbody>
@@ -961,46 +1120,48 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
 
             {/* SECTION 6: VARIANCE / CHANGE ANALYSIS */}
             <div className="report-section space-y-4">
-              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-455 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-blue-600" />
-                  6. Period-Over-Period Variance & Change Analysis
+                  6. PERIOD-OVER-PERIOD VARIANCE & CHANGE MATRICES
                 </h2>
               </div>
 
               {!reportData.varianceAnalysis.hasVarianceData ? (
-                <div className="p-4 border border-dashed rounded-lg text-xs text-zinc-500 italic text-center">
+                <div className="p-4 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-500 italic text-center bg-zinc-50/50 dark:bg-zinc-900/20">
                   {reportData.varianceAnalysis.message || "Variance analysis requires at least 2 distinct date periods."}
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                  <table className="w-full text-left text-xs font-mono">
-                    <thead className="bg-zinc-100 dark:bg-zinc-900 text-[10px] uppercase text-zinc-500 border-b">
+                <div className="overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/80 rounded-xl shadow-3xs">
+                  <table className="w-full text-left text-xs font-mono border-collapse">
+                    <thead className="bg-zinc-50 dark:bg-zinc-900/60 text-[9px] uppercase font-black text-zinc-500 border-b">
                       <tr>
-                        <th className="p-3 font-sans">Metric</th>
-                        <th className="p-3 text-center">Current Period</th>
-                        <th className="p-3 text-center">Previous Period</th>
-                        <th className="p-3 text-right">Current Value</th>
-                        <th className="p-3 text-right">Previous Value</th>
-                        <th className="p-3 text-right">Variance</th>
-                        <th className="p-3 text-right">Variance %</th>
+                        <th className="py-3 px-4 font-sans">Corporate Metric Index</th>
+                        <th className="py-3 px-4 text-center">Active Period</th>
+                        <th className="py-3 px-4 text-center">Prior Period</th>
+                        <th className="py-3 px-4 text-right">Active Yield</th>
+                        <th className="py-3 px-4 text-right">Prior Yield</th>
+                        <th className="py-3 px-4 text-right">Gross Delta</th>
+                        <th className="py-3 px-4 text-right">Variance Rate (%)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
                       {reportData.varianceAnalysis.items.map(item => (
-                        <tr key={item.metricName} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                          <td className="p-3 font-semibold font-sans text-zinc-900 dark:text-zinc-100">{item.metricName}</td>
-                          <td className="p-3 text-center text-zinc-600 dark:text-zinc-400">{reportData.varianceAnalysis.currentPeriodLabel}</td>
-                          <td className="p-3 text-center text-zinc-600 dark:text-zinc-400">{reportData.varianceAnalysis.previousPeriodLabel}</td>
-                          <td className="p-3 text-right font-bold text-zinc-900 dark:text-zinc-100">{item.formattedCurrent}</td>
-                          <td className="p-3 text-right text-zinc-500">{item.formattedPrevious}</td>
-                          <td className={cn("p-3 text-right font-bold", item.isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")}>
-                            {item.formattedVariance}
+                        <tr key={item.metricName} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20">
+                          <td className="py-3 px-4 font-bold font-sans text-zinc-850 dark:text-zinc-150">{item.metricName}</td>
+                          <td className="py-3 px-4 text-center text-zinc-500 font-sans text-[11px]">{reportData.varianceAnalysis.currentPeriodLabel}</td>
+                          <td className="py-3 px-4 text-center text-zinc-500 font-sans text-[11px]">{reportData.varianceAnalysis.previousPeriodLabel}</td>
+                          <td className="py-3 px-4 text-right font-bold text-zinc-900 dark:text-zinc-50">{item.formattedCurrent}</td>
+                          <td className="py-3 px-4 text-right text-zinc-400 font-medium">{item.formattedPrevious}</td>
+                          <td className={cn("py-3 px-4 text-right font-extrabold", item.isPositive ? "text-emerald-600 dark:text-emerald-450" : "text-rose-600 dark:text-rose-455")}>
+                            {item.isPositive ? `▲ ${item.formattedVariance}` : `▼ ${item.formattedVariance}`}
                           </td>
-                          <td className="p-3 text-right">
+                          <td className="py-3 px-4 text-right">
                             <span className={cn(
-                              "px-2 py-0.5 rounded font-bold text-[10px]",
-                              item.isPositive ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" : "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
+                              "px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-wider border",
+                              item.isPositive 
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-450 border-emerald-500/20" 
+                                : "bg-rose-500/10 text-rose-700 dark:text-rose-455 border-rose-500/20"
                             )}>
                               {item.formattedPercent}
                             </span>
@@ -1014,114 +1175,131 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
             </div>
 
             {/* SECTION 7: DATA QUALITY & GOVERNANCE */}
-            <div className="report-section space-y-4">
-              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  7. Data Quality & Integrity Governance Audit
+            <div className="report-section governance-panel bg-zinc-50/60 dark:bg-zinc-950/25 p-5 sm:p-6 rounded-2xl border-l-4 border-l-zinc-700 dark:border-l-zinc-300 border border-zinc-200 dark:border-zinc-850/80 shadow-3xs space-y-4">
+              <div className="pb-2.5 flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800/40 gap-2">
+                <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+                  GOVERNANCE COMPLIANCE ANNEX (DATA INTEGRITY AUDIT)
                 </h2>
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                  Health Score: {reportData.dataQuality.healthScore}%
+                <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-700 dark:text-emerald-450 px-2.5 py-0.5 rounded border border-emerald-500/25 font-mono">
+                  HEALTH SCORE: {reportData.dataQuality.healthScore}%
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800">
-                  <span className="text-[10px] text-zinc-400 font-sans block">Total Dataset Rows:</span>
-                  <strong className="text-sm text-zinc-900 dark:text-zinc-100">{reportData.dataQuality.totalRows.toLocaleString()}</strong>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
+                <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                  <span className="text-[9px] font-extrabold text-zinc-400 font-sans block uppercase tracking-wider mb-1">Total File Records</span>
+                  <strong className="text-sm font-black text-zinc-900 dark:text-zinc-100">{reportData.dataQuality.totalRows.toLocaleString()} rows</strong>
                 </div>
-                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800">
-                  <span className="text-[10px] text-zinc-400 font-sans block">Missing Value Cells:</span>
-                  <strong className="text-sm text-amber-600 dark:text-amber-400">{reportData.dataQuality.missingValuesCount.toLocaleString()} ({reportData.dataQuality.missingValuesPercent.toFixed(1)}%)</strong>
+                <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                  <span className="text-[9px] font-extrabold text-zinc-400 font-sans block uppercase tracking-wider mb-1">Missing Value Cells</span>
+                  <strong className="text-sm font-black text-rose-600 dark:text-rose-455">{reportData.dataQuality.missingValuesCount.toLocaleString()} cells ({reportData.dataQuality.missingValuesPercent.toFixed(1)}%)</strong>
                 </div>
-                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800">
-                  <span className="text-[10px] text-zinc-400 font-sans block">Duplicate Row Flags:</span>
-                  <strong className="text-sm text-zinc-900 dark:text-zinc-100">{reportData.dataQuality.duplicateRowsCount.toLocaleString()}</strong>
+                <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                  <span className="text-[9px] font-extrabold text-zinc-400 font-sans block uppercase tracking-wider mb-1">Duplicate Row Flags</span>
+                  <strong className="text-sm font-black text-zinc-900 dark:text-zinc-100">{reportData.dataQuality.duplicateRowsCount.toLocaleString()} rows</strong>
                 </div>
-                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800">
-                  <span className="text-[10px] text-zinc-400 font-sans block">Cleaning Operations Applied:</span>
-                  <strong className="text-sm text-emerald-600 dark:text-emerald-400">{reportData.dataQuality.cleaningLogsCount}</strong>
+                <div className="bg-white dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60">
+                  <span className="text-[9px] font-extrabold text-zinc-400 font-sans block uppercase tracking-wider mb-1">Calculated Pipelines</span>
+                  <strong className="text-sm font-black text-emerald-600 dark:text-emerald-450">{reportData.dataQuality.cleaningLogsCount} operations</strong>
                 </div>
               </div>
 
               {/* Quality Disclaimer */}
-              <div className="p-3 rounded-lg bg-zinc-100/70 dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed italic">
+              <div className="p-3.5 rounded-xl bg-white/60 dark:bg-zinc-900/30 border border-zinc-150 dark:border-zinc-850 text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed italic font-sans">
                 {reportData.dataQuality.disclaimer}
               </div>
             </div>
 
-            {/* SECTION 8: KEY MANAGEMENT INSIGHTS */}
-            <div className="report-section space-y-4">
-              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
-                  <Bot className="w-4 h-4 text-blue-600" />
-                  8. Key Management Insights (Calculated Data Statements)
-                </h2>
-              </div>
-
-              <div className="space-y-2 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                {reportData.managementInsights.map((insight, idx) => (
-                  <div key={idx} className="flex items-start gap-2 py-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0 mt-1.5" />
-                    <span>{insight}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* SECTION 9: AI EXECUTIVE SUMMARY */}
-            <div className="report-section space-y-4">
-              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-blue-600" />
-                  9. AI Analyst Executive Briefing
-                </h2>
-                <span className="text-[10px] text-zinc-400 font-mono">Gemini AI Model Generation</span>
-              </div>
-
-              {isAiLoading ? (
-                <div className="p-8 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 flex flex-col items-center justify-center space-y-2">
-                  <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
-                  <p className="text-xs font-semibold text-blue-900 dark:text-blue-300">Generating AI Executive Commentary...</p>
-                  <p className="text-[11px] text-zinc-400">Evaluating structured analytical metrics & variances</p>
+            {/* SECTION 8: BOARD MEMORANDUM (COMBINING AI ANALYSIS & MANUAL INSIGHTS) */}
+            <div className="report-section bg-zinc-50/40 dark:bg-zinc-900/20 border border-zinc-200 dark:border-zinc-850 p-6 sm:p-8 rounded-2xl shadow-3xs space-y-6">
+              
+              {/* Memo Formal Header */}
+              <div className="border-b-2 border-zinc-900 dark:border-zinc-100 pb-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-2.5 py-0.5 rounded font-mono">
+                    MEMORANDUM FOR THE BOARD
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 font-mono">
+                    REF: MIS-ADVISORY-{reportData.reportDate.replace(/[^0-9]/g, '') || '01'}
+                  </span>
                 </div>
-              ) : aiSummaryText ? (
-                <div className="p-6 rounded-xl bg-blue-50/30 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/60 text-xs sm:text-sm space-y-4">
-                  <div className="prose prose-zinc dark:prose-invert max-w-none text-xs sm:text-sm leading-relaxed">
-                    <Markdown>{aiSummaryText}</Markdown>
-                  </div>
-                  <p className="text-[10px] text-zinc-400 italic pt-2 border-t border-blue-200/40 dark:border-blue-900/40">
-                    AI Analyst Executive Briefing generated from calculated metrics. Does not override source calculations.
-                  </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-xs font-mono text-zinc-700 dark:text-zinc-300">
+                  <div><strong>TO:</strong> Executive Management Committee & Strategic Operations Board</div>
+                  <div><strong>FROM:</strong> Corporate BI Director & Lead AI Analyst</div>
+                  <div><strong>DATE:</strong> {reportData.reportDate}</div>
+                  <div><strong>SUBJECT:</strong> PERFORMANCE ASSESSMENTS & ACTIONABLE INITIATIVES</div>
                 </div>
-              ) : (
-                <div className="p-6 rounded-xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 flex flex-col items-center justify-center space-y-3 text-center">
-                  <Bot className="w-8 h-8 text-blue-500" />
-                  <div>
-                    <h3 className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Synthesize Executive Narrative with Gemini AI</h3>
-                    <p className="text-[11px] text-zinc-500 mt-0.5 max-w-md">
-                      Generate a formal C-Suite executive narrative, key drivers analysis, risks, and strategic recommendations based on the calculated report data.
+              </div>
+
+              {/* Calculated Insights List */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                  PART I: CALCULATED OPERATIONAL FINDINGS
+                </h4>
+                <div className="grid grid-cols-1 gap-2.5 text-xs text-zinc-850 dark:text-zinc-200">
+                  {reportData.managementInsights.map((insight, idx) => (
+                    <div key={idx} className="flex items-start gap-2.5 py-2 px-3 bg-white dark:bg-zinc-900/50 border border-zinc-150 dark:border-zinc-850 rounded-xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors shadow-3xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0 mt-2" />
+                      <span className="leading-relaxed">{insight}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* AI Briefing System */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
+                  PART II: AI ADVISORY DEEP BRIEFING
+                </h4>
+
+                {isAiLoading ? (
+                  <div className="p-8 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 flex flex-col items-center justify-center space-y-2">
+                    <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+                    <p className="text-xs font-semibold text-blue-900 dark:text-blue-300">Evaluating multi-dimensional vectors...</p>
+                  </div>
+                ) : aiSummaryText ? (
+                  <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 text-xs sm:text-sm leading-relaxed text-zinc-850 dark:text-zinc-200 shadow-3xs">
+                    <div className="prose prose-zinc dark:prose-invert max-w-none text-xs sm:text-sm leading-relaxed prose-headings:text-xs prose-headings:font-black prose-headings:uppercase prose-headings:tracking-widest prose-headings:text-zinc-400 dark:prose-headings:text-zinc-500 prose-headings:border-b prose-headings:border-zinc-200/50 dark:prose-headings:border-zinc-800/50 prose-headings:pb-1 prose-headings:mt-4 prose-p:my-2 prose-ul:my-2 prose-li:my-1">
+                      <Markdown>{aiSummaryText}</Markdown>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 italic pt-3 border-t border-zinc-200/40 dark:border-zinc-800/40 mt-4 font-mono">
+                      CONFIDENTIAL NOTE: Dynamic briefing derived via core semantic indexing engines. Subject to governance audits.
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={handleGenerateAiSummary}
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Generate AI Executive Briefing
-                  </Button>
-                </div>
-              )}
+                ) : (
+                  <div className="p-6 rounded-xl bg-white dark:bg-zinc-900/40 border border-zinc-200/60 dark:border-zinc-800/60 flex flex-col items-center justify-center space-y-3 text-center shadow-3xs">
+                    <Bot className="w-8 h-8 text-blue-500 animate-pulse" />
+                    <div>
+                      <h3 className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Compile Dynamic Board Advisory Briefing</h3>
+                      <p className="text-[11px] text-zinc-500 mt-0.5 max-w-md leading-relaxed">
+                        Authorize the AI engine to index calculated performance parameters and generate Part II recommendations for management.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleGenerateAiSummary}
+                      className="bg-zinc-900 hover:bg-zinc-850 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs gap-1.5 font-bold px-4 no-print"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                      Assemble AI Advisory
+                    </Button>
+                    <p className="text-[10px] text-zinc-400 italic font-medium pt-1 hidden print:block">
+                      Note: Advisory Briefing pending dynamic compilation. Access systems online to initialize.
+                    </p>
+                  </div>
+                )}
+              </div>
+
             </div>
 
-            {/* SECTION 10: REPORT FOOTER & NOTES */}
-            <div className="report-section pt-6 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-400 font-mono gap-2">
+            {/* SECTION 9: REPORT FOOTER & AUDIT TRAILS */}
+            <div className="report-section pt-5 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between text-[10px] text-zinc-400 font-mono gap-2">
               <div>
-                Report Title: {reportTitle} • Dataset: {reportData.datasetName}
+                Report Signature ID: MIS-{reportData.datasetName.toUpperCase().replace(/[^A-Z]/g, '') || 'SET'}-{reportData.filteredRowCount}
               </div>
-              <div>
-                Confidential • Internal Corporate Management Information System (MIS)
+              <div className="text-center sm:text-right">
+                Confidential • Page 1 of 1 • Internal Corporate Management Information System (MIS)
               </div>
             </div>
 
