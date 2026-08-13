@@ -45,13 +45,16 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || "",
   httpOptions: {
     headers: {
-      "User-Agent": "analytics-copilot",
+      "User-Agent": "aistudio-build",
     },
   },
 });
 
 app.post("/api/analyze", async (req, res) => {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(401).json({ error: "NOT_CONFIGURED", message: "Gemini API key is not configured in the environment." });
+    }
     const { stats } = req.body;
     
     if (!stats) {
@@ -99,14 +102,18 @@ Return your analysis in JSON format matching this schema exactly:
     res.json(parsedResponse);
   } catch (error: any) {
     console.error("Error analyzing data:", error);
-    res.status(500).json({ error: error.message || "Failed to analyze data" });
+    const status = error.message?.includes('permission') || error.message?.includes('key') ? 403 : 500;
+    res.status(status).json({ 
+      error: error.message || "Failed to analyze data",
+      code: error.status || error.code || 'UNKNOWN'
+    });
   }
 });
 
 app.post("/api/chat", async (req, res) => {
   try {
     if (!process.env.GEMINI_API_KEY) {
-      return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet." });
+      return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet. Please provide a GEMINI_API_KEY in the Secrets panel." });
     }
 
     const { history, metadata, message, evidence } = req.body;
@@ -136,41 +143,30 @@ ${JSON.stringify(metadata, null, 2)}
 `;
 
     // Initialize chat session
-    const chat = ai.chats.create({
-      model: "gemini-3.6-flash",
-      config: {
-        systemInstruction,
-        temperature: 0.2,
-      }
-    });
-
-    // We can simulate history by sending the previous messages if supported by @google/genai.
-    // Or we can just format it into the prompt. The `@google/genai` chat session doesn't easily let us seed history in `create()` in this exact syntax without formatting.
-    // Let's pass the history in a structured way.
     const formattedHistory = (history || []).map((msg: any) => ({
        role: msg.role === 'user' ? 'user' : 'model',
        parts: [{ text: msg.text }]
     }));
     
-    if (formattedHistory.length > 0) {
-      const chatWithHistory = ai.chats.create({
-        model: "gemini-3.6-flash",
-        config: {
-          systemInstruction,
-          temperature: 0.2,
-        },
-        history: formattedHistory
-      });
-      const response = await chatWithHistory.sendMessage({ message });
-      return res.json({ text: response.text });
-    } else {
-      const response = await chat.sendMessage({ message });
-      return res.json({ text: response.text });
-    }
+    const chat = ai.chats.create({
+      model: "gemini-3.6-flash",
+      config: {
+        systemInstruction,
+        temperature: 0.2,
+      },
+      history: formattedHistory
+    });
+
+    const response = await chat.sendMessage({ message });
+    return res.json({ text: response.text });
 
   } catch (error: any) {
     console.error("Error in AI chat:", error);
-    res.status(500).json({ error: error.message || "Failed to communicate with AI" });
+    const status = error.message?.includes('permission') || error.message?.includes('key') ? 403 : 500;
+    res.status(status).json({ 
+      error: error.message || "Failed to communicate with AI",
+      code: error.status || error.code || 'UNKNOWN'
+    });
   }
 });
 

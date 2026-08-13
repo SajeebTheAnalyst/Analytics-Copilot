@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import { Dataset, Dashboard, RelationshipSuggestion, DashboardPlan } from '@/types';
 import { generateAnalyticsEvidence, AnalyticalEvidence } from './copilotAnalyticsEngine';
 
@@ -27,51 +26,7 @@ export async function queryCopilot(
     activeDashboardId
   );
 
-  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
-
-  const systemInstruction = `You are AI Analyst Copilot, a senior B2B analytics copilot assisting enterprise users.
-
-CRITICAL ANTI-HALLUCINATION & DETERMINISTIC RULES:
-1. NEVER invent, fabricate, or recalculate numeric values. You must strictly use the calculated facts provided in DETERMINISTIC_EVIDENCE below.
-2. CAUSATION GUARDRAIL: When explaining changes, trends, or performance differences, DO NOT claim direct causation unless explicitly proven. Use non-causal correlation wording such as "coincided with", "associated with", "may indicate", or "possible contributor".
-3. STATUS REASONING: If a KPI status is "Needs Attention" or "Invalid", explain the underlying data issue clearly rather than fabricating a result.
-4. FORMATTING: Use clean markdown sections:
-   - **Answer**: Clear, direct, concise answer containing exact figures from the evidence.
-   - **Key Findings**: Structured bullet points with exact metrics and comparisons.
-   - **Interpretation**: Contextual business insights.
-   - **Recommended Action**: Actionable next step or follow-up recommendation.
-
-5. ACTIONABLE CLEANING: If the DETERMINISTIC_EVIDENCE contains a 'cleaningAction' field, you MUST mention that you have prepared a preview of the requested changes. Explicitly ask the user to "Confirm and Apply" the changes using the provided action card.
-
-DETERMINISTIC_EVIDENCE_CALCULATED_BY_APPLICATION:
-${JSON.stringify(evidence || { note: 'No specific analytical query matched. Default workspace metadata applied.' }, null, 2)}
-
-WORKSPACE METADATA:
-${JSON.stringify(metadata, null, 2)}`;
-
-  // 1. Client-side Gemini call if client API key is configured
-  if (apiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      const contents = [
-        ...history.slice(-8).map(h => `${h.role === 'assistant' ? 'Model' : 'User'}: ${h.text}`),
-        `User: ${message}`
-      ].join('\n\n');
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: systemInstruction + '\n\n' + contents,
-      });
-
-      if (response && response.text) {
-        return { text: response.text, evidence, source: 'client_gemini' };
-      }
-    } catch (err) {
-      console.warn('Client-side Gemini call failed, attempting server proxy fallback...', err);
-    }
-  }
-
-  // 2. Server proxy `/api/chat` call
+  // Always use the server proxy `/api/chat` call
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -89,12 +44,19 @@ ${JSON.stringify(metadata, null, 2)}`;
       if (data && data.text) {
         return { text: data.text, evidence, source: 'server' };
       }
+    } else {
+      const errorData = await res.json();
+      throw new Error(errorData.message || errorData.error || 'Failed to communicate with AI');
     }
-  } catch (e) {
-    console.warn('/api/chat unreachable, using deterministic local engine fallback', e);
+  } catch (e: any) {
+    console.warn('/api/chat error, using deterministic local engine fallback', e);
+    // If it's a known error from server, propagate it to UI if possible
+    if (e.message && (e.message.includes('NOT_CONFIGURED') || e.message.includes('permission'))) {
+      throw e;
+    }
   }
 
-  // 3. Intelligent Local Fallback Engine (0 502 errors)
+  // 3. Intelligent Local Fallback Engine (for safety)
   return {
     text: generateFallbackText(message, evidence, primaryDataset),
     evidence,
@@ -108,6 +70,33 @@ function generateFallbackText(message: string, evidence: AnalyticalEvidence | nu
   }
 
   if (evidence) {
+    if (evidence.intent === 'NAVIGATION' && evidence.navigationTarget) {
+      return `I can help you navigate to the **${evidence.navigationTarget.replace(/-/g, ' ')}** section. Click the action card below to switch views.`;
+    }
+
+    if (evidence.intent === 'ACTION_KPI_CREATE' && evidence.kpiCreation) {
+      const k = evidence.kpiCreation;
+      return `I have prepared a new KPI for **${k.name}**.
+      
+- **Metric**: ${k.column}
+- **Aggregation**: ${k.aggregation.toUpperCase()}
+- **Description**: ${k.description}
+
+**Recommended Action**: Review the card below and click **"Create KPI"** to add it to your library.`;
+    }
+
+    if (evidence.intent === 'ACTION_PLAN' && evidence.actionPlan) {
+      const p = evidence.actionPlan;
+      return `### Proposed Action Plan: **${p.title}**
+
+I have analyzed your request and orchestrated a deterministic workflow to fulfill it.
+
+**Workflow Steps**:
+${p.steps.map((s, i) => `${i + 1}. **${s.label}**`).join('\n')}
+
+**Safety Check**: These actions will be executed sequentially using our existing cleaning and analytics engines. Click **"Execute Action Plan"** to begin.`;
+    }
+
     if (evidence.intent === 'ACTIONABLE_CLEANING' && evidence.cleaningAction) {
       const a = evidence.cleaningAction;
       return `### Actionable Cleaning: **${a.description}**

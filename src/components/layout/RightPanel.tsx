@@ -14,6 +14,7 @@ import {
   X,
   Bot,
   Wrench,
+  Play,
   Database,
   Layers,
   Activity,
@@ -28,10 +29,10 @@ import {
   ArrowDownRight,
   Clock
 } from 'lucide-react';
-import { ViewState, Dataset, RelationshipSuggestion, DashboardPlan, Dashboard } from '@/types';
+import { ViewState, Dataset, RelationshipSuggestion, DashboardPlan, Dashboard, KpiDefinition } from '@/types';
 import { executeAnalysis, AnalyzePlan } from '@/lib/analyticsEngine';
 import { queryCopilot } from '@/lib/copilotEngine';
-import { AnalyticalEvidence } from '@/lib/copilotAnalyticsEngine';
+import { AnalyticalEvidence, ActionPlan, ActionPlanStep } from '@/lib/copilotAnalyticsEngine';
 import { WidgetRenderer } from '../dashboards/WidgetRenderer';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -44,11 +45,13 @@ import {
   castColumnTypeCustom, 
   filterOutliersCustom 
 } from '@/lib/dataCleaner';
+import { addOrUpdateKpi } from '@/lib/kpiStorage';
 
 interface RightPanelProps {
   isOpen: boolean;
   onClose: () => void;
   currentView: ViewState;
+  onViewChange?: (view: ViewState) => void;
   datasets: Dataset[];
   suggestions: RelationshipSuggestion[];
   dashboards?: Dashboard[];
@@ -119,12 +122,14 @@ export function RightPanel({
   dashboards = [], 
   activeDashboardId, 
   onBuildDashboard,
-  onUpdateDataset
+  onUpdateDataset,
+  onViewChange
 }: RightPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [executingPlan, setExecutingPlan] = useState<{ plan: ActionPlan; currentStep: number; status: 'idle' | 'running' | 'completed' | 'error' } | null>(null);
   const [expandedEvidenceIds, setExpandedEvidenceIds] = useState<Record<string, boolean>>({});
 
   // Widget Modal State for "Add to Dashboard"
@@ -239,17 +244,21 @@ export function RightPanel({
     try {
       const activeDashboard = dashboards.find(d => d.id === activeDashboardId);
       const metadata = {
+        currentView,
         datasets: datasets.map(d => ({
           name: d.name,
+          id: d.id,
           type: d.type,
           rowCount: d.rowCount,
           columns: d.headers,
           columnTypes: d.headers.map(h => ({ name: h, type: d.columnProfiles?.[h]?.type || 'unknown' })),
-          cleaningStatus: d.cleaningStatus
+          cleaningStatus: d.cleaningStatus,
+          issues: (d.issues || []).filter(i => i.status === 'pending').length
         })),
         activeDashboard: activeDashboard ? {
           title: activeDashboard.title,
-          widgetsCount: activeDashboard.widgets.length
+          widgetsCount: activeDashboard.widgets.length,
+          filters: (activeDashboard.filters || []).length
         } : null
       };
 
@@ -303,6 +312,125 @@ export function RightPanel({
     onBuildDashboard(plan);
     setWidgetModalConfig(null);
     onClose();
+  };
+
+  const handleNavigate = (target: string) => {
+    if (onViewChange) {
+      onViewChange(target as ViewState);
+      
+      const successMsg: Message = {
+        id: Date.now().toString() + Math.random(),
+        role: 'assistant',
+        text: `✅ **Navigation Successful**\n\nI have switched your workspace to the **${target.replace(/-/g, ' ')}** view. How else can I assist you in this context?`,
+        isSystem: true
+      };
+      setMessages(prev => [...prev, successMsg]);
+    }
+  };
+
+  const handleCreateKpi = async (ev: AnalyticalEvidence) => {
+    if (!ev.kpiCreation || !activeDataset) return;
+    
+    const k = ev.kpiCreation;
+    const newKpi: KpiDefinition = {
+      id: `kpi-${Date.now()}`,
+      name: k.name,
+      description: k.description,
+      datasetId: activeDataset.id,
+      datasetName: activeDataset.name,
+      metricType: 'simple',
+      column: k.column,
+      aggregation: k.aggregation as any,
+      filters: [],
+      format: { type: 'number', decimals: 2 },
+      status: 'active',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    await addOrUpdateKpi(newKpi);
+    
+    const successMsg: Message = {
+      id: Date.now().toString() + Math.random(),
+      role: 'assistant',
+      text: `✅ **KPI Created Successfully**\n\nThe new KPI "**${k.name}**" has been added to your library. You can now use it in dashboards and MIS reports.`,
+      isSystem: true
+    };
+    setMessages(prev => [...prev, successMsg]);
+  };
+
+  const handleExecuteActionPlan = async (ev: AnalyticalEvidence) => {
+    if (!ev.actionPlan) return;
+    
+    setExecutingPlan({ plan: ev.actionPlan, currentStep: 0, status: 'running' });
+    
+    const steps = [...ev.actionPlan.steps];
+    
+    for (let i = 0; i < steps.length; i++) {
+      setExecutingPlan(prev => prev ? { ...prev, currentStep: i } : null);
+      const step = steps[i];
+      
+      try {
+        // Execute step based on action type
+        if (step.action === 'cleaning') {
+          const { actionType, column, params } = step.payload;
+          const dataset = datasets.find(d => d.id === ev.datasetId);
+          if (dataset && onUpdateDataset) {
+            let updated = dataset;
+            if (actionType === 'date') updated = standardizeDatesCustom(dataset, column, params.dateFormat);
+            else if (actionType === 'text') updated = transformTextCustom(dataset, column, params.action);
+            onUpdateDataset(updated);
+          }
+        } else if (step.action === 'kpi_create') {
+          const k = step.payload;
+          if (activeDataset) {
+            const newKpi: KpiDefinition = {
+              id: `kpi-${Date.now()}`,
+              name: k.name,
+              description: `Generated via Action Plan: ${k.name}`,
+              datasetId: activeDataset.id,
+              datasetName: activeDataset.name,
+              metricType: 'simple',
+              column: k.column,
+              aggregation: k.aggregation,
+              filters: [],
+              format: { type: 'number', decimals: 2 },
+              status: 'active',
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            };
+            await addOrUpdateKpi(newKpi);
+          }
+        } else if (step.action === 'navigation') {
+          if (onViewChange) onViewChange(step.payload.target);
+        } else if (step.action === 'dashboard_add') {
+          if (onBuildDashboard) {
+            onBuildDashboard({
+              title: step.payload.title,
+              datasets: [activeDataset.id],
+              kpis: [],
+              charts: []
+            });
+          }
+        }
+        
+        // Brief pause for visual progress
+        await new Promise(resolve => setTimeout(resolve, 800));
+      } catch (error) {
+        setExecutingPlan(prev => prev ? { ...prev, status: 'error' } : null);
+        return;
+      }
+    }
+    
+    setExecutingPlan(prev => prev ? { ...prev, status: 'completed' } : null);
+    
+    const finalMsg: Message = {
+      id: Date.now().toString(),
+      role: 'assistant',
+      text: `✅ **Action Plan Completed**\n\nAll steps for "${ev.actionPlan.title}" have been successfully executed using our deterministic analytics engine.`,
+      isSystem: true
+    };
+    setMessages(prev => [...prev, finalMsg]);
   };
 
   const handleApplyCleaning = (ev: AnalyticalEvidence) => {
@@ -632,6 +760,158 @@ export function RightPanel({
 
                                 {isExpanded && (
                                   <div className="p-4 space-y-4 text-[11px] border-t border-emerald-500/10">
+                                    {ev.intent === 'NAVIGATION' && ev.navigationTarget && (
+                                      <div className="space-y-4">
+                                        <div className="flex items-start justify-between">
+                                          <div>
+                                            <p className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">Switch to {ev.navigationTarget.replace(/-/g, ' ')}</p>
+                                            <p className="text-zinc-500 mt-1">I can immediately navigate your workspace to the requested module.</p>
+                                          </div>
+                                          <div className="bg-violet-500/10 text-violet-600 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border border-violet-500/20">
+                                            Navigation
+                                          </div>
+                                        </div>
+                                        <Button 
+                                          size="sm" 
+                                          className="w-full h-9 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-violet-500/20"
+                                          onClick={() => handleNavigate(ev.navigationTarget!)}
+                                        >
+                                          <ArrowRight className="w-3.5 h-3.5 mr-2" />
+                                          Go to {ev.navigationTarget.replace(/-/g, ' ')}
+                                        </Button>
+                                      </div>
+                                    )}
+
+                                    {ev.intent === 'ACTION_KPI_CREATE' && ev.kpiCreation && (
+                                      <div className="space-y-4">
+                                        <div className="flex items-start justify-between">
+                                          <div>
+                                            <p className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">Create New KPI: {ev.kpiCreation.name}</p>
+                                            <p className="text-zinc-500 mt-1">Add this calculation to your global KPI library.</p>
+                                          </div>
+                                          <div className="bg-amber-500/10 text-amber-600 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border border-amber-500/20">
+                                            KPI Action
+                                          </div>
+                                        </div>
+                                        <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 space-y-2">
+                                          <div className="flex justify-between text-[10px]">
+                                            <span className="text-zinc-400 uppercase font-bold">Column</span>
+                                            <span className="text-zinc-900 dark:text-zinc-100 font-bold">{ev.kpiCreation.column}</span>
+                                          </div>
+                                          <div className="flex justify-between text-[10px]">
+                                            <span className="text-zinc-400 uppercase font-bold">Aggregation</span>
+                                            <span className="text-zinc-900 dark:text-zinc-100 font-bold">{ev.kpiCreation.aggregation.toUpperCase()}</span>
+                                          </div>
+                                        </div>
+                                        <Button 
+                                          size="sm" 
+                                          className="w-full h-9 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20"
+                                          onClick={() => handleCreateKpi(ev)}
+                                        >
+                                          <PlusCircle className="w-3.5 h-3.5 mr-2" />
+                                          Create and Save KPI
+                                        </Button>
+                                      </div>
+                                    )}
+
+                                    {ev.intent === 'MIS' && ev.misDetails && (
+                                      <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                          <p className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">MIS Report State</p>
+                                          <div className="bg-indigo-500/10 text-indigo-600 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border border-indigo-500/20">
+                                            Reporting
+                                          </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div className="bg-white/40 dark:bg-zinc-900/40 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50">
+                                            <p className="text-[8px] text-zinc-400 uppercase font-bold">Total Reports</p>
+                                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{ev.misDetails.totalReports}</p>
+                                          </div>
+                                          <div className="bg-white/40 dark:bg-zinc-900/40 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50">
+                                            <p className="text-[8px] text-zinc-400 uppercase font-bold">Last Generated</p>
+                                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{ev.misDetails.lastGenerated || 'Never'}</p>
+                                          </div>
+                                        </div>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          className="w-full text-[10px] h-8 rounded-lg"
+                                          onClick={() => handleNavigate('mis-report')}
+                                        >
+                                          Open Reporting View
+                                        </Button>
+                                      </div>
+                                    )}
+
+                                    {ev.intent === 'ACTION_PLAN' && ev.actionPlan && (
+                                      <div className="space-y-4">
+                                        <div className="flex items-start justify-between">
+                                          <div>
+                                            <p className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{ev.actionPlan.title}</p>
+                                            <p className="text-zinc-500 mt-1">Proposed deterministic workflow with {ev.actionPlan.steps.length} steps.</p>
+                                          </div>
+                                          <div className="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border border-blue-500/20">
+                                            Orchestrator
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="space-y-2 border-l-2 border-zinc-200 dark:border-zinc-800 ml-2 pl-4 py-1">
+                                          {ev.actionPlan.steps.map((step, idx) => {
+                                            const isActive = executingPlan?.plan.title === ev.actionPlan?.title && executingPlan?.currentStep === idx;
+                                            const isDone = executingPlan?.plan.title === ev.actionPlan?.title && executingPlan?.currentStep > idx;
+                                            const isPending = !executingPlan || executingPlan.currentStep < idx;
+
+                                            return (
+                                              <div key={idx} className="flex items-center gap-3">
+                                                <div className={cn(
+                                                  "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
+                                                  isDone ? "bg-emerald-500 border-emerald-500 text-white" :
+                                                  isActive ? "bg-blue-600 border-blue-600 text-white animate-pulse" :
+                                                  "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400"
+                                                )}>
+                                                  {isDone ? <Check className="w-3 h-3" /> : idx + 1}
+                                                </div>
+                                                <span className={cn(
+                                                  "text-xs font-medium",
+                                                  isDone ? "text-emerald-600 dark:text-emerald-400" :
+                                                  isActive ? "text-blue-600 dark:text-blue-400 font-bold" :
+                                                  "text-zinc-500"
+                                                )}>
+                                                  {step.label}
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+
+                                        {!executingPlan || executingPlan.status === 'idle' ? (
+                                          <Button 
+                                            size="sm" 
+                                            className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-500/20"
+                                            onClick={() => handleExecuteActionPlan(ev)}
+                                          >
+                                            <Play className="w-3.5 h-3.5 mr-2" />
+                                            Execute Action Plan
+                                          </Button>
+                                        ) : executingPlan.status === 'running' ? (
+                                          <div className="flex items-center justify-center gap-2 p-2 bg-blue-500/10 rounded-xl text-blue-600 font-bold text-xs">
+                                            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                            Executing Workflow...
+                                          </div>
+                                        ) : executingPlan.status === 'completed' ? (
+                                          <div className="flex items-center justify-center gap-2 p-2 bg-emerald-500/10 rounded-xl text-emerald-600 font-bold text-xs">
+                                            <Check className="w-4 h-4" />
+                                            Plan Successfully Completed
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center justify-center gap-2 p-2 bg-rose-500/10 rounded-xl text-rose-600 font-bold text-xs">
+                                            <AlertTriangle className="w-4 h-4" />
+                                            Plan Failed
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
                                     {ev.intent === 'ACTIONABLE_CLEANING' && ev.cleaningAction ? (
                                       <div className="space-y-4">
                                         <div className="flex items-start justify-between">
@@ -792,9 +1072,25 @@ export function RightPanel({
               )}
 
               {error && (
-                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-4 rounded-xl text-xs space-y-1 shadow-3xs">
-                  <p className="font-extrabold text-[10px] uppercase tracking-wider text-red-800 dark:text-red-400">Connection Error</p>
+                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-5 rounded-2xl text-xs space-y-3 shadow-sm backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                    <p className="font-extrabold text-[10px] uppercase tracking-wider text-red-800 dark:text-red-400">Connection Error</p>
+                  </div>
                   <p className="font-medium leading-relaxed">{error}</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                      if (lastUserMsg) {
+                        handleSend(lastUserMsg.text, lastUserMsg.isSystem, messages.filter(m => m.id !== lastUserMsg.id));
+                      }
+                    }}
+                    className="h-8 text-[11px] font-bold border-red-200 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-900/20 text-red-700 dark:text-red-400 w-full rounded-xl"
+                  >
+                    Retry Last Query
+                  </Button>
                 </div>
               )}
               <div ref={messagesEndRef} />

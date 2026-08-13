@@ -18,7 +18,23 @@ export type AnalyticalIntent =
   | 'MIS'
   | 'COLUMN'
   | 'ACTIONABLE_CLEANING'
+  | 'NAVIGATION'
+  | 'ACTION_KPI_CREATE'
+  | 'ACTION_PLAN'
   | 'GENERAL';
+
+export interface ActionPlanStep {
+  id: string;
+  label: string;
+  action: 'cleaning' | 'navigation' | 'kpi_create' | 'dashboard_add' | 'analysis';
+  payload: any;
+  status: 'pending' | 'running' | 'completed' | 'error';
+}
+
+export interface ActionPlan {
+  title: string;
+  steps: ActionPlanStep[];
+}
 
 export interface ActionableCleaningPreview {
   actionType: 'nulls' | 'headers' | 'cast' | 'outliers' | 'text' | 'date' | 'issue';
@@ -35,6 +51,14 @@ export interface AnalyticalEvidence {
   datasetId: string;
   datasetName: string;
   title: string;
+  actionPlan?: ActionPlan;
+  navigationTarget?: string;
+  kpiCreation?: {
+    name: string;
+    column: string;
+    aggregation: string;
+    description: string;
+  };
   metricName?: string;
   dimensionName?: string;
   summaryText?: string;
@@ -77,6 +101,11 @@ export interface AnalyticalEvidence {
     widgetsCount: number;
     activeFilters: string[];
     widgetsSummary: { title: string; type: string; valueOrResult: string }[];
+  };
+  misDetails?: {
+    totalReports: number;
+    activeReport?: string;
+    lastGenerated?: string;
   };
   cleaningAction?: ActionableCleaningPreview;
   filterContext?: string;
@@ -173,6 +202,128 @@ export async function generateAnalyticsEvidence(
       }
     }
     if (previousDimension && previousMetric) break;
+  }
+
+  // 0.0 ACTION PLAN ORCHESTRATION (MULTI-STEP)
+  const isMultiStep = lower.includes(' then ') || lower.includes(' and then ') || lower.includes(' followed by ') || 
+                      (lower.includes('clean') && (lower.includes('kpi') || lower.includes('dashboard') || lower.includes('show'))) ||
+                      (lower.includes('create') && lower.includes('add to dashboard'));
+
+  if (isMultiStep) {
+    const steps: ActionPlanStep[] = [];
+    
+    // Step detection: Cleaning
+    if (lower.includes('clean') || lower.includes('convert') || lower.includes('format')) {
+      const targetHeader = dataset.headers.find(h => lower.includes(h.toLowerCase()));
+      if (targetHeader) {
+        steps.push({
+          id: 'step-clean',
+          label: `Clean and format "${targetHeader}" column`,
+          action: 'cleaning',
+          status: 'pending',
+          payload: { 
+            actionType: lower.includes('date') ? 'date' : 'text',
+            column: targetHeader,
+            params: lower.includes('date') ? { dateFormat: lower.includes('us') ? 'MM/DD/YYYY' : 'YYYY-MM-DD' } : { action: 'trim' }
+          }
+        });
+      }
+    }
+
+    // Step detection: KPI Creation
+    if (lower.includes('kpi') && (lower.includes('create') || lower.includes('add'))) {
+      const targetHeader = dataset.headers.find(h => lower.includes(h.toLowerCase()));
+      if (targetHeader) {
+        steps.push({
+          id: 'step-kpi',
+          label: `Create KPI for "${targetHeader}"`,
+          action: 'kpi_create',
+          status: 'pending',
+          payload: { name: `Metric: ${targetHeader}`, column: targetHeader, aggregation: 'sum' }
+        });
+      }
+    }
+
+    // Step detection: Navigation
+    if (lower.includes('show') || lower.includes('view') || lower.includes('result')) {
+      steps.push({
+        id: 'step-nav',
+        label: 'Navigate to result view',
+        action: 'navigation',
+        status: 'pending',
+        payload: { target: lower.includes('clean') ? 'explorer' : 'dashboards' }
+      });
+    }
+
+    // Step detection: Dashboard
+    if (lower.includes('dashboard') && (lower.includes('add') || lower.includes('create'))) {
+      steps.push({
+        id: 'step-dash',
+        label: 'Update dashboard with new insights',
+        action: 'dashboard_add',
+        status: 'pending',
+        payload: { title: 'Auto-Generated Insights' }
+      });
+    }
+
+    if (steps.length > 1) {
+      return {
+        intent: 'ACTION_PLAN',
+        datasetId: dataset.id,
+        datasetName: dataset.name,
+        title: 'Multi-Step Orchestration Plan',
+        actionPlan: {
+          title: 'Orchestrated Workflow',
+          steps
+        }
+      };
+    }
+  }
+
+  // 0. NAVIGATION INTENT
+  if (lower.startsWith('open') || lower.startsWith('go to') || lower.startsWith('show me the') || lower.startsWith('view')) {
+    let target: string | null = null;
+    if (lower.includes('clean')) target = 'cleaning';
+    else if (lower.includes('explorer') || lower.includes('table') || lower.includes('data view')) target = 'explorer';
+    else if (lower.includes('dashboard')) target = 'dashboards';
+    else if (lower.includes('relationship')) target = 'relationships';
+    else if (lower.includes('kpi builder') || (lower.includes('kpi') && lower.includes('build'))) target = 'kpi-builder';
+    else if (lower.includes('report') || lower.includes('mis')) target = 'mis-report';
+    else if (lower.includes('dictionary') || lower.includes('metadata')) target = 'data-dictionary';
+    else if (lower.includes('manager')) target = 'data-manager';
+
+    if (target) {
+      return {
+        intent: 'NAVIGATION',
+        datasetId: dataset.id,
+        datasetName: dataset.name,
+        title: `Navigation to ${target}`,
+        navigationTarget: target
+      };
+    }
+  }
+
+  // 0.1 KPI CREATION INTENT
+  if (lower.includes('create a kpi') || lower.includes('add a kpi') || lower.includes('new kpi')) {
+    const targetHeader = dataset.headers.find(h => lower.includes(h.toLowerCase()));
+    if (targetHeader) {
+      let agg: string = 'sum';
+      if (lower.includes('avg') || lower.includes('average')) agg = 'avg';
+      else if (lower.includes('count')) agg = 'count';
+
+      return {
+        intent: 'ACTION_KPI_CREATE',
+        datasetId: dataset.id,
+        datasetName: dataset.name,
+        title: `Create KPI for ${targetHeader}`,
+        kpiCreation: {
+          name: `${agg.toUpperCase()} of ${targetHeader}`,
+          column: targetHeader,
+          aggregation: agg,
+          description: `Automatically created via AI Copilot for ${targetHeader}`
+        }
+      };
+    }
   }
 
   // 1. ACTIONABLE CLEANING INTENT
@@ -298,7 +449,7 @@ export async function generateAnalyticsEvidence(
   }
 
   // 2. DASHBOARD INTENT
-  if (lower.includes('dashboard') || lower.includes('widget')) {
+  if (lower.includes('dashboard') || lower.includes('widget') || lower.includes('explain this dashboard')) {
     const activeDash = dashboards.find(d => d.id === activeDashboardId) || dashboards[0];
     if (activeDash) {
       const widgetSummaries = activeDash.widgets.map(w => {
@@ -329,6 +480,24 @@ export async function generateAnalyticsEvidence(
         }
       };
     }
+  }
+
+  // 2.1 MIS INTENT
+  if (lower.includes('mis') || lower.includes('report')) {
+    const savedReports = await getSavedMisReports();
+    const activeReport = savedReports[0]; // Simplified for now
+
+    return {
+      intent: 'MIS',
+      datasetId: dataset.id,
+      datasetName: dataset.name,
+      title: 'MIS Reporting Context',
+      misDetails: {
+        totalReports: savedReports.length,
+        activeReport: activeReport?.title,
+        lastGenerated: activeReport ? new Date(activeReport.updatedAt).toLocaleDateString() : undefined
+      }
+    };
   }
 
   // 3. KPI INTENT

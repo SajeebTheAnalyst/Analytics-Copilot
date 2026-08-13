@@ -248,7 +248,7 @@ export default function App() {
           />
 
           {/* Main View Router Container */}
-          <main className="flex-1 overflow-y-auto custom-scrollbar bg-transparent relative">
+          <main className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-transparent relative">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentView}
@@ -342,6 +342,7 @@ export default function App() {
             isOpen={isCopilotOpen}
             onClose={() => setIsCopilotOpen(false)}
             currentView={currentView} 
+            onViewChange={setCurrentView}
             datasets={datasets}
             suggestions={suggestions}
             dashboards={dashboards}
