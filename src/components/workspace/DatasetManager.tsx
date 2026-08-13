@@ -92,21 +92,43 @@ export function DatasetManager({
   // If no datasets exist in workspace
   if (!activeDataset || datasets.length === 0) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-transparent justify-center">
-        <div className="max-w-4xl mx-auto w-full space-y-6 py-8">
+      <div className="flex-1 flex flex-col min-h-0 p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-transparent">
+        <div className="max-w-4xl mx-auto w-full space-y-8 py-8">
           {/* Header */}
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
-              Import & Profile
+          <div className="text-center space-y-2.5">
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-850 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-100 dark:border-blue-900/30">
+              Workspace Initialization
+            </span>
+            <h1 className="text-3xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-50">
+              Data Import & Schema Profiling
             </h1>
-            <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed">
-              Upload a dataset to inspect its structure, quality, and readiness for premium analytics.
+            <p className="text-xs sm:text-sm text-zinc-500 max-w-lg mx-auto leading-relaxed">
+              Upload your Excel or CSV files to automatically audit rows, discover schema types, run health scoring, and prepare data for advanced analytics.
             </p>
           </div>
 
-          {/* Upload Area */}
-          <div className="glass-panel rounded-2xl p-6 lg:p-8 shadow-sm">
+          {/* Primary Upload Area */}
+          <div className="glass-panel rounded-2xl p-6 lg:p-8 shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md">
             <DataUploader onDatasetsImported={onImport} />
+          </div>
+
+          {/* Guided Workflow Pipeline */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-4">
+            {[
+              { step: '01', title: 'Import Raw File', desc: 'Secure local upload of CSV, XLS, or XLSX spreadsheets.' },
+              { step: '02', title: 'Inferred Profiling', desc: 'Auto-discover column attributes, types, and stats.' },
+              { step: '03', title: 'Quality Audit', desc: 'Identify duplicates, missing cells, and outliers instantly.' },
+              { step: '04', title: 'Clean & Workspace', desc: 'Standardize schema and proceed to custom dashboards.' },
+            ].map((pipeline, idx) => (
+              <div key={idx} className="p-4 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/40 dark:bg-zinc-900/10 text-xs space-y-1.5 backdrop-blur-sm relative overflow-hidden group">
+                <span className="font-mono text-[10px] font-extrabold text-blue-600 dark:text-blue-400 block tracking-widest">{pipeline.step}</span>
+                <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{pipeline.title}</h3>
+                <p className="text-[11px] text-zinc-500 leading-relaxed font-semibold">{pipeline.desc}</p>
+                <div className="absolute right-2 bottom-2 text-[20px] font-extrabold text-zinc-100/10 dark:text-zinc-900/10 group-hover:scale-105 transition-transform select-none font-mono">
+                  {idx + 1}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -148,28 +170,29 @@ export function DatasetManager({
           <Button 
             variant="outline" 
             size="sm" 
-            className="text-xs h-8.5 border-zinc-250 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-semibold cursor-pointer hover-elevate"
+            className="text-xs h-9 border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-850 dark:text-zinc-200 font-semibold cursor-pointer hover-elevate transition-all duration-200"
             onClick={() => setShowImportBox(!showImportBox)}
           >
-            {showImportBox ? "Hide Upload Form" : "Import New Dataset"}
+            {showImportBox ? "Hide Import Uploader" : "Import New Dataset"}
           </Button>
 
           {/* Primary Workflow Actions */}
           <Button 
             variant="outline" 
             size="sm" 
-            className="text-xs h-8.5 text-zinc-800 dark:text-zinc-200 border-zinc-250 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-900 gap-1.5 font-bold cursor-pointer transition-all hover-elevate shadow-2xs"
+            className="text-xs h-9 text-zinc-850 dark:text-zinc-200 border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 gap-2 font-semibold cursor-pointer transition-all duration-200 hover-elevate shadow-xs"
             onClick={() => onNavigateView('explorer')}
           >
-            <Table className="w-3.5 h-3.5 text-blue-500" />
-            <span>Explore Dataset</span>
+            <Table className="w-4 h-4 text-zinc-500" />
+            <span>Explore Raw Data</span>
           </Button>
 
           <Button 
             size="sm" 
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8.5 gap-1.5 font-bold cursor-pointer transition-all hover-elevate shadow-2xs"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-9 px-4 gap-2 font-bold cursor-pointer transition-all duration-200 hover-elevate shadow-md rounded-md ring-2 ring-blue-500/10 hover:ring-blue-500/20"
             onClick={() => onNavigateView('cleaning')}
           >
+            <Activity className="w-4 h-4" />
             <span>Proceed to Data Cleaning →</span>
           </Button>
         </div>
@@ -269,7 +292,7 @@ export function DatasetManager({
         <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-3">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-blue-500" />
-            <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50">Data Health Assessment</h3>
+            <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50">Data Health & Issues Assessment</h3>
           </div>
           <span className="text-[11px] font-mono font-bold text-zinc-500 dark:text-zinc-400">
             {health.issuesCount} pending issue{health.issuesCount === 1 ? '' : 's'} identified
@@ -279,34 +302,100 @@ export function DatasetManager({
         {health.score >= 90 && health.issueBreakdown.duplicateRowsCount === 0 && health.issueBreakdown.missingValuesColumns === 0 ? (
           <div className="flex items-center gap-3 p-3.5 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-lg text-xs text-emerald-800 dark:text-emerald-300 shadow-2xs">
             <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
-            <p className="font-semibold leading-relaxed">
-              High quality dataset structure. No critical missing values or duplicate records detected. Ready for immediate exploratory analysis.
-            </p>
+            <div className="space-y-0.5">
+              <p className="font-bold">Exceptional Data Integrity</p>
+              <p className="text-[11px] text-zinc-550 dark:text-zinc-400 font-semibold leading-relaxed">
+                High quality dataset structure. No critical missing values or duplicate records detected. Ready for immediate exploratory analysis.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-            <div className="p-4 glass-surface rounded-xl">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block mb-1">Missing Value Columns</span>
-              <p className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
-                {health.issueBreakdown.missingValuesColumns} column{health.issueBreakdown.missingValuesColumns === 1 ? '' : 's'} affected
+            {/* Missing values card */}
+            <div className={cn(
+              "p-4 rounded-xl border transition-all duration-200",
+              health.issueBreakdown.missingValuesColumns > 0 
+                ? "bg-red-50/40 dark:bg-red-950/10 border-red-200/60 dark:border-red-900/40" 
+                : "bg-zinc-50/40 dark:bg-zinc-900/20 border-zinc-200/60 dark:border-zinc-800/60"
+            )}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-450 dark:text-zinc-400">Attribute Completeness</span>
+                <span className={cn(
+                  "px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase tracking-wider",
+                  health.issueBreakdown.missingValuesColumns > 0 ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" : "bg-emerald-100 text-emerald-800"
+                )}>
+                  {health.issueBreakdown.missingValuesColumns > 0 ? "Critical" : "Passed"}
+                </span>
+              </div>
+              <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                {health.issueBreakdown.missingValuesColumns} Column{health.issueBreakdown.missingValuesColumns === 1 ? '' : 's'} Affected
+              </h4>
+              <p className="text-[11px] text-zinc-500 mt-1 font-semibold">
+                {health.missingCells > 0 ? `${health.missingCells} total blank or empty records found across headers.` : "No null or blank cells detected."}
               </p>
-              <p className="text-[11px] text-zinc-550 dark:text-zinc-450 mt-1 font-semibold">{health.missingCells} total missing cells</p>
+              {health.issueBreakdown.missingValuesColumns > 0 && (
+                <button onClick={() => onNavigateView('cleaning')} className="text-[10px] text-blue-600 dark:text-blue-450 font-bold hover:underline mt-2.5 block">
+                  Resolve empty cells in Cleaning →
+                </button>
+              )}
             </div>
 
-            <div className="p-4 glass-surface rounded-xl">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block mb-1">Duplicate Records</span>
-              <p className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
-                {health.issueBreakdown.duplicateRowsCount} duplicate row{health.issueBreakdown.duplicateRowsCount === 1 ? '' : 's'}
+            {/* Duplicates card */}
+            <div className={cn(
+              "p-4 rounded-xl border transition-all duration-200",
+              health.issueBreakdown.duplicateRowsCount > 0 
+                ? "bg-amber-50/40 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-900/40" 
+                : "bg-zinc-50/40 dark:bg-zinc-900/20 border-zinc-200/60 dark:border-zinc-800/60"
+            )}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-450 dark:text-zinc-400">Row Redundancy</span>
+                <span className={cn(
+                  "px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase tracking-wider",
+                  health.issueBreakdown.duplicateRowsCount > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-emerald-100 text-emerald-800"
+                )}>
+                  {health.issueBreakdown.duplicateRowsCount > 0 ? "Warning" : "Passed"}
+                </span>
+              </div>
+              <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                {health.issueBreakdown.duplicateRowsCount} Duplicate Row{health.issueBreakdown.duplicateRowsCount === 1 ? '' : 's'}
+              </h4>
+              <p className="text-[11px] text-zinc-500 mt-1 font-semibold">
+                {health.issueBreakdown.duplicateRowsCount > 0 ? `${health.duplicateRowsPercentage}% exact duplicates found which skew statistics.` : "No redundant duplicate records found."}
               </p>
-              <p className="text-[11px] text-zinc-550 dark:text-zinc-450 mt-1 font-semibold">{health.duplicateRowsPercentage}% of total records</p>
+              {health.issueBreakdown.duplicateRowsCount > 0 && (
+                <button onClick={() => onNavigateView('cleaning')} className="text-[10px] text-blue-600 dark:text-blue-450 font-bold hover:underline mt-2.5 block">
+                  De-duplicate records in Cleaning →
+                </button>
+              )}
             </div>
 
-            <div className="p-4 glass-surface rounded-xl">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block mb-1">Invalid Date Formats</span>
-              <p className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
-                {health.issueBreakdown.invalidDatesCount} non-standard date entries
+            {/* Date anomalies card */}
+            <div className={cn(
+              "p-4 rounded-xl border transition-all duration-200",
+              health.issueBreakdown.invalidDatesCount > 0 
+                ? "bg-blue-50/40 dark:bg-blue-950/10 border-blue-200/60 dark:border-blue-900/40" 
+                : "bg-zinc-50/40 dark:bg-zinc-900/20 border-zinc-200/60 dark:border-zinc-800/60"
+            )}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-450 dark:text-zinc-400">Standardization</span>
+                <span className={cn(
+                  "px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase tracking-wider",
+                  health.issueBreakdown.invalidDatesCount > 0 ? "bg-blue-100 text-blue-850 dark:bg-blue-950 dark:text-blue-300" : "bg-emerald-100 text-emerald-800"
+                )}>
+                  {health.issueBreakdown.invalidDatesCount > 0 ? "Info" : "Passed"}
+                </span>
+              </div>
+              <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                {health.issueBreakdown.invalidDatesCount} Non-Standard Dates
+              </h4>
+              <p className="text-[11px] text-zinc-500 mt-1 font-semibold">
+                {health.issueBreakdown.invalidDatesCount > 0 ? `Unstructured string-formatted date records detected in timeline fields.` : "All timeline dimensions conform to standard ISO formats."}
               </p>
-              <p className="text-[11px] text-zinc-550 dark:text-zinc-450 mt-1 font-semibold">Automatic date parsing active</p>
+              {health.issueBreakdown.invalidDatesCount > 0 && (
+                <button onClick={() => onNavigateView('cleaning')} className="text-[10px] text-blue-600 dark:text-blue-450 font-bold hover:underline mt-2.5 block">
+                  Standardize dates in Cleaning →
+                </button>
+              )}
             </div>
           </div>
         )}

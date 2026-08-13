@@ -122,23 +122,24 @@ export function FilterBuilder({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2.5 glass-panel border-l-0 border-r-0 border-t-0">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0 mr-1">
+    <div className="flex flex-wrap items-center gap-2 p-2.5 bg-zinc-50/40 dark:bg-zinc-950/20 border-b border-zinc-200/80 dark:border-zinc-800/80 backdrop-blur-sm">
+      <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 shrink-0 mr-1.5">
         <Filter className="w-3.5 h-3.5 text-blue-500" />
-        <span>Filters:</span>
+        <span>Active Filters:</span>
       </div>
 
       {/* Filter Chips */}
       {filters.map((f) => (
         <span
           key={f.id}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/80 shadow-2xs group"
+          className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 border border-zinc-250 dark:border-zinc-800 shadow-3xs group select-none transition-all duration-150"
         >
-          <span>{formatFilterChip(f)}</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+          <span className="truncate max-w-[280px]">{formatFilterChip(f)}</span>
           <button
             type="button"
             onClick={() => onRemoveFilter(f.id)}
-            className="text-zinc-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors p-0.5 rounded"
+            className="text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors p-0.5 rounded cursor-pointer"
             title="Remove filter"
           >
             <X className="w-3 h-3" />
@@ -153,8 +154,8 @@ export function FilterBuilder({
           size="sm"
           onClick={() => setIsOpen(!isOpen)}
           className={cn(
-            "gap-1 text-xs h-7 px-2.5 bg-white dark:bg-zinc-900 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400",
-            isOpen && "border-blue-500 text-blue-600 dark:text-blue-400"
+            "gap-1.5 text-xs h-7.5 px-3 bg-white dark:bg-zinc-900 border-dashed border-zinc-350 dark:border-zinc-700/80 text-zinc-700 dark:text-zinc-300 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer shadow-3xs font-semibold",
+            isOpen && "border-blue-500 text-blue-600 dark:text-blue-400 ring-2 ring-blue-500/10"
           )}
         >
           <Plus className="w-3.5 h-3.5" />
@@ -163,27 +164,27 @@ export function FilterBuilder({
 
         {/* Filter Popover */}
         {isOpen && (
-          <div className="absolute left-0 top-full mt-2 w-80 glass-dropdown rounded-xl p-4 z-50 text-xs animate-in fade-in slide-in-from-top-2 duration-250">
-            <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Add Column Filter</span>
+          <div className="absolute left-0 top-full mt-2 w-80 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 rounded-xl p-4.5 z-50 text-xs shadow-xl animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center justify-between pb-2.5 mb-3.5 border-b border-zinc-150 dark:border-zinc-800">
+              <span className="font-bold text-zinc-950 dark:text-zinc-50">Add Column Filter</span>
               <button
                 onClick={() => setIsOpen(false)}
                 className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateFilter} className="space-y-3">
+            <form onSubmit={handleCreateFilter} className="space-y-3.5">
               {/* Column Select */}
               <div>
-                <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1.5">
                   Column
                 </label>
                 <select
                   value={selectedCol}
                   onChange={(e) => handleColumnChange(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   {headers.map((h) => (
                     <option key={h} value={h}>
@@ -195,13 +196,13 @@ export function FilterBuilder({
 
               {/* Operator Select */}
               <div>
-                <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1.5">
                   Condition
                 </label>
                 <select
                   value={operator}
                   onChange={(e) => setOperator(e.target.value as FilterOperator)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   {availableOperators.map((op) => (
                     <option key={op.value} value={op.value}>
@@ -214,7 +215,7 @@ export function FilterBuilder({
               {/* Value Input(s) */}
               {operator !== 'is_empty' && operator !== 'is_not_empty' && (
                 <div>
-                  <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1.5">
                     Value {operator === 'between' ? '(From)' : ''}
                   </label>
                   <input
@@ -222,7 +223,7 @@ export function FilterBuilder({
                     placeholder="Enter target value..."
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     autoFocus
                   />
                 </div>
@@ -230,7 +231,7 @@ export function FilterBuilder({
 
               {operator === 'between' && (
                 <div>
-                  <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1.5">
                     Value (To)
                   </label>
                   <input
@@ -238,22 +239,22 @@ export function FilterBuilder({
                     placeholder="Enter secondary value..."
                     value={secondaryValue}
                     onChange={(e) => setSecondaryValue(e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setIsOpen(false)}
-                  className="h-7 text-xs"
+                  className="h-8 text-xs font-semibold"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white">
+                <Button type="submit" size="sm" className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer transition-all active:scale-95 px-3.5 shadow-sm rounded-md">
                   Apply Filter
                 </Button>
               </div>
@@ -267,9 +268,10 @@ export function FilterBuilder({
         <button
           type="button"
           onClick={onClearFilters}
-          className="text-xs text-rose-600 dark:text-rose-400 hover:underline font-medium ml-2"
+          className="text-xs text-rose-600 dark:text-rose-400 hover:underline hover:text-rose-700 font-bold ml-2 cursor-pointer flex items-center gap-1"
         >
-          Clear All Filters ({filters.length})
+          <Trash2 className="w-3.5 h-3.5" />
+          Clear All ({filters.length})
         </button>
       )}
     </div>

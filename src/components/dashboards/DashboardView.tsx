@@ -437,14 +437,12 @@ export function DashboardView({
           </div>
         )}
 
-      </div>
-
-      {/* GLOBAL FILTER BAR */}
+      </div>      {/* GLOBAL FILTER BAR */}
       {currentDash && (
-        <div className="glass-panel border-t-0 border-r-0 border-l-0 px-6 py-2.5 flex flex-col gap-2 shrink-0 transition-all z-10">
+        <div className="glass-panel border-t-0 border-r-0 border-l-0 px-6 py-3.5 flex flex-col gap-2 shrink-0 transition-all z-10 bg-zinc-50/50 dark:bg-zinc-950/20">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Filter className="w-3.5 h-3.5 text-blue-600" />
                 Global Dashboard Filters
               </span>
@@ -452,23 +450,23 @@ export function DashboardView({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-                className="text-xs font-semibold bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 h-7 px-2.5 flex items-center gap-1"
+                className="text-xs font-bold bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-750 dark:text-zinc-300 h-7 px-2.5 flex items-center gap-1 shadow-3xs"
               >
                 <span>Filters ({currentDash.filters.length})</span>
-                {isFiltersExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {isFiltersExpanded ? <ChevronUp className="w-3.5 h-3.5 text-zinc-500" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />}
               </Button>
             </div>
 
             {currentDash.filters.length > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                  {currentDash.filters.length} Filter{currentDash.filters.length > 1 ? 's' : ''} Active
+                <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20 shadow-3xs">
+                  {currentDash.filters.length} Active
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleClearAllFilters}
-                  className="text-xs h-7 text-red-500 hover:text-red-600 font-medium px-2"
+                  className="text-xs h-7 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 font-bold px-2 rounded-lg transition-colors"
                 >
                   Clear Filters
                 </Button>
@@ -476,8 +474,31 @@ export function DashboardView({
             )}
           </div>
 
+          {/* Dynamic Filter Chips Row */}
+          {currentDash.filters.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 mt-1 animate-fade-in">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mr-1.5">Active Chips:</span>
+              {currentDash.filters.map(f => (
+                <div 
+                  key={f.id} 
+                  className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/15 text-blue-800 dark:text-blue-300 px-3 py-1 rounded-full border border-blue-500/20 text-xs font-bold shadow-3xs transition-all group select-none"
+                >
+                  <span>{f.column}: <span className="text-blue-900 dark:text-blue-100 font-extrabold">{String(f.value)}</span></span>
+                  <button 
+                    type="button" 
+                    onClick={() => handleGlobalFilterChange(f.column, null)}
+                    className="text-blue-400 hover:text-rose-500 transition-colors p-0.5 rounded-full hover:bg-blue-500/10 ml-0.5 shrink-0"
+                    title={`Remove filter on ${f.column}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {isFiltersExpanded && (
-            <div className="flex flex-wrap items-center gap-3.5 pt-2 border-t border-zinc-100 dark:border-zinc-900">
+            <div className="flex flex-wrap items-center gap-3.5 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 mt-1">
               {categoricalCols.length === 0 ? (
                 <span className="text-xs text-zinc-400 italic">No filterable columns in current dataset.</span>
               ) : (
@@ -487,23 +508,23 @@ export function DashboardView({
                   const activeFilter = currentDash.filters.find(f => f.column === col);
 
                   return (
-                    <div key={col} className="flex items-center gap-1.5 min-w-[140px]">
-                      <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
+                    <div key={col} className="flex items-center gap-1.5 min-w-[150px] bg-white dark:bg-zinc-950 p-1 rounded-lg border border-zinc-200 dark:border-zinc-850 shadow-3xs">
+                      <label className="text-xs font-bold text-zinc-500 dark:text-zinc-450 shrink-0 pl-1">
                         {col}:
                       </label>
                       <select
                         value={activeFilter?.value ?? 'all'}
                         onChange={(e) => handleGlobalFilterChange(col, e.target.value)}
                         className={cn(
-                          "text-xs border rounded-md px-2 py-1 font-medium transition-all focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-[120px]",
+                          "text-xs border-0 rounded px-1 py-0.5 font-bold transition-all focus:outline-none focus:ring-0 w-full max-w-[120px] bg-transparent cursor-pointer",
                           activeFilter 
-                            ? "bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-bold" 
-                            : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
+                            ? "text-blue-600 dark:text-blue-400 font-extrabold" 
+                            : "text-zinc-700 dark:text-zinc-350"
                         )}
                       >
                         <option value="all">All</option>
                         {uniqueVals.map(val => (
-                          <option key={String(val)} value={String(val)}>{String(val)}</option>
+                          <option key={String(val)} value={String(val)} className="text-zinc-800 dark:text-zinc-250 font-medium">{String(val)}</option>
                         ))}
                       </select>
                     </div>
@@ -532,6 +553,21 @@ export function DashboardView({
           >
             Adapt to Current Dataset
           </Button>
+        </div>
+      )}
+
+      {/* BUILD MODE ACTIVE CANVAS ACCENT BANNER */}
+      {currentDash && mode === 'build' && (
+        <div className="bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5 border-b border-blue-550/20 px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shrink-0 select-none shadow-3xs animate-fade-in">
+          <div className="flex items-center gap-2.5 text-blue-800 dark:text-blue-300">
+            <Settings className="w-4 h-4 text-blue-500 animate-spin-slow shrink-0" />
+            <span className="font-bold">
+              Dashboard Builder Active: drag-to-resize, duplicate, reorder, or edit widgets dynamically. Click data points to cross-filter.
+            </span>
+          </div>
+          <span className="text-[10px] bg-blue-500/15 border border-blue-500/20 text-blue-700 dark:text-blue-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest font-mono">
+            Drafting Mode
+          </span>
         </div>
       )}
 
@@ -575,7 +611,7 @@ export function DashboardView({
         ) : (
 
           /* WIDGETS RESPONSIVE GRID (12 COLUMNS) */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 max-w-7xl mx-auto animate-fade-in">
             {currentDash.widgets.map((widget, index) => {
               const span = widget.gridSpan || (widget.type === 'kpi' ? 1 : 2);
               // Map span: 1 => lg:col-span-3, 2 => lg:col-span-6, 3 => lg:col-span-9, 4 => lg:col-span-12
@@ -586,8 +622,10 @@ export function DashboardView({
                 <div
                   key={widget.id}
                   className={cn(
-                    "glass-panel glass-card p-5 flex flex-col justify-between group relative transition-all",
-                    mode === 'build' ? "border-blue-200 dark:border-blue-900/60 ring-1 ring-blue-500/10" : "border-zinc-200/50 dark:border-zinc-800/50",
+                    "glass-panel glass-card p-5 flex flex-col justify-between group relative transition-all duration-200",
+                    mode === 'build' 
+                      ? "border-2 border-dashed border-blue-400/80 dark:border-blue-500/50 bg-blue-500/5 hover:bg-blue-500/10 shadow-sm ring-1 ring-blue-500/10 scale-[0.99] hover:scale-100" 
+                      : "border-zinc-250/50 dark:border-zinc-850 bg-white dark:bg-[#0c0c0e] shadow-2xs hover:shadow-xs",
                     spanClass,
                     cardHeight
                   )}

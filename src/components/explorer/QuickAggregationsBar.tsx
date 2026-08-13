@@ -55,10 +55,10 @@ export function QuickAggregationsBar({
   };
 
   return (
-    <div className="bg-white dark:bg-[#0c0c0e] border-b border-zinc-200 dark:border-zinc-800 px-6 py-3 flex flex-wrap items-center gap-3 shrink-0">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0 mr-1">
-        <Calculator className="w-3.5 h-3.5 text-blue-500" />
-        <span>Quick Summary Metrics:</span>
+    <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border-b border-zinc-200/80 dark:border-zinc-800/80 px-6 py-2 flex flex-wrap items-center gap-3 shrink-0 backdrop-blur-sm">
+      <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-zinc-500 dark:text-zinc-450 shrink-0 mr-1">
+        <Calculator className="w-3.5 h-3.5 text-indigo-500" />
+        <span>Calculated Summary:</span>
       </div>
 
       {/* Metric Cards */}
@@ -67,13 +67,13 @@ export function QuickAggregationsBar({
         return (
           <div
             key={m.id}
-            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xs hover:border-blue-400 transition-colors"
+            className="flex items-center gap-3 px-3 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-lg shadow-3xs hover:border-blue-500 hover:ring-1 hover:ring-blue-500/10 transition-all duration-150 group"
           >
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 dark:text-zinc-500">
-                {m.column} ({res.label})
+              <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-400 dark:text-zinc-500 leading-tight">
+                {m.column} • <span className="text-zinc-500 dark:text-zinc-450 font-medium">{res.label}</span>
               </span>
-              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono">
+              <span className="text-xs font-bold text-zinc-900 dark:text-zinc-50 font-mono mt-0.5">
                 {formatMetricValue(res.value, m.aggregation)}
               </span>
             </div>
@@ -82,7 +82,7 @@ export function QuickAggregationsBar({
               <button
                 type="button"
                 onClick={() => onRemoveMetric(m.id)}
-                className="text-zinc-400 hover:text-rose-500 p-0.5 rounded transition-colors ml-1"
+                className="text-zinc-400 hover:text-red-500 p-0.5 rounded transition-colors ml-1 cursor-pointer opacity-40 group-hover:opacity-100"
                 title="Remove metric"
               >
                 <X className="w-3 h-3" />
@@ -98,16 +98,16 @@ export function QuickAggregationsBar({
           variant="outline"
           size="sm"
           onClick={() => setIsOpen(!isOpen)}
-          className="gap-1 text-xs h-8 px-2.5 bg-zinc-50 dark:bg-zinc-900 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-blue-500"
+          className="gap-1.5 text-xs h-7.5 px-3 bg-white dark:bg-zinc-900 border-dashed border-zinc-350 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-blue-500 cursor-pointer shadow-3xs font-semibold"
         >
           <Plus className="w-3.5 h-3.5" />
           Add Metric
         </Button>
 
         {isOpen && (
-          <div className="absolute left-0 top-full mt-2 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-4 z-50 text-xs">
-            <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Add Quick Metric</span>
+          <div className="absolute left-0 top-full mt-2 w-72 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 z-50 text-xs shadow-xl animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-150 dark:border-zinc-800">
+              <span className="font-bold text-zinc-950 dark:text-zinc-50">Add Quick Metric</span>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
@@ -117,15 +117,15 @@ export function QuickAggregationsBar({
               </button>
             </div>
 
-            <form onSubmit={handleAddMetricSubmit} className="space-y-3">
+            <form onSubmit={handleAddMetricSubmit} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1.5">
                   Metric Column
                 </label>
                 <select
                   value={selectedCol}
                   onChange={(e) => setSelectedCol(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   {headers.map((h) => (
                     <option key={h} value={h}>
@@ -136,7 +136,7 @@ export function QuickAggregationsBar({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1.5">
                   Aggregation
                 </label>
                 <select

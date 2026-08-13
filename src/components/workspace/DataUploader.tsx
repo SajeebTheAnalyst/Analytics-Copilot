@@ -235,8 +235,8 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
           </div>
         ) : (
           <div className="flex flex-col items-center text-center space-y-3.5">
-            <div className="w-11 h-11 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300">
-              <UploadCloud className="w-5 h-5" />
+            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/30 flex items-center justify-center text-blue-650 dark:text-blue-400 shadow-3xs">
+              <UploadCloud className="w-6 h-6 animate-pulse" />
             </div>
 
             <div>
@@ -253,27 +253,13 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
                 type="button" 
                 variant="outline" 
                 size="sm" 
-                className="text-xs h-7 px-3 border-zinc-300 dark:border-zinc-700"
+                className="text-xs h-8 px-4 border-zinc-300 dark:border-zinc-700 font-semibold shadow-3xs"
                 onClick={(e) => {
                   e.stopPropagation();
                   fileInputRef.current?.click();
                 }}
               >
                 Browse Files
-              </Button>
-
-              <Button 
-                type="button"
-                variant="ghost" 
-                size="sm" 
-                onClick={handleDemoData} 
-                className="text-xs h-7 px-3 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1.5 font-medium"
-              >
-                <Database className="w-3.5 h-3.5 text-blue-500" />
-                <span>Try Demo Dataset</span>
-                <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-widest ml-0.5">
-                  DEMO
-                </span>
               </Button>
             </div>
 
@@ -286,6 +272,23 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
           </div>
         )}
       </div>
+
+      {!compact && !isUploading && (
+        <div className="flex items-center justify-center gap-2.5 text-xs py-3.5 border border-zinc-200/60 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl px-4 text-zinc-500">
+          <Database className="w-4 h-4 text-blue-500 shrink-0" />
+          <span>Want to test-drive the suite first?</span>
+          <button 
+            type="button"
+            onClick={handleDemoData}
+            className="text-blue-600 dark:text-blue-400 font-bold hover:underline transition-all cursor-pointer flex items-center gap-1"
+          >
+            Load Demo Sales Analytics Dataset
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-widest ml-0.5">
+              DEMO
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

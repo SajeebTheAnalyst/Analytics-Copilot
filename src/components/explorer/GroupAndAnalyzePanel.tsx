@@ -122,16 +122,16 @@ export function GroupAndAnalyzePanel({
 
       {/* Expanded Controls & View */}
       {isExpanded && (
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 bg-white dark:bg-[#0c0c0e]">
           {/* Controls bar */}
-          <div className="flex flex-wrap items-center gap-4 text-xs glass-panel p-3 rounded-xl">
+          <div className="flex flex-wrap items-center gap-4 text-xs bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-3xs">
             {/* Group By Select */}
             <div className="flex items-center gap-2">
-              <label className="font-semibold text-zinc-600 dark:text-zinc-400">Group By:</label>
+              <label className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-450 dark:text-zinc-500">Group By:</label>
               <select
                 value={currentConfig.groupByColumn}
                 onChange={(e) => onChangeGrouping({ ...currentConfig, groupByColumn: e.target.value })}
-                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 font-medium text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="bg-white dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer text-xs"
               >
                 {categoricalHeaders.map((h) => (
                   <option key={h} value={h}>
@@ -143,11 +143,11 @@ export function GroupAndAnalyzePanel({
 
             {/* Metric Column Select */}
             <div className="flex items-center gap-2">
-              <label className="font-semibold text-zinc-600 dark:text-zinc-400">Metric:</label>
+              <label className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-450 dark:text-zinc-500">Metric:</label>
               <select
                 value={currentConfig.metricColumn}
                 onChange={(e) => onChangeGrouping({ ...currentConfig, metricColumn: e.target.value })}
-                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 font-medium text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="bg-white dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer text-xs"
               >
                 {numericHeaders.map((h) => (
                   <option key={h} value={h}>
@@ -159,11 +159,11 @@ export function GroupAndAnalyzePanel({
 
             {/* Aggregation Function Select */}
             <div className="flex items-center gap-2">
-              <label className="font-semibold text-zinc-600 dark:text-zinc-400">Aggregation:</label>
+              <label className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-450 dark:text-zinc-500">Aggregation:</label>
               <select
                 value={currentConfig.aggregation}
                 onChange={(e) => onChangeGrouping({ ...currentConfig, aggregation: e.target.value as any })}
-                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 font-medium text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="bg-white dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer text-xs"
               >
                 <option value="sum">SUM</option>
                 <option value="avg">AVERAGE</option>
@@ -174,57 +174,62 @@ export function GroupAndAnalyzePanel({
               </select>
             </div>
 
-            <div className="ml-auto text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-              Total Metric Value: <span className="font-mono text-blue-600 dark:text-blue-400">{analysisResult.totalMetricValue.toLocaleString()}</span>
+            <div className="ml-auto text-xs font-bold text-zinc-700 dark:text-zinc-300">
+              Total Metric Value: <span className="font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-1 rounded border border-blue-100 dark:border-blue-900/30 ml-1.5">{analysisResult.totalMetricValue.toLocaleString()}</span>
             </div>
           </div>
 
           {/* Results Display */}
           {activeTab === 'table' ? (
-            <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-xl max-h-60 overflow-y-auto custom-scrollbar">
+            <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-xl max-h-60 overflow-y-auto custom-scrollbar shadow-3xs">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-zinc-100 dark:bg-zinc-900 sticky top-0 font-bold text-zinc-700 dark:text-zinc-300 border-b border-zinc-200 dark:border-zinc-800">
+                <thead className="bg-zinc-50 dark:bg-zinc-950 sticky top-0 font-extrabold text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-850">
                   <tr>
-                    <th className="px-4 py-2 border-r border-zinc-200 dark:border-zinc-800">{currentConfig.groupByColumn}</th>
-                    <th className="px-4 py-2 text-right border-r border-zinc-200 dark:border-zinc-800 font-mono">
+                    <th className="px-4 py-2.5 border-r border-zinc-200 dark:border-zinc-800/80 font-mono tracking-tight text-[11px] font-bold text-zinc-700 dark:text-zinc-300">{currentConfig.groupByColumn}</th>
+                    <th className="px-4 py-2.5 text-right border-r border-zinc-200 dark:border-zinc-800/80 font-mono tracking-tight text-[11px] font-bold text-zinc-700 dark:text-zinc-300">
                       {currentConfig.metricColumn} ({currentConfig.aggregation.toUpperCase()})
                     </th>
-                    <th className="px-4 py-2 text-right border-r border-zinc-200 dark:border-zinc-800">Record Count</th>
-                    <th className="px-4 py-2 text-right">% of Total</th>
-                    <th className="px-4 py-2 w-32">Visual Share</th>
+                    <th className="px-4 py-2.5 text-right border-r border-zinc-200 dark:border-zinc-800/80 font-mono tracking-tight text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Record Count</th>
+                    <th className="px-4 py-2.5 text-right border-r border-zinc-200 dark:border-zinc-800/80 font-mono tracking-tight text-[11px] font-bold text-zinc-700 dark:text-zinc-300">% of Total</th>
+                    <th className="px-4 py-2.5 w-36 font-mono tracking-tight text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Visual Share</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-zinc-200/55 dark:divide-zinc-800/40">
                   {analysisResult.groups.map((g, idx) => (
-                    <tr key={idx} className="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                      <td className="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-100 border-r border-zinc-100 dark:border-zinc-800/60">
+                    <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+                      <td className="px-4 py-2 font-mono text-[11px] font-bold text-zinc-900 dark:text-zinc-100 border-r border-zinc-200 dark:border-zinc-800/40">
                         {g.groupValue}
                       </td>
-                      <td className="px-4 py-2 text-right font-mono font-semibold text-blue-600 dark:text-blue-400 border-r border-zinc-100 dark:border-zinc-800/60">
+                      <td className="px-4 py-2 text-right font-mono font-bold text-blue-600 dark:text-blue-450 border-r border-zinc-200 dark:border-zinc-800/40">
                         {g.metricValue.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400 border-r border-zinc-100 dark:border-zinc-800/60">
+                      <td className="px-4 py-2 text-right font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800/40">
                         {g.rowCount.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2 text-right font-mono font-medium text-zinc-700 dark:text-zinc-300">
+                      <td className="px-4 py-2 text-right font-mono font-bold text-zinc-800 dark:text-zinc-200 border-r border-zinc-200 dark:border-zinc-800/40">
                         {g.percentageOfTotal}%
                       </td>
                       <td className="px-4 py-2">
-                        <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(100, Math.max(2, g.percentageOfTotal))}%`,
-                              backgroundColor: BAR_COLORS[idx % BAR_COLORS.length],
-                            }}
-                          />
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${Math.min(100, Math.max(2, g.percentageOfTotal))}%`,
+                                backgroundColor: BAR_COLORS[idx % BAR_COLORS.length],
+                              }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-bold font-mono w-6 text-right" style={{ color: BAR_COLORS[idx % BAR_COLORS.length] }}>
+                            ●
+                          </span>
                         </div>
                       </td>
                     </tr>
                   ))}
                   {analysisResult.groups.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-center py-6 text-zinc-400">
+                      <td colSpan={5} className="text-center py-6 text-zinc-400 font-medium">
                         No groups calculated
                       </td>
                     </tr>

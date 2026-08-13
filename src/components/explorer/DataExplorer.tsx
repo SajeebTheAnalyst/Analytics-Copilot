@@ -227,42 +227,44 @@ export function DataExplorer({
       />
 
       {/* 2. Analytical Summary Bar */}
-      <div className="glass-panel px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-600 dark:text-zinc-450 shrink-0">
-        <div className="flex items-center gap-4 flex-wrap">
-          <span className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1">
-            Rows: <span className="font-mono">{dataset.rowCount.toLocaleString()}</span>
+      <div className="bg-zinc-50 dark:bg-zinc-950 px-6 py-3 flex flex-wrap items-center justify-between gap-4 text-xs border-b border-zinc-200/80 dark:border-zinc-800/80 shrink-0 select-none">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="font-semibold text-zinc-950 dark:text-zinc-100 flex items-center gap-1.5">
+            <FileSpreadsheet className="w-3.5 h-3.5 text-zinc-400" />
+            Dataset Vol: <span className="font-mono bg-zinc-100 dark:bg-zinc-900 px-1.5 py-0.5 rounded text-[11px] font-bold text-zinc-800 dark:text-zinc-200">{dataset.rowCount.toLocaleString()} Rows</span>
           </span>
-          <span className="text-zinc-300 dark:text-zinc-700">•</span>
-          <span className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-            Filtered Rows: <span className="font-mono">{sortedAndFilteredData.length.toLocaleString()}</span>
+          <span className="text-zinc-300 dark:text-zinc-800">|</span>
+          <span className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-blue-500/80" />
+            Filtered Vol: <span className="font-mono bg-blue-50 dark:bg-blue-950/45 px-1.5 py-0.5 rounded text-[11px] font-extrabold text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/30">{sortedAndFilteredData.length.toLocaleString()} Rows</span>
           </span>
-          <span className="text-zinc-300 dark:text-zinc-700">•</span>
-          <span>
-            Visible Cols: <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-200">{visibleColumns.length} / {dataset.headers.length}</span>
+          <span className="text-zinc-300 dark:text-zinc-800">|</span>
+          <span className="font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+            Fields Visible: <span className="font-mono bg-zinc-100 dark:bg-zinc-900 px-1.5 py-0.5 rounded text-[11px] font-bold text-zinc-800 dark:text-zinc-200">{visibleColumns.length} / {dataset.headers.length}</span>
           </span>
-          <span className="text-zinc-300 dark:text-zinc-700">•</span>
-          <span>
-            Missing Cells: <span className="font-mono text-amber-600 dark:text-amber-400 font-semibold">{missingCellsCount.toLocaleString()}</span>
+          <span className="text-zinc-300 dark:text-zinc-800">|</span>
+          <span className="font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+            Nulls: <span className="font-mono bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded text-[11px] font-bold text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-900/20">{missingCellsCount.toLocaleString()}</span>
           </span>
         </div>
 
         {/* Action Connectors */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={() => onNavigateView('kpi-builder')}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Target className="w-3.5 h-3.5" />
+            <Target className="w-4 h-4" />
             Create KPI
           </button>
-          <span className="text-zinc-300 dark:text-zinc-700">•</span>
+          <span className="text-zinc-300 dark:text-zinc-800">/</span>
           <button
             type="button"
             onClick={() => onNavigateView('dashboards')}
-            className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-semibold flex items-center gap-1"
+            className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <LayoutDashboard className="w-3.5 h-3.5" />
+            <LayoutDashboard className="w-4 h-4" />
             Build Dashboard
           </button>
         </div>
@@ -298,24 +300,24 @@ export function DataExplorer({
       />
 
       {/* 6. Main Data Grid Toolbar & Table Container */}
-      <div className="flex-1 flex flex-col min-h-0 relative">
+      <div className="flex-1 flex flex-col min-h-0 relative bg-white dark:bg-[#0c0c0e]">
         {/* Table Header Bar */}
-        <div className="p-3 glass-panel border-l-0 border-r-0 border-t-0 flex items-center justify-between shrink-0 gap-4">
+        <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/20 border-b border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between shrink-0 gap-4 backdrop-blur-xs">
           {/* Global Search Input */}
           <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search across all text fields..."
+              placeholder="Search across all fields..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-zinc-900 dark:text-zinc-100 shadow-2xs"
+              className="w-full pl-9 pr-8 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 text-zinc-900 dark:text-zinc-100 shadow-3xs transition-all placeholder:text-zinc-400"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -343,7 +345,7 @@ export function DataExplorer({
               variant="outline"
               size="sm"
               onClick={handleExportFilteredCSV}
-              className="gap-1.5 text-xs h-8 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="gap-1.5 text-xs h-8 bg-white dark:bg-zinc-900 border-zinc-250 dark:border-zinc-850 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer shadow-3xs font-semibold"
             >
               <Download className="w-3.5 h-3.5 text-blue-500" />
               <span>Export Filtered</span>
@@ -353,10 +355,10 @@ export function DataExplorer({
 
         {/* Table Body Area */}
         <div className="overflow-x-auto custom-scrollbar relative">
-          <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
-            <thead className="sticky top-0 z-10 glass-panel shadow-3xs border-b border-zinc-200/80 dark:border-zinc-800">
+          <table className="w-full text-left border-collapse text-xs whitespace-nowrap table-fixed">
+            <thead className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 shadow-3xs border-b border-zinc-200 dark:border-zinc-800">
               <tr>
-                <th className="w-12 px-3 py-3 text-zinc-500 font-bold text-center border-r border-zinc-200 dark:border-zinc-800">
+                <th className="w-14 px-3 py-3 text-zinc-400 font-extrabold text-center border-r border-zinc-200 dark:border-zinc-800 select-none bg-zinc-100/50 dark:bg-zinc-900/30 text-[10px]">
                   #
                 </th>
                 {visibleColumns.map((header) => {
@@ -367,18 +369,18 @@ export function DataExplorer({
                   return (
                     <th
                        key={header}
-                       className="px-3 py-3 font-extrabold text-zinc-900 dark:text-zinc-200 border-r border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors select-none group"
+                       className="px-4 py-3 font-extrabold text-zinc-900 dark:text-zinc-100 border-r border-zinc-250 dark:border-zinc-800/85 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all select-none group min-w-[150px] max-w-[320px]"
                        onClick={(e) => handleToggleSort(header, e.shiftKey)}
                     >
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="flex items-center gap-1.5 truncate">
                           {getTypeIcon(dataset.columnTypes[header])}
-                          <span className="truncate">{header}</span>
+                          <span className="truncate tracking-tight font-mono text-[11px] font-bold text-zinc-800 dark:text-zinc-200">{header}</span>
                         </span>
 
                         <div className="flex items-center gap-1 text-zinc-400 shrink-0">
                           {isSorted && (
-                            <span className="text-[10px] font-bold font-mono text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/60 px-1 rounded">
+                            <span className="text-[9px] font-extrabold font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900/30 px-1.5 rounded">
                               {sortRules.length > 1 ? sortRuleIdx + 1 : ''}
                             </span>
                           )}
@@ -399,7 +401,7 @@ export function DataExplorer({
                               e.stopPropagation();
                               handleOpenStats(header);
                             }}
-                            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-blue-500 transition-colors"
+                            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-blue-500 transition-colors cursor-pointer"
                             title="Inspect column stats"
                           >
                             <BarChart3 className="w-3 h-3" />
@@ -411,15 +413,15 @@ export function DataExplorer({
                 })}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-200/55 dark:divide-zinc-800/40">
               {paginatedData.map((row, idx) => {
                 const globalRowIndex = (currentPage - 1) * rowsPerPage + idx + 1;
                 return (
                   <tr
                     key={idx}
-                    className="border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-colors"
+                    className="hover:bg-blue-50/25 dark:hover:bg-blue-950/10 transition-colors"
                   >
-                    <td className="px-3 py-2 text-zinc-400 text-center border-r border-zinc-100 dark:border-zinc-800/50 font-mono text-[11px]">
+                    <td className="px-3 py-2 text-zinc-400 text-center border-r border-zinc-200 dark:border-zinc-800 font-mono text-[10px] bg-zinc-50/50 dark:bg-zinc-900/10">
                       {globalRowIndex}
                     </td>
                     {visibleColumns.map((header) => {
@@ -428,11 +430,11 @@ export function DataExplorer({
                       return (
                         <td
                           key={header}
-                          className="px-3 py-2 text-zinc-800 dark:text-zinc-200 border-r border-zinc-100 dark:border-zinc-800/50 max-w-[320px] truncate"
+                          className="px-4 py-2 text-zinc-850 dark:text-zinc-250 border-r border-zinc-200 dark:border-zinc-800/60 max-w-[320px] truncate font-sans text-xs tracking-tight"
                           title={String(val ?? '')}
                         >
                           {isNull ? (
-                            <span className="text-zinc-300 dark:text-zinc-700 italic font-mono text-[11px]">null</span>
+                            <span className="text-zinc-350 dark:text-zinc-700 italic font-mono text-[11px] font-medium">null</span>
                           ) : (
                             String(val)
                           )}
@@ -479,32 +481,32 @@ export function DataExplorer({
         </div>
 
         {/* Table Pagination Bar */}
-        <div className="p-3 glass-panel border-l-0 border-r-0 border-b-0 flex items-center justify-between shrink-0 text-xs text-zinc-500">
+        <div className="p-3 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between shrink-0 gap-3 text-xs text-zinc-500 font-medium">
           <div>
             Showing{' '}
-            <strong className="text-zinc-800 dark:text-zinc-200">
+            <strong className="text-zinc-900 dark:text-zinc-100 font-mono text-[11px] font-bold">
               {sortedAndFilteredData.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1}
             </strong>{' '}
             to{' '}
-            <strong className="text-zinc-800 dark:text-zinc-200">
+            <strong className="text-zinc-900 dark:text-zinc-100 font-mono text-[11px] font-bold">
               {Math.min(currentPage * rowsPerPage, sortedAndFilteredData.length)}
             </strong>{' '}
-            of <strong className="text-zinc-800 dark:text-zinc-200">{sortedAndFilteredData.length.toLocaleString()}</strong> filtered rows
+            of <strong className="text-zinc-900 dark:text-zinc-100 font-mono text-[11px] font-bold">{sortedAndFilteredData.length.toLocaleString()}</strong> filtered rows
             {sourceData.length !== sortedAndFilteredData.length && (
-              <span className="text-zinc-400 ml-1">
-                (filtered from {sourceData.length.toLocaleString()} total)
+              <span className="text-zinc-400 dark:text-zinc-500 ml-1.5 bg-zinc-100 dark:bg-zinc-900 px-1.5 py-0.5 rounded font-semibold text-[10px]">
+                filtered from {sourceData.length.toLocaleString()} total
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             {/* Page Size Selector (25, 50, 100, 250) */}
             <div className="flex items-center gap-2">
-              <span className="text-zinc-400 text-xs">Rows per page:</span>
+              <span className="text-zinc-450 text-xs">Rows per page:</span>
               <select
                 value={rowsPerPage}
                 onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-semibold focus:outline-none"
+                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2.5 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer shadow-3xs"
               >
                 <option value={25}>25</option>
                 <option value={50}>50</option>
@@ -518,23 +520,23 @@ export function DataExplorer({
               <Button
                 variant="outline"
                 size="icon"
-                className="w-7 h-7"
+                className="w-7.5 h-7.5 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer shadow-3xs"
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-4 h-4 text-zinc-700 dark:text-zinc-350" />
               </Button>
-              <span className="font-medium text-zinc-900 dark:text-zinc-100 px-2 font-mono">
-                {currentPage} / {totalPages}
+              <span className="font-bold text-zinc-900 dark:text-zinc-100 px-2.5 font-mono text-xs">
+                {currentPage} <span className="text-zinc-400 font-normal">/</span> {totalPages}
               </span>
               <Button
                 variant="outline"
                 size="icon"
-                className="w-7 h-7"
+                className="w-7.5 h-7.5 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer shadow-3xs"
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
               >
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-4 h-4 text-zinc-700 dark:text-zinc-350" />
               </Button>
             </div>
           </div>

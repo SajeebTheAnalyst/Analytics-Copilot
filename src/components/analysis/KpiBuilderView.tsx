@@ -16,6 +16,7 @@ import {
   validateKpiDefinition,
   generateFormulaSummary,
   seedStandardKpis,
+  formatKpiValue,
 } from '@/lib/kpiEngine';
 import {
   getSavedKpis,
@@ -124,6 +125,17 @@ export function KpiBuilderView({
 
   // Form validation errors
   const [formErrors, setFormErrors] = useState<string[]>([]);
+
+  // Dynamic formatting preview helper
+  const sampleFormattedValue = useMemo(() => {
+    return formatKpiValue(124582.45, {
+      type: formFormatType,
+      currencySymbol: formCurrencySymbol,
+      decimals: formDecimals,
+      useThousandsSeparator: formUseThousands,
+      compactNotation: formCompact
+    });
+  }, [formFormatType, formCurrencySymbol, formDecimals, formUseThousands, formCompact]);
 
   // Explorer import confirmation prompt
   const [showExplorerPrompt, setShowExplorerPrompt] = useState<boolean>(!!explorerContext);
@@ -430,22 +442,25 @@ export function KpiBuilderView({
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
-            <CheckCircle2 className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
             Active
           </span>
         );
       case 'needs_attention':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
-            <AlertCircle className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+            <AlertCircle className="w-3 h-3 text-amber-500" />
             Needs Attention
           </span>
         );
       case 'invalid':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60">
-            <XCircle className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-50 shrink-0" />
+            <XCircle className="w-3 h-3 text-rose-500" />
             Invalid
           </span>
         );
@@ -632,16 +647,16 @@ export function KpiBuilderView({
             </Button>
           </div>
         ) : (
-          <div className="glass-panel rounded-2xl shadow-xs overflow-hidden">
+          <div className="glass-panel rounded-2xl shadow-xs overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-zinc-50/50 dark:bg-zinc-950/30 border-b border-zinc-200/50 dark:border-zinc-800/50 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">
+              <thead className="bg-zinc-50/70 dark:bg-zinc-900/40 border-b border-zinc-200/50 dark:border-zinc-800/50 text-zinc-500 dark:text-zinc-400 font-semibold uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="px-4 py-3">Metric Name & Description</th>
-                  <th className="px-4 py-3">Formula / Aggregation</th>
-                  <th className="px-4 py-3">Live Result</th>
-                  <th className="px-4 py-3">Dataset</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-5 py-3.5">Metric Name & Description</th>
+                  <th className="px-5 py-3.5">Formula / Aggregation</th>
+                  <th className="px-5 py-3.5">Live Result</th>
+                  <th className="px-5 py-3.5">Dataset</th>
+                  <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/30">
@@ -652,58 +667,66 @@ export function KpiBuilderView({
                   return (
                     <tr
                       key={kpi.id}
-                      className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors group"
+                      className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10 transition-colors group"
                     >
-                      <td className="px-4 py-3.5 max-w-xs">
-                        <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                          <span>{kpi.name}</span>
-                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
-                            {kpi.metricType}
-                          </span>
+                      <td className="px-5 py-4 max-w-xs">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm sm:text-base font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight leading-snug">
+                              {kpi.name}
+                            </span>
+                            <span className="text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 shrink-0">
+                              {kpi.metricType}
+                            </span>
+                          </div>
+                          {kpi.description && (
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate leading-relaxed">
+                              {kpi.description}
+                            </p>
+                          )}
+                          {kpi.filters && kpi.filters.length > 0 && (
+                            <div className="pt-0.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400 font-mono bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/15">
+                                {kpi.filters.length} Filter{kpi.filters.length > 1 ? 's' : ''} Applied
+                              </span>
+                            </div>
+                          )}
                         </div>
-                        {kpi.description && (
-                          <p className="text-[11px] text-zinc-500 truncate mt-0.5">
-                            {kpi.description}
-                          </p>
-                        )}
-                        {kpi.filters && kpi.filters.length > 0 && (
-                          <span className="inline-block text-[10px] text-purple-600 dark:text-purple-400 font-mono mt-1 bg-purple-50 dark:bg-purple-950/50 px-1.5 py-0.2 rounded">
-                            {kpi.filters.length} Filter{kpi.filters.length > 1 ? 's' : ''} Applied
-                          </span>
-                        )}
                       </td>
 
-                      <td className="px-4 py-3.5 font-mono text-zinc-700 dark:text-zinc-300">
-                        <div className="p-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800 rounded-lg text-xs truncate max-w-xs">
+                      <td className="px-5 py-4">
+                        <div className="inline-block p-1 px-2.5 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/50 dark:border-zinc-800/50 rounded-lg text-[11px] font-mono text-zinc-500 dark:text-zinc-400 truncate max-w-xs select-all">
                           {formulaSummary}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-sm font-mono text-blue-600 dark:text-blue-400">
-                          {evalResult?.formattedResult || 'N/A'}
-                        </div>
-                        <div className="text-[10px] text-zinc-400 font-mono mt-0.5">
-                          {evalResult?.rowCountEvaluated.toLocaleString() || 0} rows evaluated
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-mono text-base sm:text-lg font-black text-blue-600 dark:text-blue-400 tracking-tight leading-none">
+                            {evalResult?.formattedResult || 'N/A'}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono mt-1">
+                            {evalResult?.rowCountEvaluated.toLocaleString() || 0} rows evaluated
+                          </span>
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5 text-zinc-600 dark:text-zinc-400 font-medium truncate max-w-[140px]">
+                      <td className="px-5 py-4 text-zinc-600 dark:text-zinc-400 font-medium truncate max-w-[140px] text-xs">
                         {kpi.datasetName || activeDataset?.name || 'Default'}
                       </td>
 
-                      <td className="px-4 py-3.5">
+                      <td className="px-5 py-4">
                         {getStatusBadge(evalResult?.status || kpi.status)}
                       </td>
 
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity duration-200">
                           <button
                             onClick={() => setViewingKpi(kpi)}
                             className="p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                             title="View KPI Details"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
                           </button>
 
                           <button
@@ -711,7 +734,7 @@ export function KpiBuilderView({
                             className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                             title="Edit KPI"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
 
                           <button
@@ -719,7 +742,7 @@ export function KpiBuilderView({
                             className="p-1.5 text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                             title="Duplicate KPI"
                           >
-                            <Copy className="w-4 h-4" />
+                            <Copy className="w-3.5 h-3.5" />
                           </button>
 
                           <button
@@ -935,40 +958,44 @@ export function KpiBuilderView({
 
                 {/* CALCULATED VISUAL FORMULA BUILDER */}
                 {formMetricType === 'calculated' && (
-                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-4">
+                  <div className="p-5 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl space-y-4">
                     <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                        Visual Formula Expression
-                      </label>
+                      <div className="space-y-0.5">
+                        <label className="block text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                          Visual Formula Expression
+                        </label>
+                        <p className="text-[10px] text-zinc-400">Assemble terms, operators, and functions to compute compound business metrics.</p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setFormTokens([])}
-                        className="text-[11px] text-rose-500 hover:underline"
+                        className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 transition-colors"
                       >
                         Clear Formula
                       </button>
                     </div>
 
                     {/* Active Formula Token Stream Display */}
-                    <div className="p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl flex flex-wrap items-center gap-2 min-h-[50px]">
+                    <div className="p-4 bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800/80 rounded-xl flex flex-wrap items-center gap-2 min-h-[64px] shadow-3xs relative overflow-hidden">
+                      <div className="absolute inset-0 bg-[radial-gradient(#e4e4e7_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:12px_12px] opacity-40 pointer-events-none" />
                       {formTokens.length === 0 ? (
-                        <span className="text-xs text-zinc-400 italic">
-                          Formula is empty. Add measures, operators, or saved KPIs below.
+                        <span className="text-xs text-zinc-400 italic z-10">
+                          Formula is empty. Compose calculation steps using operators and measures below.
                         </span>
                       ) : (
                         formTokens.map((token) => (
                           <div
                             key={token.id}
                             className={cn(
-                              'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono shadow-2xs group border',
+                              'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold shadow-3xs border transition-all z-10',
                               token.type === 'term' &&
-                                'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900',
+                                'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
                               token.type === 'operator' &&
-                                'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900 font-bold',
+                                'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60 font-black',
                               token.type === 'kpi_ref' &&
-                                'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900',
+                                'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60',
                               token.type === 'constant' &&
-                                'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700'
+                                'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-250 border-zinc-250 dark:border-zinc-700'
                             )}
                           >
                             <span>
@@ -980,7 +1007,7 @@ export function KpiBuilderView({
                             <button
                               type="button"
                               onClick={() => handleRemoveToken(token.id)}
-                              className="text-zinc-400 hover:text-rose-500 ml-1"
+                              className="text-zinc-400 hover:text-rose-500 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-850 p-0.5 transition-colors"
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -990,19 +1017,19 @@ export function KpiBuilderView({
                     </div>
 
                     {/* Controls to append tokens */}
-                    <div className="space-y-3 pt-2 border-t border-zinc-200/60 dark:border-zinc-800/60">
+                    <div className="space-y-4 pt-4 border-t border-zinc-200/60 dark:border-zinc-800/60">
                       {/* Operator Pills */}
-                      <div>
-                        <span className="block text-[11px] font-semibold text-zinc-500 mb-1.5">
+                      <div className="space-y-1.5">
+                        <span className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Quick Operators:
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           {(['+', '-', '*', '/', '(', ')'] as FormulaOperator[]).map((op) => (
                             <button
                               key={op}
                               type="button"
                               onClick={() => handleAddOperatorToken(op)}
-                              className="px-3 py-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg font-mono text-xs font-bold hover:bg-purple-50 dark:hover:bg-purple-950/60 hover:border-purple-300 transition-colors"
+                              className="w-10 h-8 flex items-center justify-center bg-white dark:bg-zinc-950 hover:bg-purple-50 dark:hover:bg-purple-950/40 border border-zinc-200 dark:border-zinc-800 rounded-lg font-mono text-sm font-black text-zinc-800 dark:text-zinc-200 hover:text-purple-600 dark:hover:text-purple-400 hover:border-purple-300 dark:hover:border-purple-800 shadow-3xs hover:shadow-2xs transition-all active:scale-95"
                             >
                               {op === '*' ? '×' : op === '/' ? '÷' : op}
                             </button>
@@ -1011,66 +1038,82 @@ export function KpiBuilderView({
                       </div>
 
                       {/* Add Measure Aggregation */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                        <select
-                          value={newTermAgg}
-                          onChange={(e) => setNewTermAgg(e.target.value as KpiAggregation)}
-                          className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-mono"
-                        >
-                          <option value="sum">SUM</option>
-                          <option value="avg">AVG</option>
-                          <option value="count">COUNT</option>
-                          <option value="distinct_count">DISTINCT COUNT</option>
-                        </select>
+                      <div className="space-y-1.5">
+                        <span className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                          Add Column Aggregation (Measure):
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-3xs">
+                          <div className="sm:col-span-4">
+                            <select
+                              value={newTermAgg}
+                              onChange={(e) => setNewTermAgg(e.target.value as KpiAggregation)}
+                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="sum">SUM</option>
+                              <option value="avg">AVG</option>
+                              <option value="count">COUNT</option>
+                              <option value="distinct_count">DISTINCT COUNT</option>
+                            </select>
+                          </div>
 
-                        <select
-                          value={newTermCol}
-                          onChange={(e) => setNewTermCol(e.target.value)}
-                          className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs"
-                        >
-                          {currentFormDataset?.headers.map((h) => (
-                            <option key={h} value={h}>
-                              {h}
-                            </option>
-                          ))}
-                        </select>
+                          <div className="sm:col-span-5">
+                            <select
+                              value={newTermCol}
+                              onChange={(e) => setNewTermCol(e.target.value)}
+                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-250 focus:ring-1 focus:ring-blue-500"
+                            >
+                              {currentFormDataset?.headers.map((h) => (
+                                <option key={h} value={h}>
+                                  {h}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={handleAddTermToken}
-                          className="text-xs h-7 gap-1"
-                        >
-                          <Plus className="w-3 h-3" /> Add Measure
-                        </Button>
+                          <div className="sm:col-span-3">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={handleAddTermToken}
+                              className="w-full text-xs h-8 gap-1 border-zinc-200 dark:border-zinc-800 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add Measure
+                            </Button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Add Saved KPI Reference */}
                       {savedKpis.length > 0 && (
-                        <div className="flex items-center gap-2 bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                          <select
-                            value={newKpiRefId}
-                            onChange={(e) => setNewKpiRefId(e.target.value)}
-                            className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs"
-                          >
-                            <option value="">Select Saved KPI to Reference...</option>
-                            {savedKpis.map((k) => (
-                              <option key={k.id} value={k.id}>
-                                {k.name} ({generateFormulaSummary(k)})
-                              </option>
-                            ))}
-                          </select>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={handleAddKpiRefToken}
-                            disabled={!newKpiRefId}
-                            className="text-xs h-7 gap-1"
-                          >
-                            <Plus className="w-3 h-3" /> Add KPI Ref
-                          </Button>
+                        <div className="space-y-1.5">
+                          <span className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Reference Saved KPI:
+                          </span>
+                          <div className="flex flex-col sm:flex-row items-center gap-2 bg-white dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-3xs">
+                            <select
+                              value={newKpiRefId}
+                              onChange={(e) => setNewKpiRefId(e.target.value)}
+                              className="w-full sm:flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-250 focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="">Select Saved KPI to Reference...</option>
+                              {savedKpis.map((k) => (
+                                <option key={k.id} value={k.id}>
+                                  {k.name} ({generateFormulaSummary(k)})
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={handleAddKpiRefToken}
+                              disabled={!newKpiRefId}
+                              className="w-full sm:w-auto text-xs h-8 gap-1 shrink-0 border-zinc-200 dark:border-zinc-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add KPI Ref
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1167,20 +1210,23 @@ export function KpiBuilderView({
               </div>
 
               {/* Form Section 4: Formatting */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 pb-1">
-                  4. Presentation & Formatting
-                </h4>
+              <div className="space-y-4">
+                <div className="space-y-0.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 pb-1">
+                    4. Presentation & Formatting
+                  </h4>
+                  <p className="text-[10px] text-zinc-400">Configure numerical visualization, symbols, and scaling for the target metrics.</p>
+                </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-xl">
                   <div>
-                    <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                    <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                       Format Type
                     </label>
                     <select
                       value={formFormatType}
                       onChange={(e) => setFormFormatType(e.target.value as KpiFormatType)}
-                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs"
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-blue-500"
                     >
                       <option value="currency">Currency ($)</option>
                       <option value="percentage">Percentage (%)</option>
@@ -1191,26 +1237,26 @@ export function KpiBuilderView({
 
                   {formFormatType === 'currency' && (
                     <div>
-                      <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                      <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                         Currency Symbol
                       </label>
                       <input
                         type="text"
                         value={formCurrencySymbol}
                         onChange={(e) => setFormCurrencySymbol(e.target.value)}
-                        className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-blue-500"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                    <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                       Decimal Places
                     </label>
                     <select
                       value={formDecimals}
                       onChange={(e) => setFormDecimals(Number(e.target.value))}
-                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs"
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-blue-500"
                     >
                       <option value={0}>0 (Whole numbers)</option>
                       <option value={1}>1 decimal (e.g. 24.6%)</option>
@@ -1219,25 +1265,40 @@ export function KpiBuilderView({
                     </select>
                   </div>
 
-                  <div className="flex flex-col justify-end space-y-1">
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  <div className="flex flex-col justify-center space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={formUseThousands}
                         onChange={(e) => setFormUseThousands(e.target.checked)}
-                        className="rounded border-zinc-300 text-blue-600"
+                        className="rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500/20"
                       />
                       Thousands Separator
                     </label>
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={formCompact}
                         onChange={(e) => setFormCompact(e.target.checked)}
-                        className="rounded border-zinc-300 text-blue-600"
+                        className="rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500/20"
                       />
-                      Compact (e.g. 1.25M)
+                      Compact Notation (e.g. 1.2M)
                     </label>
+                  </div>
+
+                  {/* Formatting dynamic preview card */}
+                  <div className="col-span-1 md:col-span-4 bg-blue-500/5 dark:bg-blue-400/5 p-3 rounded-xl border border-blue-500/10 dark:border-blue-400/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-bold">
+                      <Info className="w-4 h-4 text-blue-500 shrink-0" />
+                      <span>Live Presentation Format Example:</span>
+                    </div>
+                    <div className="flex items-center gap-2 font-mono">
+                      <span className="text-zinc-400 text-[11px]">Raw: 124582.45</span>
+                      <span className="text-zinc-300 dark:text-zinc-700">➔</span>
+                      <span className="font-bold text-blue-700 dark:text-blue-300 text-sm bg-white dark:bg-zinc-950 px-3 py-1 rounded-lg border border-blue-200/50 dark:border-blue-800/40 shadow-3xs">
+                        {sampleFormattedValue}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

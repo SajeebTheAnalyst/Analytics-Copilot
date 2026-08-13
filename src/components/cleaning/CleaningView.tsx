@@ -395,6 +395,33 @@ export function CleaningView({
             </button>
           </div>
 
+          {/* Workflow Steps Indicator */}
+          <div className="px-4 py-3 bg-zinc-50/55 dark:bg-zinc-950/40 border-b border-zinc-200/50 dark:border-zinc-800/50">
+            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest mb-2">
+              <span>Interactive Workflow</span>
+              <span className="text-blue-600 dark:text-blue-400">Step {previewResult ? '3 of 4' : selectedIssueId ? '2 of 4' : '1 of 4'}</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { label: '1. Audit', active: true },
+                { label: '2. Review', active: !!selectedIssueId || !!previewResult },
+                { label: '3. Preview', active: !!previewResult },
+                { label: '4. Confirm', active: false }
+              ].map((step, idx) => (
+                <div key={idx} className="space-y-1">
+                  <div className={cn(
+                    "h-1 rounded-full transition-all duration-300",
+                    step.active ? "bg-blue-600 dark:bg-blue-500" : "bg-zinc-200 dark:bg-zinc-800"
+                  )} />
+                  <span className={cn(
+                    "block text-[9px] text-center font-bold tracking-tight select-none",
+                    step.active ? "text-zinc-850 dark:text-zinc-250 font-extrabold" : "text-zinc-400"
+                  )}>{step.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Left Panel Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar">
             {leftTab === 'issues' ? (
@@ -476,12 +503,19 @@ export function CleaningView({
                   <div className="space-y-2.5">
                     {filteredIssues.map(issue => {
                       const isFocused = selectedIssueId === issue.id;
+                      const severityBorderClass = issue.riskLevel === 'high' 
+                        ? 'border-l-4 border-l-red-500 dark:border-l-red-650' 
+                        : issue.riskLevel === 'medium' 
+                        ? 'border-l-4 border-l-amber-500 dark:border-l-amber-650' 
+                        : 'border-l-4 border-l-blue-500 dark:border-l-blue-650';
+
                       return (
                         <div 
                           key={issue.id}
                           onClick={() => setSelectedIssueId(isFocused ? null : issue.id)}
                           className={cn(
                             "p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 relative overflow-hidden shadow-3xs hover:-translate-y-0.25 hover:shadow-2xs",
+                            severityBorderClass,
                             isFocused
                               ? "bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 dark:border-blue-500 ring-1 ring-blue-500 shadow-xs"
                               : "bg-white/95 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300/85 dark:hover:border-zinc-700"
@@ -895,23 +929,37 @@ export function CleaningView({
           
           {/* Active Preview Action Banner */}
           {previewResult && (
-            <div className="bg-blue-600 text-white px-5 py-2.5 flex items-center justify-between shadow-md shrink-0 animate-in fade-in slide-in-from-top-2">
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-md shrink-0 animate-in fade-in slide-in-from-top-2 duration-200 border-b border-blue-600/50">
               <div className="flex items-center gap-3">
-                <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </div>
+                <Sparkles className="w-5 h-5 text-amber-300 shrink-0" />
                 <div>
-                  <p className="text-xs font-bold leading-tight">{previewResult.description}</p>
-                  <p className="text-[11px] text-blue-100 mt-0.5">
-                    Previewing changes live on dataset. Row count: {previewResult.updatedDataset.rowCount.toLocaleString()}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-extrabold leading-tight tracking-wide uppercase text-amber-300">Live Stage Preview Active</p>
+                    <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white font-mono font-bold">Diff Mode</span>
+                  </div>
+                  <p className="text-sm font-bold mt-0.5 leading-snug">{previewResult.description}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => setPreviewConfig(null)} className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/20">
-                  Cancel Preview
+              <div className="flex items-center gap-2.5">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setPreviewConfig(null)} 
+                  className="h-8 text-xs bg-white/10 hover:bg-white/20 text-white border-white/25 font-semibold cursor-pointer transition-all duration-150 active:scale-95 hover-elevate shadow-xs"
+                >
+                  Discard Changes
                 </Button>
-                <Button size="sm" onClick={handleApplyPreview} className="h-7 text-xs bg-white text-blue-700 hover:bg-blue-50 font-bold">
-                  <Check className="w-3.5 h-3.5 mr-1" />
-                  Apply Changes
+                <Button 
+                  size="sm" 
+                  onClick={handleApplyPreview} 
+                  className="h-8 px-4 text-xs bg-emerald-500 hover:bg-emerald-600 text-white border-none font-bold cursor-pointer transition-all duration-150 active:scale-95 hover-elevate shadow-md rounded-md ring-2 ring-emerald-500/20"
+                >
+                  <Check className="w-4 h-4 mr-1.5 shrink-0" />
+                  Accept & Apply
                 </Button>
               </div>
             </div>
@@ -919,19 +967,37 @@ export function CleaningView({
 
           {/* Active Issue Selection Banner */}
           {activeIssue && !previewResult && (
-            <div className="bg-amber-500/10 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 px-5 py-2 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="bg-amber-500/10 dark:bg-amber-950/20 border-b border-amber-250/60 dark:border-amber-900/50 px-5 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 animate-in fade-in slide-in-from-top-1">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/40 border border-amber-200/50 dark:border-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="w-4.5 h-4.5 shrink-0" />
+                </div>
                 <div>
-                  <span className="text-xs font-bold text-amber-900 dark:text-amber-200">Focused Issue: {activeIssue.title}</span>
-                  <span className="text-xs text-amber-700 dark:text-amber-400 ml-2">— {activeIssue.description}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-extrabold text-amber-800 dark:text-amber-400 uppercase tracking-widest">Focused Quality Issue</span>
+                    <span className="text-[10px] bg-amber-100 dark:bg-amber-950 px-2 py-0.5 rounded text-amber-700 dark:text-amber-300 font-mono capitalize">{activeIssue.riskLevel} severity</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{activeIssue.title}</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold">— {activeIssue.description}</span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setSelectedIssueId(null)} className="h-6 text-[11px] text-amber-800 dark:text-amber-300">
-                  Clear Focus
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={() => setSelectedIssueId(null)} 
+                  className="h-7.5 text-xs text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  Dismiss Focus
                 </Button>
-                <Button size="sm" onClick={() => onApplyIssue(selectedDataset.id, activeIssue.id)} className="h-6 text-[11px] bg-amber-600 hover:bg-amber-700 text-white">
+                <Button 
+                  size="sm" 
+                  onClick={() => onApplyIssue(selectedDataset.id, activeIssue.id)} 
+                  className="h-7.5 text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold cursor-pointer transition-all hover-elevate shadow-3xs"
+                >
+                  <Check className="w-3.5 h-3.5 mr-1" />
                   Approve Fix
                 </Button>
               </div>
@@ -1111,55 +1177,90 @@ export function CleaningView({
 
           {/* Audit Trail Expandable Drawer */}
           {isAuditDrawerOpen && (
-            <div className="bg-zinc-900 text-zinc-100 border-t border-zinc-800 p-4 max-h-60 overflow-y-auto custom-scrollbar shrink-0 animate-in slide-in-from-bottom-2">
-              <div className="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
+            <div className="bg-zinc-950 text-zinc-100 border-t border-zinc-800 p-5 max-h-72 overflow-y-auto custom-scrollbar shrink-0 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between mb-4 border-b border-zinc-800/80 pb-3">
                 <div className="flex items-center gap-2">
-                  <History className="w-4 h-4 text-blue-400" />
-                  <h4 className="font-bold text-xs">Dataset Audit Log & History</h4>
+                  <History className="w-4.5 h-4.5 text-blue-400 shrink-0" />
+                  <div>
+                    <h4 className="font-bold text-xs text-zinc-50">Dataset Operations Registry</h4>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Chronological record of applied quality modifications</p>
+                  </div>
                 </div>
                 <Button 
                   size="sm" 
                   variant="destructive" 
-                  onClick={handleResetConfirm}
-                  className="h-6 text-[10px] bg-red-600/80 hover:bg-red-600"
+                  onClick={() => setShowResetModal(true)}
+                  className="h-7 text-[10px] bg-red-650 hover:bg-red-600 font-bold tracking-tight shadow-3xs cursor-pointer border-none"
                 >
-                  <RotateCcw className="w-3 h-3 mr-1" />
-                  Reset to Original Dataset
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                  Reset to Original State
                 </Button>
               </div>
 
               {logs.length === 0 ? (
-                <p className="text-xs text-zinc-500 italic py-2">No cleaning operations have been applied yet.</p>
+                <div className="text-center py-6">
+                  <p className="text-xs text-zinc-500 italic">No cleaning operations have been applied to this dataset yet.</p>
+                </div>
               ) : (
-                <div className="space-y-2">
-                  {[...logs].reverse().map(log => (
-                    <div key={log.id} className="bg-zinc-950/80 p-2.5 rounded border border-zinc-800 flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-xs text-zinc-200">{log.operation}</span>
-                          {log.column && <span className="text-[10px] bg-zinc-800 px-1.5 py-0.2 rounded text-zinc-400 font-mono">Col: {log.column}</span>}
+                <div className="relative pl-6 border-l border-zinc-800 space-y-4 py-1.5">
+                  {[...logs].reverse().map((log, idx) => {
+                    const isLatest = idx === 0;
+                    return (
+                      <div key={log.id} className="relative group">
+                        {/* Connected dot indicator */}
+                        <div className={cn(
+                          "absolute -left-[30px] top-1.5 w-3 h-3 rounded-full border-2 bg-zinc-950 flex items-center justify-center transition-all duration-200",
+                          isLatest 
+                            ? "border-blue-500 ring-4 ring-blue-500/15" 
+                            : "border-zinc-700"
+                        )}>
+                          {isLatest && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
                         </div>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">
-                          Affected {log.rowsAffected.toLocaleString()} rows • {new Date(log.timestamp).toLocaleTimeString()}
-                          {log.previousHealthScore !== undefined && log.newHealthScore !== undefined && (
-                            <span className="ml-2 text-emerald-400 font-bold">
-                              Health: {log.previousHealthScore} → {log.newHealthScore}
-                            </span>
-                          )}
-                        </p>
-                      </div>
 
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={() => onUndoLog(selectedDataset.id, log.id)}
-                        className="h-6 text-[10px] bg-zinc-900 border-zinc-700 text-zinc-300 hover:text-white"
-                      >
-                        <Undo2 className="w-3 h-3 mr-1" />
-                        Undo
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 p-3 rounded-xl flex items-center justify-between gap-4 transition-all duration-150">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs text-zinc-200">{log.operation}</span>
+                              {log.column && (
+                                <span className="text-[9px] bg-zinc-800 border border-zinc-700/60 px-1.5 py-0.2 rounded text-zinc-400 font-mono">
+                                  column: {log.column}
+                                </span>
+                              )}
+                              {isLatest && (
+                                <span className="text-[9px] bg-blue-900/45 text-blue-300 px-1.5 py-0.2 rounded font-extrabold uppercase tracking-wider">
+                                  Latest Action
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-3 text-[10px] text-zinc-500 font-semibold flex-wrap">
+                              <span>Modified: {log.rowsAffected.toLocaleString()} cells</span>
+                              <span className="text-zinc-700">•</span>
+                              <span>Timestamp: {new Date(log.timestamp).toLocaleTimeString()}</span>
+                              {log.previousHealthScore !== undefined && log.newHealthScore !== undefined && (
+                                <>
+                                  <span className="text-zinc-700">•</span>
+                                  <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                    Quality Score: {log.previousHealthScore} → {log.newHealthScore}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => onUndoLog(selectedDataset.id, log.id)}
+                            className="h-6 px-2 text-[10px] bg-zinc-900 border-zinc-700/80 text-zinc-400 hover:text-white hover:bg-zinc-800 shrink-0 font-semibold cursor-pointer"
+                          >
+                            <Undo2 className="w-3 h-3 mr-1" />
+                            Undo
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
