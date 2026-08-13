@@ -1,16 +1,11 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import dotenv from "dotenv";
 
-dotenv.config();
-
-// Force Gemini API mode by clearing GCP env vars that trigger Vertex auto-detection
-// This must happen BEFORE the SDK is initialized to prevent auth hijacking
-delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
-delete process.env.GOOGLE_CLOUD_PROJECT;
-delete process.env.GCP_PROJECT;
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config();
+}
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -42,71 +37,60 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: "50mb" }));
 
-// Health check endpoint
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+// Health check and diagnostic endpoint
+app.get("/api/health", async (_req, res) => {
+  const keyExists = !!process.env.GROQ_API_KEY;
+  const modelName = "llama-3.3-70b-versatile";
+  let testResult: any = { status: "not_attempted" };
 
-const ai = new GoogleGenAI({
-  apiKey: (process.env.GEMINI_API_KEY || "").trim(),
-  vertexai: false,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
-
-// Diagnostic endpoint to verify API key in production
-app.get("/api/test-auth", async (req, res) => {
-  try {
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(401).json({ status: "error", message: "GEMINI_API_KEY is missing from environment" });
+  if (keyExists) {
+    try {
+      const response = await groq.chat.completions.create({
+        model: modelName,
+        messages: [{ role: "user", content: "ping" }],
+      });
+      testResult = {
+        status: "success",
+        responseReceived: !!response.choices[0]?.message?.content,
+      };
+    } catch (err: any) {
+      testResult = {
+        status: "failed",
+        error: err.message,
+        code: err.status || err.code || "UNKNOWN",
+        details: err.details || undefined,
+        stack: err.stack,
+      };
     }
-    
-    const testAi = new GoogleGenAI({ 
-      apiKey: process.env.GEMINI_API_KEY.trim(), 
-      vertexai: false,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-    const response = await testAi.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: "ping",
-    });
-    
-    res.json({ 
-      status: "ok", 
-      model: "gemini-3.6-flash",
-      sdkMode: (testAi as any).apiClient?.isVertexAI?.() ? "vertex" : "genai",
-      testResponse: !!response.text 
-    });
-  } catch (err: any) {
-    console.error("DIAGNOSTIC_FAILURE:", err);
-    res.status(err.status || 500).json({ 
-      status: "error", 
-      message: err.message,
-      code: err.status || err.code || "UNKNOWN",
-      diagnostics: {
-        isVertex: (ai as any).apiClient?.isVertexAI?.(),
-        envVertex: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT)
-      }
-    });
   }
+
+  res.json({
+    status: "ok",
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: !!process.env.VERCEL,
+      GROQ_API_KEY_PRESENT: keyExists,
+      GROQ_API_KEY_PREFIX: keyExists ? process.env.GROQ_API_KEY?.substring(0, 4) : null,
+    },
+    config: {
+      modelName,
+    },
+    testCall: testResult,
+  });
+});
+
+// Initialize Groq
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY || "dummy_key_not_configured",
 });
 
 app.post("/api/analyze", async (req, res) => {
   try {
-    const isVertexDetected = !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT);
-    console.log("DIAGNOSTIC: /api/analyze called");
-    console.log("DIAGNOSTIC: GEMINI_API_KEY exists:", !!process.env.GEMINI_API_KEY);
-    console.log("DIAGNOSTIC: Vertex/GCP Env Detected:", isVertexDetected);
+    const keyExists = !!process.env.GROQ_API_KEY;
+    console.log(`[API_REQUEST] /api/analyze - KEY_PRESENT: ${keyExists}`);
     
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(401).json({ error: "NOT_CONFIGURED", message: "Gemini API key is not configured in the environment." });
+    if (!keyExists) {
+      return res.status(401).json({ error: "NOT_CONFIGURED", message: "Groq API key is not configured in the environment." });
     }
     const { stats } = req.body;
     
@@ -129,44 +113,64 @@ Return your analysis in JSON format matching this schema exactly:
 }`;
 
     const prompt = `Here is the statistical summary of a dataset:\n\n${JSON.stringify(stats, null, 2)}`;
+    
+    const inputChars = systemInstruction.length + prompt.length;
+    const estimatedTokens = Math.ceil(inputChars / 4);
+    const selectedModel = "llama-3.3-70b-versatile";
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-      },
-    });
+    console.log(`[COPILOT_AUDIT] Request (Analyze) -> Model: ${selectedModel}, Input Chars: ${inputChars}, Estimated Tokens: ${estimatedTokens}`);
 
-    const text = response.text;
+    let response;
+    try {
+      response = await groq.chat.completions.create({
+        model: selectedModel,
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" },
+      });
+      console.log(`[COPILOT_AUDIT] Response (Analyze) -> Status: SUCCESS`);
+    } catch (apiError: any) {
+      console.log(`[COPILOT_AUDIT] Response (Analyze) -> Status: FAILED`);
+      throw apiError;
+    }
+
+    const text = response.choices[0]?.message?.content;
     if (!text) {
-      throw new Error("No response text from Gemini");
+      throw new Error("No response text from Groq");
     }
 
     let parsedResponse;
     try {
       parsedResponse = JSON.parse(text);
     } catch (e) {
-      console.error("Failed to parse Gemini response as JSON", text);
+      console.error("Failed to parse Groq response as JSON", text);
       return res.status(500).json({ error: "Invalid JSON response from AI" });
     }
 
     res.json(parsedResponse);
   } catch (error: any) {
-    console.error("Error analyzing data:", error);
-    const statusCode = error.status || error.code || 500;
-    const isAuthError = statusCode === 401 || (error.message && error.message.includes("UNAUTHENTICATED"));
+    // Ensure statusCode is a number to prevent Express crashes
+    let statusCode = 500;
+    if (typeof error.status === 'number') statusCode = error.status;
+    else if (typeof error.code === 'number') statusCode = error.code;
+    else if (typeof error.status === 'string' && !isNaN(parseInt(error.status))) statusCode = parseInt(error.status);
+    else if (typeof error.code === 'string' && !isNaN(parseInt(error.code))) statusCode = parseInt(error.code);
+
+    let friendlyMessage = error.message;
+    const errorMsg = error.message || "";
     
+    if (error.status === 429) {
+      friendlyMessage = "Groq API rate limit exceeded. Please try again in a few seconds.";
+    } else {
+      console.error("Error analyzing data:", error.message || "Unknown error");
+    }
+
     res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ 
-      error: error.message || "Failed to analyze data",
+      error: "AI_ERROR",
+      message: friendlyMessage,
       code: error.status || error.code || 'UNKNOWN',
-      diagnostics: {
-        apiKeyPresent: !!process.env.GEMINI_API_KEY,
-        envVertex: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT),
-        sdkIsVertex: (ai as any).apiClient?.isVertexAI?.(),
-        isAuthError
-      },
       details: error.details || undefined
     });
   }
@@ -174,13 +178,11 @@ Return your analysis in JSON format matching this schema exactly:
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const isVertexDetected = !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT);
-    console.log("DIAGNOSTIC: /api/chat called");
-    console.log("DIAGNOSTIC: GEMINI_API_KEY exists:", !!process.env.GEMINI_API_KEY);
-    console.log("DIAGNOSTIC: Vertex/GCP Env Detected:", isVertexDetected);
+    const keyExists = !!process.env.GROQ_API_KEY;
+    console.log(`[API_REQUEST] /api/chat - KEY_PRESENT: ${keyExists}`);
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet. Please provide a GEMINI_API_KEY in the Secrets panel." });
+    if (!keyExists) {
+      return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet. Please provide a GROQ_API_KEY in the Secrets panel." });
     }
 
     const { history, metadata, message, evidence } = req.body;
@@ -214,28 +216,38 @@ DETERMINISTIC_EVIDENCE_CALCULATED_BY_APPLICATION:
 ${JSON.stringify(evidence || { note: "No specific analytical query matched. Default workspace metadata applied." }, null, 2)}
 `;
 
-    // Use generateContent with contents array for multi-turn support in a stateless environment
-    const contents = [
+    const messages = [
+      { role: "system", content: systemInstruction },
       ...(history || []).map((msg: any) => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.text }]
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.text
       })),
       {
         role: 'user',
-        parts: [{ text: message }]
+        content: message
       }
     ];
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.2,
-      },
-    });
+    const inputChars = messages.reduce((acc: number, msg: any) => acc + (msg.content ? msg.content.length : 0), 0);
+    const estimatedTokens = Math.ceil(inputChars / 4);
+    const selectedModel = "llama-3.3-70b-versatile";
+    
+    console.log(`[COPILOT_AUDIT] Request -> Model: ${selectedModel}, Input Chars: ${inputChars}, Estimated Tokens: ${estimatedTokens}`);
 
-    const text = response.text;
+    let response;
+    try {
+      response = await groq.chat.completions.create({
+        model: selectedModel,
+        messages,
+        temperature: 0.2,
+      });
+      console.log(`[COPILOT_AUDIT] Response -> Status: SUCCESS`);
+    } catch (apiError: any) {
+      console.log(`[COPILOT_AUDIT] Response -> Status: FAILED, Error: ${apiError.message}`);
+      throw apiError;
+    }
+
+    const text = response.choices[0]?.message?.content;
 
     if (!text) {
       throw new Error("Empty response from AI");
@@ -244,32 +256,49 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
     return res.json({ text });
 
   } catch (error: any) {
-    console.error("Error in AI chat:", error);
-    const statusCode = error.status || error.code || 500;
-    const isAuthError = statusCode === 401 || (error.message && error.message.includes("UNAUTHENTICATED"));
+     
+    
+    // Ensure statusCode is a number to prevent Express crashes
+    let statusCode = 500;
+    if (typeof error.status === 'number') statusCode = error.status;
+    else if (typeof error.code === 'number') statusCode = error.code;
+    else if (typeof error.status === 'string' && !isNaN(parseInt(error.status))) statusCode = parseInt(error.status);
+    else if (typeof error.code === 'string' && !isNaN(parseInt(error.code))) statusCode = parseInt(error.code);
+
+    let friendlyMessage = error.message;
+    const errorMsg = error.message || "";
+    
+    if (error.status === 429) {
+      friendlyMessage = "Groq API rate limit exceeded. Please try again in a few seconds.";
+    } else {
+      console.error("Error in AI chat:", error.message || "Unknown error");
+    }
 
     res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ 
-      error: error.message || "Failed to communicate with AI",
-      code: error.status || error.code || 'UNKNOWN',
-      diagnostics: {
-        apiKeyPresent: !!process.env.GEMINI_API_KEY,
-        envVertex: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT),
-        sdkIsVertex: (ai as any).apiClient?.isVertexAI?.(),
-        isAuthError
-      },
+      error: "AI_ERROR",
+      message: friendlyMessage,
       details: error.details || undefined
     });
   }
 });
 
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("UNHANDLED_EXCEPTION:", err);
+  res.status(500).json({
+    error: "SERVER_CRASH",
+    message: err.message || "An unexpected server error occurred",
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined
+  });
+});
+
 async function startServer() {
   if (process.env.VERCEL) {
-    // On Vercel serverless, we don't start the listener or serve static files via Express.
-    // Vercel's CDN serves the static build, and routes /api/* to this function.
     return;
   }
 
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

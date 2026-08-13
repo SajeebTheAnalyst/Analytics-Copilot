@@ -51,10 +51,10 @@ export async function queryCopilot(
         throw error;
       } else {
         const text = await res.text();
-        if (text.includes('server error') || text.includes('Runtime.ImportModuleError')) {
-          errorMessage = "AI Service is temporarily unavailable (Serverless Function Error). Please check the server logs.";
-        } else if (text.length > 0 && text.length < 200) {
-          errorMessage = text;
+        if (text.length > 0 && text.length < 500) {
+          errorMessage = `AI Service Error: ${text}`;
+        } else if (text.includes('Runtime.ImportModuleError')) {
+          errorMessage = "AI Service failed to load a required module (ImportModuleError). This is usually a deployment configuration issue.";
         }
         throw new Error(errorMessage);
       }
