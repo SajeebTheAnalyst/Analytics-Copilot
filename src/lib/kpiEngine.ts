@@ -30,9 +30,8 @@ export function evaluateSimpleAggregation(
   column: string | undefined,
   aggregation: KpiAggregation
 ): number | null {
-  if (!data || data.length === 0) return 0;
-
   if (aggregation === 'count') {
+    if (!data || data.length === 0) return 0;
     if (!column) return data.length;
     let count = 0;
     for (const row of data) {
@@ -43,7 +42,8 @@ export function evaluateSimpleAggregation(
   }
 
   if (aggregation === 'distinct_count') {
-    if (!column) return 0;
+    if (!data || data.length === 0) return 0;
+    if (!column) return null;
     const uniqueVals = new Set<any>();
     for (const row of data) {
       const val = row[column];
@@ -54,7 +54,8 @@ export function evaluateSimpleAggregation(
     return uniqueVals.size;
   }
 
-  if (!column) return 0;
+  if (!column) return null;
+  if (!data || data.length === 0) return null;
 
   // Extract non-null numeric values
   const nums: number[] = [];
@@ -69,7 +70,7 @@ export function evaluateSimpleAggregation(
   }
 
   if (nums.length === 0) {
-    return 0;
+    return null;
   }
 
   switch (aggregation) {

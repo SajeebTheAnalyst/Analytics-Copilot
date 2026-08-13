@@ -257,6 +257,26 @@ export function WidgetRenderer({
     );
   }
 
+  const availableHeaders = new Set(primaryDataset.headers || []);
+  const isXMissing = !availableHeaders.has(xAxisColumn);
+  const isYMissing = !availableHeaders.has(yAxisColumn);
+
+  if (isXMissing || isYMissing) {
+    return (
+      <div id={`cfg-missing-col-${widget.id}`} className="h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-50 dark:bg-zinc-900/40 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
+        <div className="w-8 h-8 rounded-lg bg-zinc-150 dark:bg-zinc-850 flex items-center justify-center text-amber-500">
+          <AlertTriangle className="w-4 h-4" />
+        </div>
+        <div>
+          <span className="text-xs font-bold text-zinc-850 dark:text-zinc-200 block">Missing columns in active dataset</span>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs mx-auto leading-normal">
+            The configured fields {isXMissing && <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[10px] font-mono text-rose-600 dark:text-rose-400">{xAxisColumn}</code>} {isXMissing && isYMissing && 'and'} {isYMissing && <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[10px] font-mono text-rose-600 dark:text-rose-400">{yAxisColumn}</code>} do not exist in the current dataset. Please adjust chart settings.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Group filteredRows by xAxisColumn
   const groupedDataMap = new Map<string, Record<string, any>[]>();
   for (const row of filteredRows) {
