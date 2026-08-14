@@ -20,6 +20,10 @@ import { GlobalFilterBar } from './GlobalFilterBar';
 import { DrillThroughModal } from './DrillThroughModal';
 import { SaveViewDialog } from './SaveViewDialog';
 import { SavedViewsPanel } from './SavedViewsPanel';
+import { ExportDialog } from './ExportDialog';
+import { ShareDialog } from './ShareDialog';
+import { PresentationMode } from './PresentationMode';
+import { PresentationSequenceModal } from './PresentationSequenceModal';
 import { generateDemoDashboard } from '@/lib/dashboardStorage';
 import { getSavedKpis } from '@/lib/kpiStorage';
 import { getValidLayout, compactLayout, findFirstAvailablePosition, getMinDimensions } from '@/lib/dashboardLayout';
@@ -35,7 +39,8 @@ import {
 import { 
   LayoutDashboard, Plus, Trash2, Edit3, Settings, Filter, FileText, Check, X, 
   Eye, Edit2, Copy, Sparkles, Layers, ArrowUp, ArrowDown, Move, AlertCircle, Save, Calendar, RefreshCw,
-  ChevronDown, ChevronUp, GripVertical, Maximize2, Grid, Bookmark, Star, EyeOff, CheckCircle2, RotateCcw
+  ChevronDown, ChevronUp, GripVertical, Maximize2, Grid, Bookmark, Star, EyeOff, CheckCircle2, RotateCcw,
+  Play, Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -87,6 +92,10 @@ export function DashboardView({
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
   const [isSavedViewsPanelOpen, setIsSavedViewsPanelOpen] = useState(false);
   const [isSaveViewDialogOpen, setIsSaveViewDialogOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+  const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
   const [saveDialogMode, setSaveDialogMode] = useState<'create' | 'update' | 'save_as'>('create');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -956,6 +965,42 @@ export function DashboardView({
             {/* Saved Views & Bookmarks Button (Phase 7E) */}
             {currentDash && (
               <div className="flex items-center gap-1">
+                {/* Executive Presentation Mode (Phase 7G) */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setIsPresentationOpen(true)}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 h-8 transition-all shadow-xs"
+                  title="Enter Executive Presentation Mode"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Present</span>
+                </Button>
+
+                {/* Export & Print */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsExportDialogOpen(true)}
+                  className="text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 flex items-center gap-1.5 h-8 transition-all hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  title="Export / Print Dashboard"
+                >
+                  <FileText className="w-3.5 h-3.5 text-zinc-500" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+
+                {/* Share View */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsShareDialogOpen(true)}
+                  className="text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 flex items-center gap-1.5 h-8 transition-all hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  title="Share Direct View Link"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-zinc-500" />
+                  <span className="hidden sm:inline">Share</span>
+                </Button>
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -1601,6 +1646,73 @@ export function DashboardView({
             customLayoutCount: 0
           }}
           onSave={handleSaveView}
+        />
+      )}
+
+      {/* EXPORT DIALOG (Phase 7F) */}
+      {currentDash && (
+        <ExportDialog
+          isOpen={isExportDialogOpen}
+          onClose={() => setIsExportDialogOpen(false)}
+          dashboard={currentDash}
+          activeSavedView={activeSavedView}
+          targetElement={gridContainerRef.current}
+          filterSummary={runtimeFilters.map(f => `${f.column}: ${f.values?.join(', ') || f.value || ''}`)}
+          drillSummary={Object.values(widgetDrillStates).filter(d => d.currentLevelIndex > 0).map(d => d.path?.[d.currentLevelIndex - 1]?.label || 'Drilled')}
+        />
+      )}
+
+      {/* SHARE DIALOG (Phase 7F) */}
+      {currentDash && (
+        <ShareDialog
+          isOpen={isShareDialogOpen}
+          onClose={() => setIsShareDialogOpen(false)}
+          dashboardId={currentDash.id}
+          savedViewId={activeSavedViewId || undefined}
+        />
+      )}
+
+      {/* EXECUTIVE PRESENTATION MODE (Phase 7G) */}
+      {currentDash && isPresentationOpen && (
+        <PresentationMode
+          dashboard={currentDash}
+          datasets={fullyFilteredDatasets}
+          relationships={relationships}
+          savedKpis={savedKpis}
+          activeSavedView={activeSavedView}
+          runtimeFilters={runtimeFilters}
+          activeCrossFilters={activeCrossFilters}
+          widgetDrillStates={widgetDrillStates}
+          widgetVisibility={widgetVisibility}
+          onClose={() => setIsPresentationOpen(false)}
+          onLoadView={handleLoadView}
+          onOpenExportDialog={() => setIsExportDialogOpen(true)}
+          onOpenShareDialog={() => setIsShareDialogOpen(true)}
+          onOpenSequenceModal={() => setIsSequenceModalOpen(true)}
+          onDrillStateChange={handleDrillStateChange}
+          onCrossFilterSelect={(crossFilter) => {
+            if (crossFilter.widgetId && crossFilter.values?.[0] !== undefined) {
+              handleCrossFilterClick(crossFilter.widgetId, crossFilter.column, crossFilter.values[0]);
+            }
+          }}
+        />
+      )}
+
+      {/* PRESENTATION SEQUENCE MODAL (Phase 7G) */}
+      {currentDash && (
+        <PresentationSequenceModal
+          isOpen={isSequenceModalOpen}
+          onClose={() => setIsSequenceModalOpen(false)}
+          dashboard={currentDash}
+          onSaveSequence={(sequenceIds, autoPlayInterval) => {
+            onUpdateDashboard(currentDash.id, {
+              presentationSequence: sequenceIds,
+              presentationAutoPlayInterval: autoPlayInterval,
+              updatedAt: Date.now()
+            });
+            showToast('Updated slide deck sequence');
+          }}
+          onStartPresentation={() => setIsPresentationOpen(true)}
         />
       )}
 
