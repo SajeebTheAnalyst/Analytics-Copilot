@@ -5,11 +5,13 @@ import {
   Hash, Calendar, Tag, CaseSensitive, 
   ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
   Copy, Check, ChevronDown, Filter, 
-  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator
+  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
 import { FormulaBuilderModal } from './FormulaBuilderModal';
+import { FindReplaceModal, MatchItem } from './FindReplaceModal';
+import { BulkOperationsBar } from './BulkOperationsBar';
 
 interface DataGridProps {
   dataset: Dataset;
@@ -47,6 +49,11 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   // Formula Builder Modal State
   const [showFormulaModal, setShowFormulaModal] = useState<boolean>(false);
   const [editingFormulaCol, setEditingFormulaCol] = useState<string | null>(null);
+
+  // Find & Replace Modal State
+  const [showFindReplaceModal, setShowFindReplaceModal] = useState<boolean>(false);
+  const [highlightedMatches, setHighlightedMatches] = useState<MatchItem[]>([]);
+  const [activeMatchIndex, setActiveMatchIndex] = useState<number>(-1);
 
   // ----------------------------------------------------
   // 2. Grid UI View State
@@ -285,6 +292,279 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
       maxCol: Math.max(selectionRange.startCol, selectionRange.endCol),
     };
   }, [selectionRange]);
+
+  // Selection counts for Bulk Operations Bar
+  const selectedCellCount = useMemo(() => {
+    if (!rangeBounds) return 0;
+    return (rangeBounds.maxRow - rangeBounds.minRow + 1) * (rangeBounds.maxCol - rangeBounds.minCol + 1);
+  }, [rangeBounds]);
+
+  const selectedRowCount = useMemo(() => {
+    if (!rangeBounds) return 0;
+    return rangeBounds.maxRow - rangeBounds.minRow + 1;
+  }, [rangeBounds]);
+
+  const hasFormulaColumnsInSelection = useMemo(() => {
+    if (!rangeBounds) return false;
+    for (let c = rangeBounds.minCol; c <= rangeBounds.maxCol; c++) {
+      const h = visibleHeaders[c];
+      if (h && workingFormulas[h]) {
+        return true;
+      }
+    }
+    return false;
+  }, [rangeBounds, visibleHeaders, workingFormulas]);
+
+  // Bulk Operations Handlers
+  const handleApplyBulkValue = useCallback((valueStr: string) => {
+    if (!rangeBounds || displayedRows.length === 0 || visibleHeaders.length === 0) return;
+
+    const minRow = Math.max(0, rangeBounds.minRow);
+    const maxRow = Math.min(displayedRows.length - 1, rangeBounds.maxRow);
+    const minCol = Math.max(0, rangeBounds.minCol);
+    const maxCol = Math.min(visibleHeaders.length - 1, rangeBounds.maxCol);
+
+    const targetRowIds = new Set<string>();
+    for (let r = minRow; r <= maxRow; r++) {
+      if (displayedRows[r]) targetRowIds.add(displayedRows[r]._rowId);
+    }
+
+    const selectedCols: string[] = [];
+    let skippedFormulaCols = false;
+
+    for (let c = minCol; c <= maxCol; c++) {
+      const h = visibleHeaders[c];
+      if (!h) continue;
+      if (workingFormulas[h]) {
+        skippedFormulaCols = true;
+      } else {
+        selectedCols.push(h);
+      }
+    }
+
+    if (selectedCols.length === 0) {
+      setWarningToast('Formula columns cannot be bulk edited. Edit the formula instead.');
+      setTimeout(() => setWarningToast(null), 3500);
+      return;
+    }
+
+    const trimmed = valueStr.trim();
+    const nextEdited = new Set(editedCells);
+
+    const nextData = workingData.map(row => {
+      if (targetRowIds.has(row._rowId)) {
+        const updated = { ...row };
+        selectedCols.forEach(header => {
+          const type = workingColumnTypes[header] || 'text';
+          let newVal: any = valueStr;
+          if (type === 'numeric') {
+            if (trimmed === '') newVal = null;
+            else if (!isNaN(Number(trimmed))) newVal = Number(trimmed);
+          } else {
+            if (trimmed === '') newVal = null;
+          }
+          updated[header] = newVal;
+          nextEdited.add(`${row._rowId}:${header}`);
+        });
+        return updated;
+      }
+      return row;
+    });
+
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+    setIsDirty(true);
+    setEditedCells(nextEdited);
+
+    if (skippedFormulaCols) {
+      setWarningToast('Formula columns cannot be bulk edited. Formula cells were skipped.');
+      setTimeout(() => setWarningToast(null), 3500);
+    } else {
+      const cellCount = targetRowIds.size * selectedCols.length;
+      setSaveFeedback(`Updated ${cellCount} cell${cellCount > 1 ? 's' : ''}`);
+      setTimeout(() => setSaveFeedback(null), 2500);
+    }
+  }, [rangeBounds, displayedRows, visibleHeaders, workingFormulas, workingColumnTypes, workingData, editedCells, workingHeaders, recalculateAndSetData]);
+
+  const handleClearSelectedCells = useCallback(() => {
+    if (!rangeBounds || displayedRows.length === 0 || visibleHeaders.length === 0) return;
+
+    const minRow = Math.max(0, rangeBounds.minRow);
+    const maxRow = Math.min(displayedRows.length - 1, rangeBounds.maxRow);
+    const minCol = Math.max(0, rangeBounds.minCol);
+    const maxCol = Math.min(visibleHeaders.length - 1, rangeBounds.maxCol);
+
+    const targetRowIds = new Set<string>();
+    for (let r = minRow; r <= maxRow; r++) {
+      if (displayedRows[r]) targetRowIds.add(displayedRows[r]._rowId);
+    }
+
+    const selectedCols: string[] = [];
+    let skippedFormulaCols = false;
+
+    for (let c = minCol; c <= maxCol; c++) {
+      const h = visibleHeaders[c];
+      if (!h) continue;
+      if (workingFormulas[h]) {
+        skippedFormulaCols = true;
+      } else {
+        selectedCols.push(h);
+      }
+    }
+
+    if (selectedCols.length === 0) {
+      setWarningToast('Formula columns cannot be bulk edited. Edit the formula instead.');
+      setTimeout(() => setWarningToast(null), 3500);
+      return;
+    }
+
+    const nextEdited = new Set(editedCells);
+
+    const nextData = workingData.map(row => {
+      if (targetRowIds.has(row._rowId)) {
+        const updated = { ...row };
+        selectedCols.forEach(header => {
+          updated[header] = null;
+          nextEdited.add(`${row._rowId}:${header}`);
+        });
+        return updated;
+      }
+      return row;
+    });
+
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+    setIsDirty(true);
+    setEditedCells(nextEdited);
+
+    if (skippedFormulaCols) {
+      setWarningToast('Formula columns cannot be bulk edited. Formula cells were skipped.');
+      setTimeout(() => setWarningToast(null), 3500);
+    } else {
+      const cellCount = targetRowIds.size * selectedCols.length;
+      setSaveFeedback(`Cleared ${cellCount} cell${cellCount > 1 ? 's' : ''}`);
+      setTimeout(() => setSaveFeedback(null), 2500);
+    }
+  }, [rangeBounds, displayedRows, visibleHeaders, workingFormulas, workingData, editedCells, workingHeaders, recalculateAndSetData]);
+
+  const handleDeleteSelectedRows = useCallback(() => {
+    if (!rangeBounds || displayedRows.length === 0) return;
+
+    const minRow = Math.max(0, rangeBounds.minRow);
+    const maxRow = Math.min(displayedRows.length - 1, rangeBounds.maxRow);
+
+    const targetRowIds = new Set<string>();
+    for (let r = minRow; r <= maxRow; r++) {
+      if (displayedRows[r]) targetRowIds.add(displayedRows[r]._rowId);
+    }
+
+    if (targetRowIds.size === 0) return;
+
+    const nextData = workingData.filter(row => !targetRowIds.has(row._rowId));
+
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+    setIsDirty(true);
+
+    const nextRowIdx = Math.max(0, minRow - 1);
+    setSelectedCell({ row: nextRowIdx, col: 0 });
+    setSelectionRange({ startRow: nextRowIdx, startCol: 0, endRow: nextRowIdx, endCol: 0 });
+
+    setSaveFeedback(`Deleted ${targetRowIds.size} row${targetRowIds.size > 1 ? 's' : ''}`);
+    setTimeout(() => setSaveFeedback(null), 2500);
+  }, [rangeBounds, displayedRows, workingData, workingHeaders, workingFormulas, recalculateAndSetData]);
+
+  // Find & Replace Callbacks
+  const handleNavigateToMatch = useCallback((match: MatchItem) => {
+    setSelectedCell({ row: match.rIndex, col: match.cIndex });
+    setSelectionRange({
+      startRow: match.rIndex,
+      startCol: match.cIndex,
+      endRow: match.rIndex,
+      endCol: match.cIndex,
+    });
+  }, []);
+
+  const handleFindReplaceSingle = useCallback((match: MatchItem, replaceText: string) => {
+    if (workingFormulas[match.header]) {
+      setWarningToast(`Formula column "${match.header}" cannot be bulk edited. Edit the formula instead.`);
+      setTimeout(() => setWarningToast(null), 3500);
+      return;
+    }
+
+    const targetRow = displayedRows[match.rIndex];
+    if (!targetRow) return;
+
+    const colType = workingColumnTypes[match.header] || 'text';
+    let newVal: any = replaceText;
+    const trimmed = replaceText.trim();
+
+    if (colType === 'numeric') {
+      if (trimmed === '') newVal = null;
+      else if (!isNaN(Number(trimmed))) newVal = Number(trimmed);
+    } else {
+      if (trimmed === '') newVal = null;
+    }
+
+    const nextEdited = new Set(editedCells).add(`${targetRow._rowId}:${match.header}`);
+    const nextData = workingData.map(r => {
+      if (r._rowId === targetRow._rowId) {
+        return { ...r, [match.header]: newVal };
+      }
+      return r;
+    });
+
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+    setIsDirty(true);
+    setEditedCells(nextEdited);
+
+    setSaveFeedback(`Replaced value in "${match.header}"`);
+    setTimeout(() => setSaveFeedback(null), 2000);
+  }, [workingFormulas, displayedRows, workingColumnTypes, editedCells, workingData, workingHeaders, recalculateAndSetData]);
+
+  const handleFindReplaceAll = useCallback((matchesToReplace: MatchItem[], replaceText: string) => {
+    const validMatches = matchesToReplace.filter(m => !workingFormulas[m.header]);
+    if (validMatches.length === 0) {
+      setWarningToast('Formula columns cannot be bulk edited. Edit the formula instead.');
+      setTimeout(() => setWarningToast(null), 3500);
+      return;
+    }
+
+    const replacementMap: Record<string, Record<string, any>> = {};
+    validMatches.forEach(m => {
+      if (!replacementMap[m.rowId]) replacementMap[m.rowId] = {};
+      const colType = workingColumnTypes[m.header] || 'text';
+      let newVal: any = replaceText;
+      const trimmed = replaceText.trim();
+
+      if (colType === 'numeric') {
+        if (trimmed === '') newVal = null;
+        else if (!isNaN(Number(trimmed))) newVal = Number(trimmed);
+      } else {
+        if (trimmed === '') newVal = null;
+      }
+      replacementMap[m.rowId][m.header] = newVal;
+    });
+
+    const nextEdited = new Set(editedCells);
+    const nextData = workingData.map(r => {
+      if (replacementMap[r._rowId]) {
+        const updates = replacementMap[r._rowId];
+        Object.keys(updates).forEach(h => nextEdited.add(`${r._rowId}:${h}`));
+        return { ...r, ...updates };
+      }
+      return r;
+    });
+
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+    setIsDirty(true);
+    setEditedCells(nextEdited);
+
+    setSaveFeedback(`Replaced ${validMatches.length} matching value${validMatches.length > 1 ? 's' : ''}`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+  }, [workingFormulas, workingColumnTypes, editedCells, workingData, workingHeaders, recalculateAndSetData]);
+
+  const handleMatchesFoundChange = useCallback((matches: MatchItem[], activeIdx: number) => {
+    setHighlightedMatches(matches);
+    setActiveMatchIndex(activeIdx);
+  }, []);
 
   // Handle Sort Toggle
   const handleHeaderClick = (header: string) => {
@@ -771,6 +1051,20 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
       return;
     }
 
+    // Ctrl+F / Cmd+F or Ctrl+H / Cmd+H -> Find & Replace Modal
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'h')) {
+      e.preventDefault();
+      setShowFindReplaceModal(true);
+      return;
+    }
+
+    // Delete / Backspace key -> Clear selected cells
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      handleClearSelectedCells();
+      return;
+    }
+
     if (e.key === 'Escape') {
       setContextMenu(null);
       setShowColumnsDropdown(false);
@@ -1101,6 +1395,18 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
             <span>+ Formula Column</span>
           </Button>
 
+          {/* Find & Replace Action */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFindReplaceModal(true)}
+            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
+            title="Find & Replace across dataset (Ctrl+F)"
+          >
+            <Search className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span>Find & Replace</span>
+          </Button>
+
           {/* Search */}
           <div className="relative">
             <Filter className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -1377,6 +1683,11 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
                     const isCellEdited = editedCells.has(`${row._rowId}:${header}`);
                     const formula = workingFormulas[header];
 
+                    const isMatchCell = highlightedMatches.some(m => m.rIndex === rIndex && m.cIndex === cIndex);
+                    const isActiveMatch = activeMatchIndex !== -1 && 
+                      highlightedMatches[activeMatchIndex]?.rIndex === rIndex && 
+                      highlightedMatches[activeMatchIndex]?.cIndex === cIndex;
+
                     return (
                       <td
                         key={header}
@@ -1389,7 +1700,9 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
                           "py-2 px-3 border-r border-zinc-200/50 dark:border-zinc-800/50 truncate relative cursor-default transition-all",
                           formula && "bg-indigo-50/30 dark:bg-indigo-950/20 font-mono",
                           isInRange && "bg-blue-500/12 dark:bg-blue-500/22",
-                          isSelectedCell && !isEditing && "ring-2 ring-blue-600 dark:ring-blue-500 z-10 bg-blue-50 dark:bg-blue-950/40 border-transparent shadow-xs font-semibold"
+                          isMatchCell && !isActiveMatch && "bg-amber-100/90 dark:bg-amber-950/80 ring-1 ring-amber-400/80 font-medium",
+                          isActiveMatch && "bg-amber-300 dark:bg-amber-600 font-bold ring-2 ring-amber-600 text-black dark:text-white z-20 shadow-xs",
+                          isSelectedCell && !isEditing && !isActiveMatch && "ring-2 ring-blue-600 dark:ring-blue-500 z-10 bg-blue-50 dark:bg-blue-950/40 border-transparent shadow-xs font-semibold"
                         )}
                         title={formula ? `Calculated: ${formula}` : isNull ? 'Double click or press Enter to edit' : String(formattedVal)}
                       >
@@ -1823,6 +2136,43 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
         existingFormulas={workingFormulas}
         editingColName={editingFormulaCol}
         sampleData={workingData}
+      />
+
+      {/* Floating Bulk Operations Toolbar */}
+      <BulkOperationsBar
+        selectedCellCount={selectedCellCount}
+        selectedRowCount={selectedRowCount}
+        hasFormulaColumnsInSelection={hasFormulaColumnsInSelection}
+        onApplyBulkValue={handleApplyBulkValue}
+        onClearSelectedCells={handleClearSelectedCells}
+        onDeleteSelectedRows={handleDeleteSelectedRows}
+        onOpenFindReplace={() => setShowFindReplaceModal(true)}
+        onClearSelection={() => {
+          setSelectedCell(null);
+          setSelectionRange(null);
+        }}
+      />
+
+      {/* Find & Replace Modal */}
+      <FindReplaceModal
+        isOpen={showFindReplaceModal}
+        onClose={() => {
+          setShowFindReplaceModal(false);
+          setHighlightedMatches([]);
+          setActiveMatchIndex(-1);
+        }}
+        availableHeaders={workingHeaders}
+        visibleHeaders={visibleHeaders}
+        workingFormulas={workingFormulas}
+        workingColumnTypes={workingColumnTypes}
+        displayedRows={displayedRows}
+        workingData={workingData}
+        selectedHeader={visibleHeaders[selectedCell?.col ?? 0]}
+        selectedCell={selectedCell}
+        onNavigateToMatch={handleNavigateToMatch}
+        onReplaceSingle={handleFindReplaceSingle}
+        onReplaceAll={handleFindReplaceAll}
+        onMatchesFoundChange={handleMatchesFoundChange}
       />
 
     </div>
