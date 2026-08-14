@@ -365,7 +365,15 @@ export default function App() {
                     onNavigateView={(view) => setCurrentView(view)}
                   />
                 ) : currentView === 'relationships' ? (
-                  <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
+                  <RelationshipView 
+                    datasets={datasets} 
+                    suggestions={suggestions} 
+                    setSuggestions={setSuggestions} 
+                    onOpenDataset={(datasetId) => {
+                      setSelectedDatasetId(datasetId);
+                      setCurrentView('data-manager');
+                    }}
+                  />
                 ) : currentView === 'kpi-builder' ? renderReportingOrGate(
                   <KpiBuilderView 
                     datasets={datasets} 
