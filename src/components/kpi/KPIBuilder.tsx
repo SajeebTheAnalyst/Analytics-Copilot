@@ -37,9 +37,10 @@ interface KPIBuilderProps {
   datasets: Dataset[];
   savedKpis: KpiDefinition[];
   setSavedKpis: React.Dispatch<React.SetStateAction<KpiDefinition[]>>;
+  onAddToDashboard?: (kpi: KpiDefinition) => void;
 }
 
-export function KPIBuilder({ datasets, savedKpis, setSavedKpis }: KPIBuilderProps) {
+export function KPIBuilder({ datasets, savedKpis, setSavedKpis, onAddToDashboard }: KPIBuilderProps) {
   // Form State
   const [activeDatasetId, setActiveDatasetId] = useState<string>(datasets[0]?.id || '');
   const [formName, setFormName] = useState<string>('');
@@ -148,6 +149,7 @@ export function KPIBuilder({ datasets, savedKpis, setSavedKpis }: KPIBuilderProp
             <p className="text-sm">{formName || 'KPI Name'}</p>
             <p className="text-2xl font-bold">{previewResult.currentValue}</p>
           </div>
+          <Button className="mt-4" onClick={() => onAddToDashboard?.(livePreviewDefinition)}>Add to Dashboard</Button>
         </div>
       </div>
     </div>

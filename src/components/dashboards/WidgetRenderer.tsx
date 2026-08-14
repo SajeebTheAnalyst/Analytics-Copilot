@@ -11,6 +11,7 @@ import {
   getDrillBreadcrumbs, canDrillDown, canDrillUp 
 } from '@/lib/dashboardDrillDown';
 import { DrillThroughModal } from './DrillThroughModal';
+import { KPIWidget } from './KPIWidget';
 import { 
   LineChart, Line, BarChart, Bar, AreaChart, Area, ScatterChart, Scatter, ComposedChart,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -1314,7 +1315,13 @@ export function WidgetRenderer({
       const referencedKpi = widget.kpiId ? savedKpis.find(k => k.id === widget.kpiId) : null;
       if (referencedKpi) {
         titleText = referencedKpi.name;
-        const result = evaluateKpi(referencedKpi, datasets, savedKpis);
+        // Inject filtered data into the dataset passed to evaluateKpi to ensure dashboard filters are respected
+        const contextualDatasets = datasets.map(d => 
+          (d.id === referencedKpi.datasetId || d.name === referencedKpi.datasetId)
+            ? { ...d, fullData: drillFilteredRows } 
+            : d
+        );
+        const result = evaluateKpi(referencedKpi, contextualDatasets, savedKpis);
         valueFormatted = result.formattedResult;
         rawVal = result.rawResult || 0;
         aggFn = referencedKpi.aggregation || 'sum';

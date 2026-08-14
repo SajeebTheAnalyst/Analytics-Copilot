@@ -56,6 +56,7 @@ interface KpiBuilderViewProps {
   datasets: Dataset[];
   selectedDatasetId?: string;
   onNavigateView?: (view: ViewState) => void;
+  onAddToDashboard?: (kpi: KpiDefinition) => void;
   explorerContext?: {
     datasetId: string;
     filters: ColumnFilter[];
@@ -67,6 +68,7 @@ export function KpiBuilderView({
   datasets,
   selectedDatasetId,
   onNavigateView,
+  onAddToDashboard,
   explorerContext,
 }: KpiBuilderViewProps) {
   // Active dataset state
@@ -336,7 +338,12 @@ export function KpiBuilderView({
 
     const updated = await addOrUpdateKpi(kpiToSave);
     setSavedKpis(updated);
-    setIsModalOpen(false);
+    
+    if (onAddToDashboard) {
+      onAddToDashboard(kpiToSave);
+    } else {
+      setIsModalOpen(false);
+    }
   };
 
   // Formula Token Builder Actions

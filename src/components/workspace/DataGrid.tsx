@@ -5,7 +5,8 @@ import {
   Hash, Calendar, Tag, CaseSensitive, Clock, Sliders, RefreshCw,
   ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
   Copy, Check, ChevronDown, Filter, 
-  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, ShieldCheck, Wrench, History, Sparkles
+  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, ShieldCheck, Wrench, History, Sparkles,
+  Undo2, Redo2, Columns, Database
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
@@ -78,6 +79,10 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   const [showAICopilotModal, setShowAICopilotModal] = useState<boolean>(false);
   const [showReadinessModal, setShowReadinessModal] = useState<boolean>(false);
 
+  // Phase 8P-1 Formula Bar State
+  const [formulaBarValue, setFormulaBarValue] = useState<string>('');
+  const [isFormulaBarFocused, setIsFormulaBarFocused] = useState<boolean>(false);
+
   // Phase 8L Deterministic Data Readiness Evaluation
   const readinessEval = useMemo(() => {
     return evaluateDataReadiness(dataset, workingData, workingHeaders, workingFormulas);
@@ -85,6 +90,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
 
   // Manual Cleaning Actions & History State (Phase 8J)
   const [cleaningHistory, setCleaningHistory] = useState<CleaningHistoryItem[]>([]);
+  const [redoStack, setRedoStack] = useState<CleaningHistoryItem[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
   const [showCleanDropdown, setShowCleanDropdown] = useState<boolean>(false);
   const [activeCleaningModal, setActiveCleaningModal] = useState<{
@@ -249,6 +255,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     setWorkingData(updatedRows);
     setWorkingHeaders(result.updatedHeaders);
     setCleaningHistory(prev => [...prev, historyItem]);
+    setRedoStack([]); // Clear redo stack on new action
     setIsDirty(true);
 
     setSaveFeedback(`Applied: ${result.actionTitle} (${result.cellsAffectedCount} cells affected)`);
@@ -259,6 +266,14 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     if (cleaningHistory.length === 0) return;
 
     const lastItem = cleaningHistory[cleaningHistory.length - 1];
+    
+    // Save current state to redo stack before undoing
+    const redoItem: CleaningHistoryItem = {
+      ...lastItem,
+      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousHeadersSnapshot: [...workingHeaders],
+    };
+
     let restoredRows = JSON.parse(JSON.stringify(lastItem.previousDataSnapshot));
 
     if (workingFormulas && Object.keys(workingFormulas).length > 0) {
@@ -268,11 +283,40 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     setWorkingData(restoredRows);
     setWorkingHeaders([...lastItem.previousHeadersSnapshot]);
     setCleaningHistory(prev => prev.slice(0, -1));
+    setRedoStack(prev => [...prev, redoItem]);
     setIsDirty(true);
 
     setSaveFeedback(`Undid: ${lastItem.actionName}`);
     setTimeout(() => setSaveFeedback(null), 3500);
-  }, [cleaningHistory, workingFormulas]);
+  }, [cleaningHistory, workingData, workingHeaders, workingFormulas]);
+
+  const handleRedoLastCleaningAction = useCallback(() => {
+    if (redoStack.length === 0) return;
+
+    const redoItem = redoStack[redoStack.length - 1];
+    
+    // Save current state to undo stack before redoing
+    const undoItem: CleaningHistoryItem = {
+      ...redoItem,
+      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousHeadersSnapshot: [...workingHeaders],
+    };
+
+    let restoredRows = JSON.parse(JSON.stringify(redoItem.previousDataSnapshot));
+
+    if (workingFormulas && Object.keys(workingFormulas).length > 0) {
+      restoredRows = evaluateAllFormulas(redoItem.previousHeadersSnapshot, restoredRows, workingFormulas).updatedData;
+    }
+
+    setWorkingData(restoredRows);
+    setWorkingHeaders([...redoItem.previousHeadersSnapshot]);
+    setRedoStack(prev => prev.slice(0, -1));
+    setCleaningHistory(prev => [...prev, undoItem]);
+    setIsDirty(true);
+
+    setSaveFeedback(`Redid: ${redoItem.actionName}`);
+    setTimeout(() => setSaveFeedback(null), 3500);
+  }, [redoStack, workingData, workingHeaders, workingFormulas]);
 
   // Apply or update a calculated column formula
   const handleApplyFormula = (colName: string, formulaStr: string) => {
@@ -1173,6 +1217,27 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
       return;
     }
 
+    // Ctrl+Z Undo
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+      handleUndoLastCleaningAction();
+      e.preventDefault();
+      return;
+    }
+
+    // Ctrl+Shift+Z or Ctrl+Y Redo
+    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.key.toLowerCase() === 'z') || e.key.toLowerCase() === 'y')) {
+      handleRedoLastCleaningAction();
+      e.preventDefault();
+      return;
+    }
+
+    // Ctrl+S Save
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      handleSaveChanges();
+      e.preventDefault();
+      return;
+    }
+
     // Ctrl+F / Cmd+F or Ctrl+H / Cmd+H -> Find & Replace Modal
     if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'h')) {
       e.preventDefault();
@@ -1271,6 +1336,81 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     if (handled) {
       e.preventDefault();
     }
+  };
+
+  // Synchronize formula bar with selection
+  useEffect(() => {
+    if (!selectedCell || !selectionRange || isFormulaBarFocused) {
+      if (!isFormulaBarFocused) setFormulaBarValue('');
+      return;
+    }
+
+    const { startRow, startCol, endRow, endCol } = selectionRange;
+    const isMultiCell = startRow !== endRow || startCol !== endCol;
+
+    if (isMultiCell) {
+      setFormulaBarValue('Multiple cells selected');
+      return;
+    }
+
+    const row = displayedRows[selectedCell.row];
+    const header = visibleHeaders[selectedCell.col];
+    if (!row || !header) {
+      setFormulaBarValue('');
+      return;
+    }
+
+    const formula = workingFormulas[header];
+    if (formula) {
+      setFormulaBarValue(`=${formula}`);
+    } else {
+      const val = row[header];
+      setFormulaBarValue(val === null || val === undefined ? '' : String(val));
+    }
+  }, [selectedCell, selectionRange, displayedRows, visibleHeaders, workingFormulas, isFormulaBarFocused]);
+
+  const commitFormulaBarEdit = () => {
+    if (!selectedCell || !selectionRange) return;
+    const { startRow, startCol, endRow, endCol } = selectionRange;
+    const isMultiCell = startRow !== endRow || startCol !== endCol;
+    if (isMultiCell) return;
+
+    const header = visibleHeaders[selectedCell.col];
+    if (!header) return;
+
+    if (formulaBarValue.startsWith('=')) {
+      handleApplyFormula(header, formulaBarValue.substring(1));
+    } else {
+      commitCellEdit(selectedCell.row, selectedCell.col, formulaBarValue);
+    }
+    setIsFormulaBarFocused(false);
+  };
+
+  const cancelFormulaBarEdit = () => {
+    setIsFormulaBarFocused(false);
+    // Triggers re-sync in useEffect
+    setSelectedCell({ ...selectedCell! });
+  };
+
+  const getColumnLetter = (index: number): string => {
+    let name = '';
+    let i = index;
+    while (i >= 0) {
+      name = String.fromCharCode((i % 26) + 65) + name;
+      i = Math.floor(i / 26) - 1;
+    }
+    return name;
+  };
+
+  const getCellNotation = (): string => {
+    if (!selectedCell || !selectionRange) return '';
+    const { startRow, startCol, endRow, endCol } = selectionRange;
+    const isMultiCell = startRow !== endRow || startCol !== endCol;
+    if (isMultiCell) return 'Range Selected';
+
+    const colLetter = getColumnLetter(selectedCell.col);
+    const header = visibleHeaders[selectedCell.col];
+    return `${colLetter}${selectedCell.row + 1}${header ? ` (${header})` : ''}`;
   };
 
   // Right-Click Context Menu Handler
@@ -1470,409 +1610,209 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   return (
     <div className="glass-panel glass-card rounded-xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 shadow-lg flex flex-col">
       
-      {/* 1. Grid Toolbar Bar */}
-      <div className="p-3.5 border-b border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-3 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+      {/* 1. Excel-Style Header, Toolbar & Formula Bar */}
+      <div className="flex flex-col border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        {/* Title Row */}
+        <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <TableIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <h3 className="font-bold text-xs lg:text-sm text-zinc-900 dark:text-zinc-100">
-              Interactive Data Grid
+            <h3 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate max-w-[200px]">
+              {dataset.name}
             </h3>
+            <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">
+              {workingData.length.toLocaleString()} rows | {workingHeaders.length} columns
+            </span>
           </div>
 
-          {/* Unsaved Changes Indicator Badge & Actions */}
-          {isDirty ? (
-            <div className="flex items-center gap-2 animate-in fade-in duration-200">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-[11px] font-bold font-mono">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                Unsaved Edits
-              </span>
-
-              <Button
-                size="sm"
-                onClick={handleSaveChanges}
-                className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 cursor-pointer shadow-sm"
-                title="Save working copy changes to workspace"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>Save Changes</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowDiscardModal(true)}
-                className="h-8 text-xs border-zinc-200 dark:border-zinc-800 font-bold gap-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-                title="Discard working copy changes and revert"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
-                <span className="hidden sm:inline">Discard</span>
-              </Button>
-            </div>
-          ) : (
-            <span className="h-4 w-px bg-zinc-300 dark:bg-zinc-700 hidden sm:inline-block" />
-          )}
-
-          {/* Selected Cell/Range Indicator */}
-          {selectionInfoText && (
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-900/40 text-blue-800 dark:text-blue-300 text-[11px] font-mono font-bold">
-              {selectionInfoText}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Add Row Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAddRow}
-            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
-            title="Append a new empty row to working copy"
-          >
-            <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Add Row</span>
-          </Button>
-
-          {/* Add Column Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setShowAddColumnModal(true);
-              setNewColName('');
-              setAddColumnError(null);
-            }}
-            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
-            title="Create a new column in working copy"
-          >
-            <PlusCircle className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span className="hidden sm:inline">Add Column</span>
-          </Button>
-
-          {/* Add Formula Column Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditingFormulaCol(null);
-              setShowFormulaModal(true);
-            }}
-            className="h-8 text-xs gap-1.5 border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer shadow-xs"
-            title="Create or edit a calculated formula column"
-          >
-            <Calculator className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>+ Formula Column</span>
-          </Button>
-
-          {/* Find & Replace Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFindReplaceModal(true)}
-            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
-            title="Find & Replace across dataset (Ctrl+F)"
-          >
-            <Search className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>Find & Replace</span>
-          </Button>
-
-          {/* Quality Audit Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowQualityModal(true)}
-            className="h-8 text-xs gap-1.5 border-blue-200 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 cursor-pointer shadow-xs"
-            title="Open Data Quality Scanner & Audit Panel"
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Quality Audit</span>
-          </Button>
-
-          {/* AI Data Cleaning Copilot Action (Phase 8K) */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAICopilotModal(true)}
-            className="h-8 text-xs gap-1.5 border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 text-indigo-700 dark:text-indigo-300 font-bold hover:from-indigo-100 hover:to-blue-100 dark:hover:from-indigo-900/60 dark:hover:to-blue-900/60 cursor-pointer shadow-xs"
-            title="Ask AI Copilot for grounded dataset quality analysis & recommendations"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>AI Copilot</span>
-          </Button>
-
-          {/* Phase 8L Data Readiness Gate Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowReadinessModal(true)}
-            className={cn(
-              "h-8 text-xs gap-1.5 font-bold cursor-pointer shadow-xs border",
-              readinessEval.status === 'READY'
-                ? "border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
-                : readinessEval.status === 'NEEDS_CLEANING'
-                ? "border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60"
-                : "border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/40 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60"
-            )}
-            title="Open Deterministic Data Readiness Gate & Quality Validation Panel"
-          >
-            {readinessEval.status === 'READY' ? (
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <ShieldCheck className="hidden" /> // placeholder for ts compatibility
-            )}
-            {readinessEval.status !== 'READY' && (
-              <ShieldAlert className="w-3.5 h-3.5 text-red-600 dark:text-red-400 animate-pulse" />
-            )}
-            <span>Data Readiness ({readinessEval.qualityScore}%)</span>
-          </Button>
-
-          {/* Clean Data Action Dropdown */}
-          <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCleanDropdown(!showCleanDropdown)}
-              className="h-8 text-xs gap-1.5 border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/60 cursor-pointer shadow-xs"
-              title="Deterministic manual data cleaning tools"
+          <div className="flex items-center gap-3">
+             {/* Readiness Score */}
+             <div 
+              onClick={() => setShowReadinessModal(true)}
+              className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 px-2 py-1 rounded-md bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800"
             >
-              <Wrench className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Clean Data</span>
-              <ChevronDown className="w-3 h-3 ml-0.5 text-emerald-600 dark:text-emerald-400" />
-            </Button>
-
-            {showCleanDropdown && (
-              <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 py-1.5 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 border-b border-zinc-100 dark:border-zinc-800 pb-1 mb-1">
-                  Manual Cleaning Actions
-                </div>
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'trim_whitespace' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
-                >
-                  <span>Trim Whitespace</span>
-                  <span className="text-[10px] text-zinc-400">Leading/Trailing</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'text_capitalization' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
-                >
-                  <span>Standardize Case</span>
-                  <span className="text-[10px] text-zinc-400">Upper/Lower/Title</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'find_replace' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
-                >
-                  <span>Find & Replace</span>
-                  <span className="text-[10px] text-zinc-400">Values/Text</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'merge_categorical' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
-                >
-                  <span>Merge Similar Categorical</span>
-                  <span className="text-[10px] text-zinc-400">Variations</span>
-                </button>
-
-                <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'remove_duplicates' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
-                >
-                  <span>Remove Duplicates</span>
-                  <span className="text-[10px] text-zinc-400">Row Redundancy</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'remove_empty_rows' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
-                >
-                  <span>Remove Empty Rows</span>
-                  <span className="text-[10px] text-zinc-400">100% Blank</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'fill_missing' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
-                >
-                  <span>Fill Missing Values</span>
-                  <span className="text-[10px] text-zinc-400">Custom/Mean/Mode</span>
-                </button>
-
-                <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'clear_cells' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium cursor-pointer"
-                >
-                  <span>Clear Cell Values</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowCleanDropdown(false);
-                    setActiveCleaningModal({ actionType: 'delete_columns' });
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 font-medium cursor-pointer"
-                >
-                  <span>Delete Column(s)</span>
-                </button>
-
-              </div>
-            )}
-          </div>
-
-          {/* Cleaning History Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowHistoryModal(true)}
-            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
-            title="View Cleaning History & Undo Actions"
-          >
-            <History className="w-3.5 h-3.5 text-zinc-500" />
-            <span>History</span>
-            {cleaningHistory.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold">
-                {cleaningHistory.length}
-              </span>
-            )}
-          </Button>
-
-          {/* Search */}
-          <div className="relative">
-            <Filter className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search cells..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1 text-xs font-medium bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-32 sm:w-44 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 shadow-2xs"
-            />
-          </div>
-
-          {/* Column Visibility Popover */}
-          <div className="relative" ref={columnsDropdownRef}>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 text-xs gap-1 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-semibold cursor-pointer",
-                hiddenColumns.size > 0 && "text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-800 bg-blue-50/50"
+               {readinessEval.status === 'READY' ? (
+                <ShieldCheck className="w-3 h-3 text-emerald-500" />
+              ) : (
+                <ShieldAlert className="w-3 h-3 text-amber-500 animate-pulse" />
               )}
-              onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
-            >
-              <Eye className="w-3.5 h-3.5 text-zinc-500" />
-              <span className="hidden xl:inline">Cols ({visibleHeaders.length}/{workingHeaders.length})</span>
-              <ChevronDown className="w-3 h-3 text-zinc-400" />
-            </Button>
+              <span className="text-[10px] font-bold text-zinc-500">Readiness: {readinessEval.qualityScore}%</span>
+            </div>
 
-            {showColumnsDropdown && (
-              <div className="absolute right-0 mt-1.5 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
-                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Column Visibility</span>
-                  {hiddenColumns.size > 0 && (
-                    <button
-                      onClick={handleShowAllColumns}
-                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold"
-                    >
-                      Show All
-                    </button>
-                  )}
-                </div>
-
-                <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
-                  {workingHeaders.map((h) => {
-                    const isVisible = !hiddenColumns.has(h);
-                    return (
-                      <label
-                        key={h}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/60 cursor-pointer text-xs font-medium text-zinc-800 dark:text-zinc-200"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isVisible}
-                          onChange={() => handleToggleColumnVisibility(h)}
-                          className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 accent-blue-600 cursor-pointer"
-                        />
-                        <span className="truncate flex-1">{h}</span>
-                        {getTypeBadge(workingColumnTypes[h])}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Row Display Limit */}
-          <div className="hidden lg:flex items-center text-xs text-zinc-500 gap-1.5">
+            {/* Row Display Limit */}
             <select
               value={rowLimit}
               onChange={(e) => setRowLimit(Number(e.target.value))}
-              className="h-8 px-2 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer"
+              className="h-7 px-2 text-[10px] font-bold bg-transparent border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500/30 cursor-pointer"
             >
               <option value={50}>50 rows</option>
               <option value={100}>100 rows</option>
               <option value={250}>250 rows</option>
               <option value={500}>500 rows</option>
-              <option value={-1}>All ({processedRows.length.toLocaleString()})</option>
+              <option value={-1}>All Rows</option>
             </select>
           </div>
+        </div>
 
-          {/* Sort Reset Button */}
-          {sortConfig && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1"
-              onClick={() => setSortConfig(null)}
-              title="Clear Column Sorting"
-            >
-              <RotateCcw className="w-3 h-3" />
+        {/* Professional Toolbar */}
+        <div className="p-1 flex items-center gap-1 overflow-x-auto no-scrollbar border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/30 dark:bg-zinc-900/20">
+          {/* Group: History */}
+          <div className="flex items-center gap-0.5 pr-1 border-r border-zinc-200 dark:border-zinc-800">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleUndoLastCleaningAction} disabled={cleaningHistory.length === 0} title="Undo (Ctrl+Z)">
+              <Undo2 className="h-4 w-4" />
             </Button>
-          )}
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRedoLastCleaningAction} disabled={redoStack.length === 0} title="Redo (Ctrl+Y)">
+              <Redo2 className="h-4 w-4" />
+            </Button>
+          </div>
 
-          {/* Copy Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs gap-1 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-            onClick={() => copyToClipboard()}
-            title="Copy selected cell or range (Ctrl+C)"
-          >
-            <Copy className="w-3.5 h-3.5 text-blue-500" />
-          </Button>
+          {/* Group: Persistence */}
+          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={handleSaveChanges} disabled={!isDirty} title="Save Changes (Ctrl+S)">
+              <Save className="h-3.5 w-3.5 text-blue-600" />
+              <span>Save</span>
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowDiscardModal(true)} disabled={!isDirty} title="Discard Changes">
+              <RotateCcw className="h-3.5 w-3.5 text-zinc-500" />
+              <span>Discard</span>
+            </Button>
+          </div>
+
+          {/* Group: Edit Tools */}
+          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowFindReplaceModal(true)} title="Find & Replace (Ctrl+F / Ctrl+H)">
+              <Search className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Find & Replace</span>
+            </Button>
+          </div>
+
+          {/* Group: Structural Changes */}
+          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={handleAddRow} title="Add Row">
+              <Plus className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Row</span>
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowAddColumnModal(true)} title="Add Column">
+              <PlusCircle className="h-3.5 w-3.5 text-blue-600" />
+              <span>Col</span>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-7 w-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" 
+              onClick={() => selectedCell && setDeletingRowIndex(selectedCell.row)} 
+              disabled={!selectedCell}
+              title="Delete Selected Row"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          {/* Group: Column & Type Management */}
+          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
+            <div className="relative" ref={columnsDropdownRef}>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn(
+                  "h-7 text-[11px] gap-1.5 px-2 font-bold",
+                  hiddenColumns.size > 0 && "text-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                )} 
+                onClick={() => setShowColumnsDropdown(!showColumnsDropdown)} 
+                title="Manage Column Visibility"
+              >
+                <Columns className="h-3.5 w-3.5 text-zinc-500" />
+                <span>Columns</span>
+              </Button>
+              
+              {showColumnsDropdown && (
+                <div className="absolute left-0 mt-1.5 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Column Visibility</span>
+                    {hiddenColumns.size > 0 && (
+                      <button onClick={handleShowAllColumns} className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold">Show All</button>
+                    )}
+                  </div>
+                  <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                    {workingHeaders.map((h) => (
+                      <label key={h} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/60 cursor-pointer text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                        <input type="checkbox" checked={!hiddenColumns.has(h)} onChange={() => handleToggleColumnVisibility(h)} className="rounded text-blue-600 w-3.5 h-3.5 accent-blue-600 cursor-pointer" />
+                        <span className="truncate flex-1">{h}</span>
+                        {getTypeBadge(workingColumnTypes[h])}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 text-[11px] gap-1.5 px-2 font-bold" 
+              onClick={() => selectedCell && setTypeModalCol(visibleHeaders[selectedCell.col])} 
+              disabled={!selectedCell}
+              title="Change Column Data Type"
+            >
+              <Database className="h-3.5 w-3.5 text-amber-600" />
+              <span>Data Type</span>
+            </Button>
+          </div>
+
+          {/* Group: Advanced Tools */}
+          <div className="flex items-center gap-1 pl-1">
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowCleanDropdown(!showCleanDropdown)} title="Open Manual Cleaning Tools">
+              <Wrench className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Clean Data</span>
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowQualityModal(true)} title="Open Quality Audit Scanner">
+              <ShieldAlert className="h-3.5 w-3.5 text-blue-600" />
+              <span>Quality Audit</span>
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20" onClick={() => setShowAICopilotModal(true)} title="AI Data Cleaning Copilot">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>AI Copilot</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Formula Bar */}
+        <div className="flex items-center h-9 px-1 gap-px bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="min-w-[150px] max-w-[250px] h-full flex items-center px-3 bg-zinc-50 dark:bg-zinc-900/50 border-r border-zinc-200 dark:border-zinc-800 text-[11px] font-mono font-bold text-zinc-600 dark:text-zinc-400 truncate">
+            {getCellNotation()}
+          </div>
+          <div className="flex-1 h-full flex items-center px-3 gap-2 group relative">
+            <span className="text-zinc-400 font-serif italic text-sm select-none shrink-0">fx</span>
+            <input
+              type="text"
+              className="flex-1 h-full bg-transparent border-none focus:outline-none text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+              value={formulaBarValue}
+              onChange={(e) => setFormulaBarValue(e.target.value)}
+              onFocus={() => setIsFormulaBarFocused(true)}
+              onBlur={() => {
+                // Use a small timeout to allow click on Enter/Escape if we had buttons, 
+                // but here we just want to allow the commit logic.
+                setTimeout(() => setIsFormulaBarFocused(false), 200);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitFormulaBarEdit();
+                if (e.key === 'Escape') cancelFormulaBarEdit();
+              }}
+              placeholder="Enter value or formula starting with ="
+            />
+          </div>
+          {/* Quick Search */}
+          <div className="flex items-center px-2 border-l border-zinc-100 dark:border-zinc-800/50">
+            <div className="relative">
+              <Search className="w-3 h-3 text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Find in grid..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-7 pr-2 h-6 text-[10px] bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded focus:outline-none focus:ring-1 focus:ring-blue-500/30 w-32"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

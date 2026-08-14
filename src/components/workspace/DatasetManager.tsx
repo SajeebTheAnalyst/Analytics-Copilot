@@ -47,6 +47,39 @@ export function DatasetManager({
 
   const activeDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0] || null;
 
+  // Active Dataset Health & Profiles (Moved before early return to satisfy Rules of Hooks)
+  const health = useMemo(() => {
+    if (!activeDataset) {
+      return {
+        score: 0,
+        status: 'Critical' as const,
+        totalCells: 0,
+        missingCells: 0,
+        missingCellsPercentage: 0,
+        duplicateRows: 0,
+        duplicateRowsPercentage: 0,
+        issuesCount: 0,
+        issueBreakdown: {
+          missingValuesColumns: 0,
+          duplicateRowsCount: 0,
+          invalidDatesCount: 0,
+          emptyColumnsCount: 0
+        }
+      };
+    }
+    return calculateDatasetHealth(activeDataset);
+  }, [activeDataset]);
+  
+  const columnProfilesMap = useMemo(() => {
+    const map: Record<string, ExtendedColumnProfile> = {};
+    if (!activeDataset) return map;
+    activeDataset.headers.forEach(header => {
+      const colType = activeDataset.columnTypes?.[header] || 'text';
+      map[header] = profileColumn(activeDataset.fullData || [], header, colType);
+    });
+    return map;
+  }, [activeDataset]);
+
   const filteredDatasets = useMemo(() => {
     if (!searchQuery.trim()) return datasets;
     const q = searchQuery.toLowerCase();
@@ -156,18 +189,6 @@ export function DatasetManager({
       </div>
     );
   }
-
-  // Active Dataset Health & Profiles
-  const health = useMemo(() => calculateDatasetHealth(activeDataset), [activeDataset]);
-  
-  const columnProfilesMap = useMemo(() => {
-    const map: Record<string, ExtendedColumnProfile> = {};
-    activeDataset.headers.forEach(header => {
-      const colType = activeDataset.columnTypes?.[header] || 'text';
-      map[header] = profileColumn(activeDataset.fullData || [], header, colType);
-    });
-    return map;
-  }, [activeDataset]);
 
   const isCleaned = activeDataset.cleaningStatus === 'cleaned';
 

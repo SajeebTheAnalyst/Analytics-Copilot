@@ -15,7 +15,7 @@ import { MisReportView } from './components/reporting/MisReportView';
 import { DataDictionaryView } from './components/assets/DataDictionaryView';
 import { RenameModal } from './components/workspace/RenameModal';
 
-import { Dataset, ViewState, RelationshipSuggestion, Dashboard, DashboardPlan } from '@/types';
+import { Dataset, ViewState, RelationshipSuggestion, Dashboard, DashboardPlan, KpiDefinition } from '@/types';
 import { discoverRelationships } from '@/lib/relationshipDiscovery';
 import { detectIssues, applyCleaningAction, undoCleaningAction, restoreOriginal } from '@/lib/dataCleaner';
 import { evaluateDataReadiness } from '@/lib/dataReadinessEngine';
@@ -41,6 +41,7 @@ function ErrorFallback({ error, resetErrorBoundary }: any) {
 export default function App() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [pendingKpiToAdd, setPendingKpiToAdd] = useState<KpiDefinition | null>(null);
   const [selectedDashId, setSelectedDashId] = useState<string | null>(null);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('data-manager');
@@ -379,6 +380,10 @@ export default function App() {
                     datasets={datasets} 
                     selectedDatasetId={selectedDatasetId || undefined}
                     onNavigateView={(view) => setCurrentView(view)}
+                    onAddToDashboard={(kpi) => {
+                      setPendingKpiToAdd(kpi);
+                      setCurrentView('dashboards');
+                    }}
                   />
                 ) : currentView === 'dashboards' ? renderReportingOrGate(
                   <DashboardView 
@@ -412,6 +417,8 @@ export default function App() {
                       setDashboards(prev => prev.filter(d => d.id !== id));
                       if (selectedDashId === id) setSelectedDashId(null);
                     }}
+                    pendingKpiToAdd={pendingKpiToAdd}
+                    onClearPendingKpi={() => setPendingKpiToAdd(null)}
                   />
                 ) : currentView === 'mis-report' ? renderReportingOrGate(
                   <MisReportView datasets={datasets} dashboards={dashboards} />

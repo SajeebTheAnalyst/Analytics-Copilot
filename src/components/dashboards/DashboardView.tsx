@@ -55,6 +55,8 @@ interface DashboardViewProps {
   onSelectDashboard: (id: string | null) => void;
   onUpdateDashboard: (id: string, updates: Partial<Dashboard>) => void;
   onDeleteDashboard: (id: string) => void;
+  pendingKpiToAdd?: KpiDefinition | null;
+  onClearPendingKpi?: () => void;
 }
 
 export function DashboardView({
@@ -66,7 +68,9 @@ export function DashboardView({
   onSelectDataset,
   onSelectDashboard,
   onUpdateDashboard,
-  onDeleteDashboard
+  onDeleteDashboard,
+  pendingKpiToAdd,
+  onClearPendingKpi
 }: DashboardViewProps) {
   // Mode: 'view' (clean presentation) vs 'build' (editing, drag, resize)
   const [mode, setMode] = useState<'view' | 'build'>('view');
@@ -74,13 +78,39 @@ export function DashboardView({
   // Modals & UI States
   const [isWidgetModalOpen, setIsWidgetModalOpen] = useState(false);
   const [editingWidget, setEditingWidget] = useState<WidgetConfig | null>(null);
+  
+  // Selected Dashboard fallback
+  const currentDash = dashboards.find(d => d.id === selectedDashId) || dashboards[0] || null;
+
+
+  useEffect(() => {
+    if (pendingKpiToAdd && currentDash && onUpdateDashboard) {
+      const validPlaced = currentDash.widgets.map((w, i) => getValidLayout(w, i, 12));
+      const defaultW = 3; // For KPI type
+      const defaultH = 2; // For KPI type
+      const pos = findFirstAvailablePosition(validPlaced, defaultW, defaultH, 12);
+      const newWidgetWithLayout: WidgetConfig = {
+        id: `w-${Date.now()}`,
+        type: 'kpi',
+        title: pendingKpiToAdd.name,
+        datasetId: pendingKpiToAdd.datasetId,
+        kpiId: pendingKpiToAdd.id,
+        layout: { x: pos.x, y: pos.y, w: defaultW, h: defaultH }
+      };
+      const updatedWidgets = [...currentDash.widgets, newWidgetWithLayout];
+      const compacted = compactLayout(updatedWidgets, newWidgetWithLayout.id, 12);
+      
+      onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+      onClearPendingKpi?.();
+    }
+  }, [pendingKpiToAdd, currentDash, onUpdateDashboard, onClearPendingKpi]);
+
+  // Phase 7C: Centralized Visual Cross-Filters State (temporary analytical interaction state)
+  const [activeCrossFilters, setActiveCrossFilters] = useState<DashboardCrossFilter[]>([]);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [showFilterBar, setShowFilterBar] = useState(true);
   const [savedKpis, setSavedKpis] = useState<KpiDefinition[]>([]);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
-  
-  // Phase 7C: Centralized Visual Cross-Filters State (temporary analytical interaction state)
-  const [activeCrossFilters, setActiveCrossFilters] = useState<DashboardCrossFilter[]>([]);
 
   // Phase 7D: Hierarchical Drill-Down State per Widget
   const [widgetDrillStates, setWidgetDrillStates] = useState<Record<string, WidgetDrillState>>({});
@@ -98,9 +128,6 @@ export function DashboardView({
   const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
   const [saveDialogMode, setSaveDialogMode] = useState<'create' | 'update' | 'save_as'>('create');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Selected Dashboard fallback
-  const currentDash = dashboards.find(d => d.id === selectedDashId) || dashboards[0] || null;
 
   // Initialize or restore default view when dashboard changes
   useEffect(() => {
