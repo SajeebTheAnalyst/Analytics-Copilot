@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Dashboard, Dataset, KpiDefinition } from '@/types';
+import { Dashboard, Dataset, KpiDefinition, DashboardSavedView, DashboardCrossFilter, WidgetDrillState } from '@/types';
 import { evaluateKpi } from '@/lib/kpiEngine';
-import { Bot, Sparkles, X, RefreshCw, CheckCircle2, TrendingUp, AlertCircle, FileText } from 'lucide-react';
+import { Bot, Sparkles, X, RefreshCw, CheckCircle2, TrendingUp, AlertCircle, FileText, Bookmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Markdown from 'react-markdown';
 
@@ -11,6 +11,9 @@ interface AiDashboardModalProps {
   dashboard: Dashboard;
   datasets: Dataset[];
   savedKpis: KpiDefinition[];
+  activeSavedView?: DashboardSavedView | null;
+  activeCrossFilters?: DashboardCrossFilter[];
+  widgetDrillStates?: Record<string, WidgetDrillState>;
 }
 
 export function AiDashboardModal({
@@ -18,7 +21,10 @@ export function AiDashboardModal({
   onClose,
   dashboard,
   datasets,
-  savedKpis
+  savedKpis,
+  activeSavedView,
+  activeCrossFilters = [],
+  widgetDrillStates = {}
 }: AiDashboardModalProps) {
   if (!isOpen) return null;
 
@@ -56,18 +62,22 @@ export function AiDashboardModal({
       aggregation: w.aggregation
     }));
 
-    const activeFiltersSummary = dashboard.filters.map(f => `${f.column} = ${f.value}`);
+    const activeFiltersSummary = (dashboard.filters || []).map(f => `${f.column} = ${f.value || (f.values || []).join(', ')}`);
+    const activeCrossFiltersSummary = (activeCrossFilters || []).map(cf => `${cf.column} selected: [${(cf.values || []).join(', ')}]`);
 
     const metadataPrompt = {
       dashboardTitle: dashboard.title,
+      activeBookmarkView: activeSavedView ? activeSavedView.name : 'Ad-hoc Runtime View',
+      activeBookmarkDescription: activeSavedView?.description,
       datasetName: primaryDataset?.name || 'Dataset',
       totalDatasetRows: primaryDataset?.rowCount || 0,
-      activeFilters: activeFiltersSummary,
+      activeGlobalFilters: activeFiltersSummary,
+      activeCrossFilters: activeCrossFiltersSummary,
       evaluatedKpis: evaluatedKpisSummary,
       chartsConfigured: chartWidgetsSummary
     };
 
-    const userMessage = `Please provide an executive AI analysis and briefing for the dashboard "${dashboard.title}".
+    const userMessage = `Please provide an executive AI analysis and briefing for the dashboard "${dashboard.title}" (Active Analytical View: ${activeSavedView ? `"${activeSavedView.name}"` : 'Current State'}).
 Format your output cleanly using markdown with the following sections:
 1. **Executive Performance Overview** (Summary of overall business performance)
 2. **Key Metric Indicators & Health** (Insights from evaluated KPIs and status)

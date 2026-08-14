@@ -105,9 +105,13 @@ export function FilterBuilder({
       is_not_empty: 'is not empty',
       greater_than: '>',
       less_than: '<',
+      greater_than_or_equal: '>=',
+      less_than_or_equal: '<=',
       between: 'between',
       before: 'before',
       after: 'after',
+      in: 'in',
+      not_in: 'not in',
     };
 
     if (f.operator === 'is_empty' || f.operator === 'is_not_empty') {

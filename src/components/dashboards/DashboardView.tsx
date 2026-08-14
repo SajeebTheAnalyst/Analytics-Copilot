@@ -1,14 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { Dashboard, Dataset, RelationshipSuggestion, DashboardFilter, WidgetConfig, KpiDefinition } from '@/types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+  Dashboard, 
+  Dataset, 
+  RelationshipSuggestion, 
+  DashboardFilter, 
+  DashboardCrossFilter, 
+  WidgetConfig, 
+  KpiDefinition, 
+  WidgetLayout, 
+  WidgetDrillState, 
+  DrillThroughModalState,
+  DashboardSavedView,
+  DashboardViewState
+} from '@/types';
 import { WidgetRenderer } from './WidgetRenderer';
 import { WidgetBuilderModal } from './WidgetBuilderModal';
 import { AiDashboardModal } from './AiDashboardModal';
+import { GlobalFilterBar } from './GlobalFilterBar';
+import { DrillThroughModal } from './DrillThroughModal';
+import { SaveViewDialog } from './SaveViewDialog';
+import { SavedViewsPanel } from './SavedViewsPanel';
 import { generateDemoDashboard } from '@/lib/dashboardStorage';
 import { getSavedKpis } from '@/lib/kpiStorage';
+import { getValidLayout, compactLayout, findFirstAvailablePosition, getMinDimensions } from '@/lib/dashboardLayout';
+import { applyDashboardFilters } from '@/lib/dashboardFiltering';
+import { applyCrossFilters } from '@/lib/dashboardCrossFiltering';
+import { 
+  createDashboardSnapshot, 
+  validateDashboardSnapshot, 
+  areDashboardStatesEqual, 
+  createSavedView, 
+  duplicateSavedView 
+} from '@/lib/dashboardBookmarks';
 import { 
   LayoutDashboard, Plus, Trash2, Edit3, Settings, Filter, FileText, Check, X, 
   Eye, Edit2, Copy, Sparkles, Layers, ArrowUp, ArrowDown, Move, AlertCircle, Save, Calendar, RefreshCw,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, GripVertical, Maximize2, Grid, Bookmark, Star, EyeOff, CheckCircle2, RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -47,6 +74,73 @@ export function DashboardView({
   const [savedKpis, setSavedKpis] = useState<KpiDefinition[]>([]);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   
+  // Phase 7C: Centralized Visual Cross-Filters State (temporary analytical interaction state)
+  const [activeCrossFilters, setActiveCrossFilters] = useState<DashboardCrossFilter[]>([]);
+
+  // Phase 7D: Hierarchical Drill-Down State per Widget
+  const [widgetDrillStates, setWidgetDrillStates] = useState<Record<string, WidgetDrillState>>({});
+  const [drillThroughModal, setDrillThroughModal] = useState<DrillThroughModalState | null>(null);
+
+  // Phase 7E: Dashboard Bookmarks, Saved Views & View State Management
+  const [runtimeFilters, setRuntimeFilters] = useState<DashboardFilter[]>([]);
+  const [widgetVisibility, setWidgetVisibility] = useState<Record<string, boolean>>({});
+  const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
+  const [isSavedViewsPanelOpen, setIsSavedViewsPanelOpen] = useState(false);
+  const [isSaveViewDialogOpen, setIsSaveViewDialogOpen] = useState(false);
+  const [saveDialogMode, setSaveDialogMode] = useState<'create' | 'update' | 'save_as'>('create');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Selected Dashboard fallback
+  const currentDash = dashboards.find(d => d.id === selectedDashId) || dashboards[0] || null;
+
+  // Initialize or restore default view when dashboard changes
+  useEffect(() => {
+    if (!currentDash) return;
+
+    // Check for default view in savedViews
+    const defaultView = (currentDash.savedViews || []).find(
+      v => v.id === currentDash.defaultViewId || v.isDefault
+    );
+
+    if (defaultView) {
+      const validation = validateDashboardSnapshot(defaultView.state, currentDash, datasets);
+      setRuntimeFilters(validation.state.globalFilters || []);
+      setActiveCrossFilters(validation.state.crossFilters || []);
+      setWidgetDrillStates(validation.state.drillStates || {});
+      setWidgetVisibility(validation.state.widgetVisibility || {});
+      setActiveSavedViewId(defaultView.id);
+    } else {
+      setRuntimeFilters(currentDash.filters || []);
+      setActiveCrossFilters([]);
+      setWidgetDrillStates({});
+      setWidgetVisibility({});
+      setActiveSavedViewId(null);
+    }
+  }, [selectedDashId]);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleDrillStateChange = (widgetId: string, newState: WidgetDrillState) => {
+    setWidgetDrillStates(prev => ({
+      ...prev,
+      [widgetId]: newState
+    }));
+  };
+
+  // Keyboard shortcut: Press Escape to clear visual cross-filter selections
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && activeCrossFilters.length > 0) {
+        setActiveCrossFilters([]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeCrossFilters.length]);
+
   // Dashboard Title Editing State
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState('');
@@ -63,8 +157,93 @@ export function DashboardView({
 
   const primaryDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
 
-  // Selected Dashboard fallback
-  const currentDash = dashboards.find(d => d.id === selectedDashId) || dashboards[0] || null;
+  // 1. Derive globally filtered datasets (Global Dashboard Filters using runtimeFilters)
+  const globallyFilteredDatasets = useMemo(() => {
+    if (!runtimeFilters || runtimeFilters.length === 0) return datasets;
+
+    return datasets.map(dataset => {
+      const validFilters = runtimeFilters.filter(f => dataset.headers.includes(f.column));
+      if (validFilters.length === 0) return dataset;
+
+      const filteredFullData = applyDashboardFilters(dataset.fullData, validFilters, dataset);
+      const filteredPreviewData = filteredFullData.slice(0, 100);
+
+      return {
+        ...dataset,
+        fullData: filteredFullData,
+        data: filteredPreviewData,
+        rowCount: filteredFullData.length
+      };
+    });
+  }, [datasets, runtimeFilters]);
+
+  // 2. Derive fully filtered datasets (Global Filters + ALL Cross-Filters) for general summary and KPIs
+  const fullyFilteredDatasets = useMemo(() => {
+    if (!activeCrossFilters || activeCrossFilters.length === 0) return globallyFilteredDatasets;
+
+    return globallyFilteredDatasets.map(dataset => {
+      const validCrossFilters = activeCrossFilters.filter(cf => dataset.headers.includes(cf.column));
+      if (validCrossFilters.length === 0) return dataset;
+
+      const crossFilteredFullData = applyCrossFilters(dataset.fullData, validCrossFilters, dataset);
+      const crossFilteredPreviewData = crossFilteredFullData.slice(0, 100);
+
+      return {
+        ...dataset,
+        fullData: crossFilteredFullData,
+        data: crossFilteredPreviewData,
+        rowCount: crossFilteredFullData.length
+      };
+    });
+  }, [globallyFilteredDatasets, activeCrossFilters]);
+
+  // 3. Power BI Self-Highlighting Context: Visual source retains all options while other visuals recompute
+  const getDatasetsForWidget = useMemo(() => {
+    return (widgetId: string): Dataset[] => {
+      if (activeCrossFilters.length === 0) return globallyFilteredDatasets;
+
+      // Filter out cross filters originated by this specific widget so it doesn't collapse its own categories
+      const otherCrossFilters = activeCrossFilters.filter(cf => cf.widgetId !== widgetId);
+      if (otherCrossFilters.length === 0) return globallyFilteredDatasets;
+
+      return globallyFilteredDatasets.map(dataset => {
+        const validCrossFilters = otherCrossFilters.filter(cf => dataset.headers.includes(cf.column));
+        if (validCrossFilters.length === 0) return dataset;
+
+        const filtered = applyCrossFilters(dataset.fullData, validCrossFilters, dataset);
+        return {
+          ...dataset,
+          fullData: filtered,
+          data: filtered.slice(0, 100),
+          rowCount: filtered.length
+        };
+      });
+    };
+  }, [globallyFilteredDatasets, activeCrossFilters]);
+
+  const filteredPrimaryDataset = primaryDataset 
+    ? fullyFilteredDatasets.find(d => d.id === primaryDataset.id) || primaryDataset 
+    : undefined;
+
+  // Current Analytical State Snapshot for Unsaved State Detection
+  const currentRuntimeSnapshot = useMemo(() => {
+    return createDashboardSnapshot({
+      globalFilters: runtimeFilters,
+      crossFilters: activeCrossFilters,
+      drillStates: widgetDrillStates,
+      widgetVisibility
+    });
+  }, [runtimeFilters, activeCrossFilters, widgetDrillStates, widgetVisibility]);
+
+  const activeSavedView = useMemo(() => {
+    if (!currentDash || !currentDash.savedViews || !activeSavedViewId) return null;
+    return currentDash.savedViews.find(v => v.id === activeSavedViewId) || null;
+  }, [currentDash?.savedViews, activeSavedViewId]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!activeSavedView) return false;
+    return !areDashboardStatesEqual(activeSavedView.state, currentRuntimeSnapshot);
+  }, [activeSavedView, currentRuntimeSnapshot]);
 
   // Auto-select first dashboard if none selected
   useEffect(() => {
@@ -79,12 +258,176 @@ export function DashboardView({
     setTimeout(() => setSaveToast(false), 2000);
   };
 
+  // Phase 7E Handlers: Save, Load, Update, Delete, Set Default Views
+  const handleSaveView = (
+    name: string,
+    description: string,
+    options: { isDefault: boolean; overwriteId?: string; includeLayout: boolean }
+  ) => {
+    if (!currentDash) return;
+
+    let updatedViews = [...(currentDash.savedViews || [])];
+    let targetViewId = options.overwriteId;
+
+    if (targetViewId) {
+      // Overwrite existing view
+      updatedViews = updatedViews.map(v => {
+        if (v.id === targetViewId) {
+          return {
+            ...v,
+            name,
+            description: description || undefined,
+            isDefault: options.isDefault,
+            updatedAt: Date.now(),
+            state: currentRuntimeSnapshot
+          };
+        }
+        return options.isDefault ? { ...v, isDefault: false } : v;
+      });
+    } else {
+      // Create new view
+      const newView = createSavedView(name, description, currentRuntimeSnapshot, options.isDefault);
+      targetViewId = newView.id;
+      if (options.isDefault) {
+        updatedViews = updatedViews.map(v => ({ ...v, isDefault: false }));
+      }
+      updatedViews.push(newView);
+    }
+
+    const newDefaultId = options.isDefault 
+      ? targetViewId 
+      : (currentDash.defaultViewId === targetViewId && !options.isDefault ? undefined : currentDash.defaultViewId);
+
+    onUpdateDashboard(currentDash.id, {
+      savedViews: updatedViews,
+      defaultViewId: newDefaultId,
+      updatedAt: Date.now()
+    });
+
+    setActiveSavedViewId(targetViewId);
+    showToast(`Saved view "${name}"`);
+  };
+
+  const handleQuickUpdateActiveView = () => {
+    if (!currentDash || !activeSavedView) return;
+
+    const updatedViews = (currentDash.savedViews || []).map(v => {
+      if (v.id === activeSavedView.id) {
+        return {
+          ...v,
+          updatedAt: Date.now(),
+          state: currentRuntimeSnapshot
+        };
+      }
+      return v;
+    });
+
+    onUpdateDashboard(currentDash.id, {
+      savedViews: updatedViews,
+      updatedAt: Date.now()
+    });
+
+    showToast(`Updated "${activeSavedView.name}" with current state`);
+  };
+
+  const handleLoadView = (view: DashboardSavedView) => {
+    const validation = validateDashboardSnapshot(view.state, currentDash, datasets);
+    setRuntimeFilters(validation.state.globalFilters || []);
+    setActiveCrossFilters(validation.state.crossFilters || []);
+    setWidgetDrillStates(validation.state.drillStates || {});
+    setWidgetVisibility(validation.state.widgetVisibility || {});
+    setActiveSavedViewId(view.id);
+    showToast(`Applied view: "${view.name}"`);
+  };
+
+  const handleDiscardChanges = () => {
+    if (!activeSavedView) return;
+    handleLoadView(activeSavedView);
+    showToast(`Reverted changes to "${activeSavedView.name}"`);
+  };
+
+  const handleRenameView = (viewId: string, newName: string) => {
+    if (!currentDash) return;
+    const updated = (currentDash.savedViews || []).map(v => 
+      v.id === viewId ? { ...v, name: newName, updatedAt: Date.now() } : v
+    );
+    onUpdateDashboard(currentDash.id, { savedViews: updated, updatedAt: Date.now() });
+    showToast(`Renamed view to "${newName}"`);
+  };
+
+  const handleDuplicateView = (view: DashboardSavedView) => {
+    if (!currentDash) return;
+    const dup = duplicateSavedView(view);
+    const updated = [...(currentDash.savedViews || []), dup];
+    onUpdateDashboard(currentDash.id, { savedViews: updated, updatedAt: Date.now() });
+    showToast(`Duplicated view "${view.name}"`);
+  };
+
+  const handleDeleteView = (viewId: string) => {
+    if (!currentDash) return;
+    const target = (currentDash.savedViews || []).find(v => v.id === viewId);
+    const updated = (currentDash.savedViews || []).filter(v => v.id !== viewId);
+    const newDefault = currentDash.defaultViewId === viewId ? undefined : currentDash.defaultViewId;
+    if (activeSavedViewId === viewId) {
+      setActiveSavedViewId(null);
+    }
+    onUpdateDashboard(currentDash.id, {
+      savedViews: updated,
+      defaultViewId: newDefault,
+      updatedAt: Date.now()
+    });
+    showToast(`Deleted view "${target?.name || 'View'}"`);
+  };
+
+  const handleSetDefaultView = (viewId: string) => {
+    if (!currentDash) return;
+    const updated = (currentDash.savedViews || []).map(v => ({
+      ...v,
+      isDefault: v.id === viewId
+    }));
+    onUpdateDashboard(currentDash.id, {
+      savedViews: updated,
+      defaultViewId: viewId,
+      updatedAt: Date.now()
+    });
+    showToast(`Set as default landing view`);
+  };
+
+  const handleRemoveDefaultView = (viewId: string) => {
+    if (!currentDash) return;
+    const updated = (currentDash.savedViews || []).map(v => 
+      v.id === viewId ? { ...v, isDefault: false } : v
+    );
+    onUpdateDashboard(currentDash.id, {
+      savedViews: updated,
+      defaultViewId: undefined,
+      updatedAt: Date.now()
+    });
+    showToast(`Removed default view`);
+  };
+
+  // Visible widgets taking widgetVisibility into account
+  const visibleWidgets = useMemo(() => {
+    if (!currentDash) return [];
+    return currentDash.widgets.filter(w => widgetVisibility[w.id] !== false);
+  }, [currentDash?.widgets, widgetVisibility]);
+
+  const hiddenWidgetsCount = useMemo(() => {
+    if (!currentDash) return 0;
+    return currentDash.widgets.filter(w => widgetVisibility[w.id] === false).length;
+  }, [currentDash?.widgets, widgetVisibility]);
+
+  const handleUnhideAllWidgets = () => {
+    setWidgetVisibility({});
+    showToast('All visuals unhidden');
+  };
+
   // 1. Create Blank Dashboard
   const handleCreateNewDashboard = () => {
     const newId = `dash-${Date.now()}`;
     const newDash: Dashboard = {
       id: newId,
-      title: `Dashboard ${dashboards.length + 1}`,
+      title: 'Blank Dashboard',
       description: 'Custom business analytics view',
       datasetId: primaryDataset?.id || '',
       createdAt: Date.now(),
@@ -142,10 +485,19 @@ export function DashboardView({
       updatedWidgets = [...currentDash.widgets];
       updatedWidgets[existingIdx] = widget;
     } else {
-      updatedWidgets = [...currentDash.widgets, widget];
+      const validPlaced = currentDash.widgets.map((w, i) => getValidLayout(w, i, 12));
+      const defaultW = widget.type === 'kpi' ? 3 : (widget.gridSpan ? widget.gridSpan * 3 : 6);
+      const defaultH = widget.type === 'kpi' ? 2 : 4;
+      const pos = findFirstAvailablePosition(validPlaced, defaultW, defaultH, 12);
+      const newWidgetWithLayout: WidgetConfig = {
+        ...widget,
+        layout: widget.layout || { x: pos.x, y: pos.y, w: defaultW, h: defaultH }
+      };
+      updatedWidgets = [...currentDash.widgets, newWidgetWithLayout];
     }
 
-    onUpdateDashboard(currentDash.id, { widgets: updatedWidgets, updatedAt: Date.now() });
+    const compacted = compactLayout(updatedWidgets, widget.id, 12);
+    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
     setEditingWidget(null);
     triggerSaveToast();
   };
@@ -154,19 +506,26 @@ export function DashboardView({
   const handleDeleteWidget = (widgetId: string) => {
     if (!currentDash) return;
     const updated = currentDash.widgets.filter(w => w.id !== widgetId);
-    onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
+    const compacted = compactLayout(updated, undefined, 12);
+    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
     triggerSaveToast();
   };
 
   // 7. Duplicate Widget
   const handleDuplicateWidget = (widget: WidgetConfig) => {
     if (!currentDash) return;
+    const validPlaced = currentDash.widgets.map((w, i) => getValidLayout(w, i, 12));
+    const currentL = getValidLayout(widget, 0, 12);
+    const pos = findFirstAvailablePosition(validPlaced, currentL.w, currentL.h, 12);
     const cloned: WidgetConfig = {
       ...widget,
       id: `w-${Date.now()}`,
-      title: `${widget.title} (Copy)`
+      title: `${widget.title} (Copy)`,
+      layout: { x: pos.x, y: pos.y, w: currentL.w, h: currentL.h }
     };
-    onUpdateDashboard(currentDash.id, { widgets: [...currentDash.widgets, cloned], updatedAt: Date.now() });
+    const updated = [...currentDash.widgets, cloned];
+    const compacted = compactLayout(updated, cloned.id, 12);
+    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
     triggerSaveToast();
   };
 
@@ -181,14 +540,218 @@ export function DashboardView({
     newWidgets[index] = newWidgets[targetIdx];
     newWidgets[targetIdx] = temp;
 
-    onUpdateDashboard(currentDash.id, { widgets: newWidgets, updatedAt: Date.now() });
+    const compacted = compactLayout(newWidgets, undefined, 12);
+    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
   };
 
   // 9. Resize Widget Grid Span
   const handleResizeWidget = (widgetId: string, gridSpan: number) => {
     if (!currentDash) return;
-    const updated = currentDash.widgets.map(w => w.id === widgetId ? { ...w, gridSpan } : w);
-    onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
+    const targetW = Math.min(12, gridSpan * 3);
+    const updated = currentDash.widgets.map(w => {
+      if (w.id === widgetId) {
+        const curL = getValidLayout(w, 0, 12);
+        const newL = { ...curL, w: targetW, x: Math.min(12 - targetW, curL.x) };
+        return { ...w, gridSpan, layout: newL };
+      }
+      return w;
+    });
+    const compacted = compactLayout(updated, widgetId, 12);
+    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+  };
+
+  // Canvas & Grid Container Ref
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Pointer Drag State
+  const [dragState, setDragState] = useState<{
+    widgetId: string;
+    startX: number;
+    startY: number;
+    startLayout: WidgetLayout;
+    currentLayout: WidgetLayout;
+  } | null>(null);
+
+  // Pointer Resize State
+  const [resizeState, setResizeState] = useState<{
+    widgetId: string;
+    handle: 'se' | 'e' | 's';
+    startX: number;
+    startY: number;
+    startLayout: WidgetLayout;
+    currentLayout: WidgetLayout;
+  } | null>(null);
+
+  // Helper to measure cell dimensions
+  const getCellDimensions = () => {
+    if (!gridContainerRef.current) return { cellW: 90, cellH: 106 };
+    const rect = gridContainerRef.current.getBoundingClientRect();
+    const padding = 32; // p-4 padding on both sides
+    const availableW = rect.width - padding;
+    const cellW = (availableW + 16) / 12;
+    const cellH = 90 + 16;
+    return { cellW: Math.max(20, cellW), cellH: 106 };
+  };
+
+  // Compute active real-time layouts across all widgets
+  const activeLayouts = useMemo(() => {
+    if (!currentDash || !currentDash.widgets) return [];
+    let baseWidgets = currentDash.widgets;
+
+    if (dragState) {
+      baseWidgets = baseWidgets.map(w => w.id === dragState.widgetId ? { ...w, layout: dragState.currentLayout } : w);
+      return compactLayout(baseWidgets, dragState.widgetId, 12);
+    }
+
+    if (resizeState) {
+      baseWidgets = baseWidgets.map(w => w.id === resizeState.widgetId ? { ...w, layout: resizeState.currentLayout } : w);
+      return compactLayout(baseWidgets, resizeState.widgetId, 12);
+    }
+
+    return compactLayout(baseWidgets, undefined, 12);
+  }, [currentDash?.widgets, dragState, resizeState]);
+
+  // Pointer Drag Event Handlers
+  const handleDragStart = (e: React.PointerEvent, widget: WidgetConfig, layout: WidgetLayout) => {
+    if (mode !== 'build') return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+
+    setDragState({
+      widgetId: widget.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLayout: { ...layout },
+      currentLayout: { ...layout }
+    });
+  };
+
+  const handleDragMove = (e: React.PointerEvent) => {
+    if (!dragState) return;
+    const { cellW, cellH } = getCellDimensions();
+    const deltaX = e.clientX - dragState.startX;
+    const deltaY = e.clientY - dragState.startY;
+
+    const gridDeltaX = Math.round(deltaX / cellW);
+    const gridDeltaY = Math.round(deltaY / cellH);
+
+    const newX = Math.max(0, Math.min(12 - dragState.startLayout.w, dragState.startLayout.x + gridDeltaX));
+    const newY = Math.max(0, dragState.startLayout.y + gridDeltaY);
+
+    if (newX !== dragState.currentLayout.x || newY !== dragState.currentLayout.y) {
+      setDragState(prev => prev ? {
+        ...prev,
+        currentLayout: {
+          ...prev.currentLayout,
+          x: newX,
+          y: newY
+        }
+      } : null);
+    }
+  };
+
+  const handleDragEnd = (e: React.PointerEvent) => {
+    if (!dragState || !currentDash) return;
+
+    try {
+      const target = e.currentTarget as HTMLElement;
+      if (target.hasPointerCapture(e.pointerId)) {
+        target.releasePointerCapture(e.pointerId);
+      }
+    } catch (_) {}
+
+    const updatedWidgets = currentDash.widgets.map(w => {
+      if (w.id === dragState.widgetId) {
+        return { ...w, layout: dragState.currentLayout };
+      }
+      return w;
+    });
+
+    const compacted = compactLayout(updatedWidgets, dragState.widgetId, 12);
+    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    setDragState(null);
+  };
+
+  // Pointer Resize Event Handlers
+  const handleResizeStart = (e: React.PointerEvent, widget: WidgetConfig, layout: WidgetLayout, handle: 'se' | 'e' | 's') => {
+    if (mode !== 'build') return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+
+    setResizeState({
+      widgetId: widget.id,
+      handle,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLayout: { ...layout },
+      currentLayout: { ...layout }
+    });
+  };
+
+  const handleResizeMove = (e: React.PointerEvent) => {
+    if (!resizeState) return;
+    const { cellW, cellH } = getCellDimensions();
+    const deltaX = e.clientX - resizeState.startX;
+    const deltaY = e.clientY - resizeState.startY;
+
+    const gridDeltaX = Math.round(deltaX / cellW);
+    const gridDeltaY = Math.round(deltaY / cellH);
+
+    const targetWidget = currentDash?.widgets.find(w => w.id === resizeState.widgetId);
+    const minDim = getMinDimensions(targetWidget?.type || 'chart');
+
+    let newW = resizeState.startLayout.w;
+    let newH = resizeState.startLayout.h;
+
+    if (resizeState.handle === 'se' || resizeState.handle === 'e') {
+      newW = Math.max(minDim.minW, Math.min(12 - resizeState.startLayout.x, resizeState.startLayout.w + gridDeltaX));
+    }
+    if (resizeState.handle === 'se' || resizeState.handle === 's') {
+      newH = Math.max(minDim.minH, resizeState.startLayout.h + gridDeltaY);
+    }
+
+    if (newW !== resizeState.currentLayout.w || newH !== resizeState.currentLayout.h) {
+      setResizeState(prev => prev ? {
+        ...prev,
+        currentLayout: {
+          ...prev.currentLayout,
+          w: newW,
+          h: newH
+        }
+      } : null);
+    }
+  };
+
+  const handleResizeEnd = (e: React.PointerEvent) => {
+    if (!resizeState || !currentDash) return;
+
+    try {
+      const target = e.currentTarget as HTMLElement;
+      if (target.hasPointerCapture(e.pointerId)) {
+        target.releasePointerCapture(e.pointerId);
+      }
+    } catch (_) {}
+
+    const updatedWidgets = currentDash.widgets.map(w => {
+      if (w.id === resizeState.widgetId) {
+        return {
+          ...w,
+          gridSpan: Math.ceil(resizeState.currentLayout.w / 3) as any,
+          layout: resizeState.currentLayout
+        };
+      }
+      return w;
+    });
+
+    const compacted = compactLayout(updatedWidgets, resizeState.widgetId, 12);
+    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    setResizeState(null);
   };
 
   const handleUpdateWidget = (widgetId: string, updatedConfig: Partial<any>) => {
@@ -197,7 +760,7 @@ export function DashboardView({
     onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
   };
 
-  // 10. Global Filter Changes
+  // 10. Global Filter Changes (Phase 7B)
   const handleGlobalFilterChange = (column: string, value: string | null, operator: any = 'equals') => {
     if (!currentDash || !primaryDataset) return;
     const existingFilters = currentDash.filters || [];
@@ -221,21 +784,73 @@ export function DashboardView({
     onUpdateDashboard(currentDash.id, { filters: updatedFilters, updatedAt: Date.now() });
   };
 
-  // 11. Cross-Filtering Click Event
-  const handleCrossFilterClick = (column: string, value: string) => {
-    if (!currentDash) return;
-    const existing = currentDash.filters.find(f => f.column === column && String(f.value) === String(value));
-    if (existing) {
-      // Toggle off
-      handleGlobalFilterChange(column, null);
-    } else {
-      // Toggle on
-      handleGlobalFilterChange(column, value);
+  // 11. Visual Cross-Filtering Click Event (Phase 7C: Temporary Interaction State)
+  const handleCrossFilterClick = (
+    widgetId: string,
+    column: string,
+    value: string | number | boolean | null,
+    options?: {
+      operator?: 'equals' | 'in' | 'between' | 'date_period';
+      dateGranularity?: 'auto' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+      label?: string;
     }
+  ) => {
+    if (!column || value === undefined || value === null) return;
+
+    setActiveCrossFilters(prev => {
+      const existingIndex = prev.findIndex(cf => cf.widgetId === widgetId && cf.column === column);
+
+      // If user clicks the exact same single value on the same widget, toggle off
+      if (existingIndex >= 0) {
+        const existing = prev[existingIndex];
+        const isSameValue = existing.values.length === 1 && String(existing.values[0]) === String(value);
+        if (isSameValue) {
+          return prev.filter((_, idx) => idx !== existingIndex);
+        }
+
+        // Replace value for this widget & column
+        const updated = [...prev];
+        updated[existingIndex] = {
+          widgetId,
+          column,
+          operator: options?.operator || 'equals',
+          values: [value],
+          dateGranularity: options?.dateGranularity,
+          label: options?.label || `${column}: ${value}`
+        };
+        return updated;
+      }
+
+      // Add new cross-filter
+      const newCrossFilter: DashboardCrossFilter = {
+        widgetId,
+        column,
+        operator: options?.operator || 'equals',
+        values: [value],
+        dateGranularity: options?.dateGranularity,
+        label: options?.label || `${column}: ${value}`
+      };
+      return [...prev, newCrossFilter];
+    });
   };
 
-  // Clear All Filters
-  const handleClearAllFilters = () => {
+  // Remove specific cross-filter
+  const handleRemoveCrossFilter = (widgetId: string, column: string) => {
+    setActiveCrossFilters(prev => prev.filter(cf => !(cf.widgetId === widgetId && cf.column === column)));
+  };
+
+  // Clear cross-filters for a specific widget
+  const handleClearWidgetCrossFilter = (widgetId: string) => {
+    setActiveCrossFilters(prev => prev.filter(cf => cf.widgetId !== widgetId));
+  };
+
+  // Clear all temporary visual cross-filters
+  const handleClearAllCrossFilters = () => {
+    setActiveCrossFilters([]);
+  };
+
+  // Clear All Global Dashboard Filters
+  const handleClearAllGlobalFilters = () => {
     if (!currentDash) return;
     onUpdateDashboard(currentDash.id, { filters: [], updatedAt: Date.now() });
   };
@@ -338,6 +953,55 @@ export function DashboardView({
               </button>
             </div>
 
+            {/* Saved Views & Bookmarks Button (Phase 7E) */}
+            {currentDash && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSavedViewsPanelOpen(true)}
+                  className={cn(
+                    "text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 flex items-center gap-1.5 h-8 transition-all",
+                    activeSavedView 
+                      ? "border-blue-300 dark:border-blue-700 bg-blue-50/60 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold" 
+                      : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  )}
+                  title="Saved Views & Analytical Bookmarks"
+                >
+                  <Bookmark className={cn("w-3.5 h-3.5", activeSavedView ? "fill-blue-600 text-blue-600 dark:text-blue-400" : "text-zinc-500")} />
+                  <span>
+                    {activeSavedView ? (
+                      <span className="flex items-center gap-1 max-w-[140px] truncate">
+                        <span>{activeSavedView.name}</span>
+                        {hasUnsavedChanges && <span className="text-amber-500 font-bold" title="Modified analytical state">*</span>}
+                      </span>
+                    ) : (
+                      'Saved Views'
+                    )}
+                  </span>
+                  {(currentDash.savedViews || []).length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                      {(currentDash.savedViews || []).length}
+                    </span>
+                  )}
+                </Button>
+
+                {/* Quick Save Snapshot Action */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    setSaveDialogMode(activeSavedView && hasUnsavedChanges ? 'update' : 'create');
+                    setIsSaveViewDialogOpen(true);
+                  }}
+                  className="h-8 w-8 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-zinc-200 dark:border-zinc-800"
+                  title="Save Current State as Bookmark"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+
             {/* Add Widget Button */}
             {currentDash && (
               <Button
@@ -346,7 +1010,7 @@ export function DashboardView({
                   setEditingWidget(null);
                   setIsWidgetModalOpen(true);
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex items-center gap-1.5"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex items-center gap-1.5 h-8"
               >
                 <Plus className="w-4 h-4" />
                 Add Widget
@@ -359,7 +1023,7 @@ export function DashboardView({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsAiModalOpen(true)}
-                className="text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center gap-1.5"
+                className="text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center gap-1.5 h-8"
               >
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                 Explain with AI
@@ -438,101 +1102,20 @@ export function DashboardView({
         )}
 
       </div>      {/* GLOBAL FILTER BAR */}
-      {currentDash && (
-        <div className="glass-panel border-t-0 border-r-0 border-l-0 px-6 py-3.5 flex flex-col gap-2 shrink-0 transition-all z-10 bg-zinc-50/50 dark:bg-zinc-950/20">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-blue-600" />
-                Global Dashboard Filters
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-                className="text-xs font-bold bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-750 dark:text-zinc-300 h-7 px-2.5 flex items-center gap-1 shadow-3xs"
-              >
-                <span>Filters ({currentDash.filters.length})</span>
-                {isFiltersExpanded ? <ChevronUp className="w-3.5 h-3.5 text-zinc-500" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />}
-              </Button>
-            </div>
-
-            {currentDash.filters.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20 shadow-3xs">
-                  {currentDash.filters.length} Active
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearAllFilters}
-                  className="text-xs h-7 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 font-bold px-2 rounded-lg transition-colors"
-                >
-                  Clear Filters
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Dynamic Filter Chips Row */}
-          {currentDash.filters.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 mt-1 animate-fade-in">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mr-1.5">Active Chips:</span>
-              {currentDash.filters.map(f => (
-                <div 
-                  key={f.id} 
-                  className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/15 text-blue-800 dark:text-blue-300 px-3 py-1 rounded-full border border-blue-500/20 text-xs font-bold shadow-3xs transition-all group select-none"
-                >
-                  <span>{f.column}: <span className="text-blue-900 dark:text-blue-100 font-extrabold">{String(f.value)}</span></span>
-                  <button 
-                    type="button" 
-                    onClick={() => handleGlobalFilterChange(f.column, null)}
-                    className="text-blue-400 hover:text-rose-500 transition-colors p-0.5 rounded-full hover:bg-blue-500/10 ml-0.5 shrink-0"
-                    title={`Remove filter on ${f.column}`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {isFiltersExpanded && (
-            <div className="flex flex-wrap items-center gap-3.5 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 mt-1">
-              {categoricalCols.length === 0 ? (
-                <span className="text-xs text-zinc-400 italic">No filterable columns in current dataset.</span>
-              ) : (
-                categoricalCols.slice(0, 6).map(col => {
-                  const sourceRows = primaryDataset?.fullData || primaryDataset?.data || [];
-                  const uniqueVals = Array.from(new Set(sourceRows.map(r => r[col]).filter(v => v !== null && v !== undefined && v !== ''))).slice(0, 40);
-                  const activeFilter = currentDash.filters.find(f => f.column === col);
-
-                  return (
-                    <div key={col} className="flex items-center gap-1.5 min-w-[150px] bg-white dark:bg-zinc-950 p-1 rounded-lg border border-zinc-200 dark:border-zinc-850 shadow-3xs">
-                      <label className="text-xs font-bold text-zinc-500 dark:text-zinc-450 shrink-0 pl-1">
-                        {col}:
-                      </label>
-                      <select
-                        value={activeFilter?.value ?? 'all'}
-                        onChange={(e) => handleGlobalFilterChange(col, e.target.value)}
-                        className={cn(
-                          "text-xs border-0 rounded px-1 py-0.5 font-bold transition-all focus:outline-none focus:ring-0 w-full max-w-[120px] bg-transparent cursor-pointer",
-                          activeFilter 
-                            ? "text-blue-600 dark:text-blue-400 font-extrabold" 
-                            : "text-zinc-700 dark:text-zinc-350"
-                        )}
-                      >
-                        <option value="all">All</option>
-                        {uniqueVals.map(val => (
-                          <option key={String(val)} value={String(val)} className="text-zinc-800 dark:text-zinc-250 font-medium">{String(val)}</option>
-                        ))}
-                      </select>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
+      {currentDash && showFilterBar && (
+        <div className="px-6 py-2">
+          <GlobalFilterBar
+            filters={runtimeFilters}
+            crossFilters={activeCrossFilters}
+            dataset={primaryDataset}
+            filteredCount={filteredPrimaryDataset?.rowCount}
+            totalCount={primaryDataset?.rowCount}
+            onUpdateFilters={(newFilters) => {
+              setRuntimeFilters(newFilters);
+            }}
+            onRemoveCrossFilter={handleRemoveCrossFilter}
+            onClearAllCrossFilters={handleClearAllCrossFilters}
+          />
         </div>
       )}
 
@@ -552,6 +1135,26 @@ export function DashboardView({
             className="text-xs bg-white dark:bg-zinc-900 border-amber-300 text-amber-900 dark:text-amber-200"
           >
             Adapt to Current Dataset
+          </Button>
+        </div>
+      )}
+
+      {/* HIDDEN WIDGETS BANNER (Phase 7E) */}
+      {currentDash && hiddenWidgetsCount > 0 && (
+        <div className="mx-6 my-2 px-4 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/60 flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300 animate-fade-in shrink-0">
+          <div className="flex items-center gap-2">
+            <EyeOff className="w-4 h-4 text-zinc-500 shrink-0" />
+            <span>
+              <strong>{hiddenWidgetsCount}</strong> visual{hiddenWidgetsCount > 1 ? 's are' : ' is'} hidden in this active view.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleUnhideAllWidgets}
+            className="text-xs h-6 px-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-semibold"
+          >
+            Unhide All
           </Button>
         </div>
       )}
@@ -595,7 +1198,7 @@ export function DashboardView({
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
-                Add First Widget
+                Add Visual
               </Button>
               <Button
                 variant="outline"
@@ -610,157 +1213,334 @@ export function DashboardView({
 
         ) : (
 
-          /* WIDGETS RESPONSIVE GRID (12 COLUMNS) */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 max-w-7xl mx-auto animate-fade-in">
-            {currentDash.widgets.map((widget, index) => {
-              const span = widget.gridSpan || (widget.type === 'kpi' ? 1 : 2);
-              // Map span: 1 => lg:col-span-3, 2 => lg:col-span-6, 3 => lg:col-span-9, 4 => lg:col-span-12
-              const spanClass = span === 1 ? 'lg:col-span-3' : span === 2 ? 'lg:col-span-6' : span === 3 ? 'lg:col-span-9' : 'lg:col-span-12';
-              const cardHeight = widget.type === 'kpi' ? 'h-40' : 'h-96';
-
-              return (
-                <div
-                  key={widget.id}
-                  className={cn(
-                    "glass-panel glass-card p-5 flex flex-col justify-between group relative transition-all duration-200",
-                    mode === 'build' 
-                      ? "border-2 border-dashed border-blue-400/80 dark:border-blue-500/50 bg-blue-500/5 hover:bg-blue-500/10 shadow-sm ring-1 ring-blue-500/10 scale-[0.99] hover:scale-100" 
-                      : "border-zinc-250/50 dark:border-zinc-850 bg-white dark:bg-[#0c0c0e] shadow-2xs hover:shadow-xs",
-                    spanClass,
-                    cardHeight
-                  )}
+          /* WIDGETS RESPONSIVE GRID CANVAS (12 COLUMNS) */
+          <div className="space-y-3 animate-fade-in max-w-7xl mx-auto">
+            {/* Build Mode Toolbar Banner */}
+            {mode === 'build' && (
+              <div className="flex items-center justify-between bg-blue-50/80 dark:bg-blue-950/40 p-2.5 px-4 rounded-xl border border-blue-200 dark:border-blue-900 shadow-3xs">
+                <div className="flex items-center gap-2">
+                  <Grid className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-bold text-blue-900 dark:text-blue-200">
+                    12-Column Layout Engine Active
+                  </span>
+                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400 hidden sm:inline">
+                    • Drag <GripVertical className="w-3 h-3 inline text-blue-500" /> to move • Drag corner <Maximize2 className="w-3 h-3 inline text-blue-500" /> to resize
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setMode('view')}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold h-7 px-3 flex items-center gap-1 shadow-xs"
                 >
-                  {/* Widget Header Bar */}
-                  <div className="flex items-center justify-between mb-2 shrink-0">
-                    <div className="truncate pr-2">
-                      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-                        {widget.title}
-                      </h3>
-                      {widget.subtitle && (
-                        <p className="text-[11px] text-zinc-400 truncate">{widget.subtitle}</p>
+                  <Check className="w-3.5 h-3.5" />
+                  Done Editing
+                </Button>
+              </div>
+            )}
+
+            {/* Grid Container */}
+            <div
+              ref={gridContainerRef}
+              className={cn(
+                "grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 sm:gap-5 w-full relative transition-all duration-200 min-h-[500px]",
+                mode === 'build' && "p-4 rounded-2xl border-2 border-dashed border-blue-400/50 dark:border-blue-600/40 bg-blue-500/5 dark:bg-blue-950/20"
+              )}
+              style={{
+                gridAutoRows: '90px'
+              }}
+            >
+              {/* Drop Target Ghost Box Preview */}
+              {(dragState || resizeState) && (
+                <div
+                  style={{
+                    gridColumnStart: (dragState?.currentLayout || resizeState?.currentLayout!).x + 1,
+                    gridColumnEnd: `span ${(dragState?.currentLayout || resizeState?.currentLayout!).w}`,
+                    gridRowStart: (dragState?.currentLayout || resizeState?.currentLayout!).y + 1,
+                    gridRowEnd: `span ${(dragState?.currentLayout || resizeState?.currentLayout!).h}`,
+                  }}
+                  className="border-2 border-dashed border-blue-500 dark:border-blue-400 bg-blue-500/10 dark:bg-blue-500/20 rounded-2xl animate-pulse pointer-events-none z-10 flex items-center justify-center"
+                >
+                  <div className="bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md shadow-md flex items-center gap-1">
+                    <Move className="w-3.5 h-3.5" /> Snap Target
+                  </div>
+                </div>
+              )}
+
+              {/* Render Visible Widgets */}
+              {visibleWidgets.map((widget, index) => {
+                const validLayout = activeLayouts.find(l => l.id === widget.id)?.layout || getValidLayout(widget, index, 12);
+                const isBeingDragged = dragState?.widgetId === widget.id;
+                const isBeingResized = resizeState?.widgetId === widget.id;
+                const isActiveAction = isBeingDragged || isBeingResized;
+
+                // Card visual styling
+                const customRadius = widget.borderRadius === 'none' ? 'rounded-none'
+                  : widget.borderRadius === 'sm' ? 'rounded-lg'
+                  : widget.borderRadius === 'md' ? 'rounded-2xl'
+                  : widget.borderRadius === 'lg' ? 'rounded-3xl'
+                  : widget.borderRadius === 'xl' ? 'rounded-[24px]'
+                  : 'rounded-2xl'; // default
+
+                const isBorderOn = widget.borderOn !== false;
+                const customBorder = !isBorderOn ? 'border-transparent'
+                  : widget.borderIntensity === 'light' ? 'border-zinc-100/70 dark:border-zinc-900/30'
+                  : widget.borderIntensity === 'strong' ? 'border-zinc-400 dark:border-zinc-650'
+                  : 'border-zinc-200 dark:border-zinc-800'; // default medium
+
+                const customShadow = widget.subtleShadow === 'none' ? 'shadow-none hover:shadow-none'
+                  : widget.subtleShadow === 'sm' ? 'shadow-xs hover:shadow-sm'
+                  : widget.subtleShadow === 'lg' ? 'shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-200'
+                  : 'shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200'; // default md/medium
+
+                const customPadding = widget.internalPadding === 'sm' ? 'p-3.5'
+                  : widget.internalPadding === 'lg' ? 'p-7'
+                  : 'p-5'; // default md/medium
+
+                const opacityStyle = widget.backgroundOpacity !== undefined && widget.backgroundOpacity < 100
+                  ? { '--tw-bg-opacity': widget.backgroundOpacity / 100 } as React.CSSProperties 
+                  : undefined;
+
+                return (
+                  <div
+                    key={widget.id}
+                    style={{
+                      gridColumnStart: validLayout.x + 1,
+                      gridColumnEnd: `span ${validLayout.w}`,
+                      gridRowStart: validLayout.y + 1,
+                      gridRowEnd: `span ${validLayout.h}`,
+                      ...opacityStyle
+                    }}
+                    className={cn(
+                      "flex flex-col justify-between group relative border transition-all duration-200 ease-out min-w-0 overflow-hidden",
+                      isActiveAction 
+                        ? "z-40 shadow-2xl ring-2 ring-blue-500 scale-[1.01] bg-white dark:bg-zinc-900 transition-none"
+                        : mode === 'build' 
+                          ? "border-2 border-dashed border-blue-400/60 dark:border-blue-500/40 bg-white/95 dark:bg-zinc-950/95 hover:border-blue-500 hover:shadow-md" 
+                          : cn("bg-white dark:bg-zinc-950/90 backdrop-blur-xs", customBorder, customShadow),
+                      customRadius,
+                      customPadding
+                    )}
+                  >
+                    {/* Live Resize Dimension Tooltip */}
+                    {isBeingResized && (
+                      <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-950/40 backdrop-blur-3xs rounded-2xl border-2 border-blue-500 z-50 flex items-center justify-center pointer-events-none animate-fade-in">
+                        <div className="bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 px-3 py-1.5 rounded-xl shadow-xl text-xs font-mono font-bold flex items-center gap-2">
+                          <Maximize2 className="w-3.5 h-3.5 text-blue-400 dark:text-blue-600" />
+                          <span>{validLayout.w} Cols ({Math.round((validLayout.w / 12) * 100)}%) × {validLayout.h} Rows</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Widget Header Bar */}
+                    <div className="flex items-center justify-between mb-2 shrink-0 gap-1.5">
+                      <div className="flex items-center gap-1.5 truncate">
+                        {/* Drag Handle Grip in Build Mode */}
+                        {mode === 'build' && (
+                          <div
+                            onPointerDown={(e) => handleDragStart(e, widget, validLayout)}
+                            onPointerMove={handleDragMove}
+                            onPointerUp={handleDragEnd}
+                            className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-colors shrink-0 touch-none flex items-center justify-center"
+                            title="Click and drag to re-position on grid"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+                        )}
+
+                        <div className="truncate">
+                          <h3 className={cn(
+                            "text-zinc-900 dark:text-zinc-100 truncate",
+                            widget.chartTitleSize === 'sm' ? 'text-xs'
+                              : widget.chartTitleSize === 'lg' ? 'text-base'
+                              : 'text-sm', // default
+                            widget.chartTitleWeight === 'normal' ? 'font-normal'
+                              : widget.chartTitleWeight === 'medium' ? 'font-medium'
+                              : widget.chartTitleWeight === 'black' ? 'font-black'
+                              : 'font-semibold' // default
+                          )}>
+                            {widget.title}
+                          </h3>
+                          {widget.subtitle && (
+                            <p className="text-[11px] text-zinc-400 truncate">{widget.subtitle}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* BUILD MODE EDIT CONTROLS */}
+                      {mode === 'build' ? (
+                        <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 opacity-90 group-hover:opacity-100 transition-opacity">
+                          {/* Width Span Preset Selector */}
+                          <select
+                            value={Math.ceil(validLayout.w / 3)}
+                            onChange={(e) => handleResizeWidget(widget.id, Number(e.target.value))}
+                            className="text-[10px] bg-transparent text-zinc-600 dark:text-zinc-300 font-mono focus:outline-none"
+                            title="Change Width Span"
+                          >
+                            <option value={1}>1/4</option>
+                            <option value={2}>1/2</option>
+                            <option value={3}>3/4</option>
+                            <option value={4}>Full</option>
+                          </select>
+
+                          {/* Hide Visual */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                            onClick={() => {
+                              setWidgetVisibility(prev => ({ ...prev, [widget.id]: false }));
+                              showToast(`Hidden "${widget.title}" in this view`);
+                            }}
+                            title="Hide visual in current view"
+                          >
+                            <EyeOff className="w-3 h-3" />
+                          </Button>
+
+                          {/* Edit Widget */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 text-zinc-500 hover:text-blue-600"
+                            onClick={() => {
+                              setEditingWidget(widget);
+                              setIsWidgetModalOpen(true);
+                            }}
+                            title="Edit Widget"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </Button>
+
+                          {/* Duplicate Widget */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 text-zinc-500 hover:text-blue-600"
+                            onClick={() => handleDuplicateWidget(widget)}
+                            title="Duplicate Widget"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+
+                          {/* Delete Widget */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 text-zinc-400 hover:text-red-500"
+                            onClick={() => handleDeleteWidget(widget.id)}
+                            title="Delete Widget"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        /* VIEW MODE: Quick edit & hide options on hover */
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                            onClick={() => {
+                              setWidgetVisibility(prev => ({ ...prev, [widget.id]: false }));
+                              showToast(`Hidden "${widget.title}" in this view`);
+                            }}
+                            title="Hide visual in this view"
+                          >
+                            <EyeOff className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                            onClick={() => {
+                              setEditingWidget(widget);
+                              setIsWidgetModalOpen(true);
+                            }}
+                            title="Edit Widget"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       )}
                     </div>
 
-                    {/* BUILD MODE EDIT CONTROLS */}
-                    {mode === 'build' ? (
-                      <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 opacity-90 group-hover:opacity-100 transition-opacity">
-                        
-                        {/* Width Span Selector */}
-                        <select
-                          value={span}
-                          onChange={(e) => handleResizeWidget(widget.id, Number(e.target.value))}
-                          className="text-[10px] bg-transparent text-zinc-600 dark:text-zinc-300 font-mono focus:outline-none"
-                          title="Change Width Span"
-                        >
-                          <option value={1}>1/4</option>
-                          <option value={2}>1/2</option>
-                          <option value={3}>3/4</option>
-                          <option value={4}>Full</option>
-                        </select>
+                    {/* Widget Body */}
+                    <div className="flex-1 min-h-0 relative">
+                      <WidgetRenderer
+                        widget={widget}
+                        datasets={getDatasetsForWidget(widget.id)}
+                        relationships={relationships}
+                        filters={[]}
+                        activeCrossFilters={activeCrossFilters}
+                        savedKpis={savedKpis}
+                        drillState={widgetDrillStates[widget.id]}
+                        onDrillStateChange={(newState) => handleDrillStateChange(widget.id, newState)}
+                        onOpenDrillThrough={(modalState) => setDrillThroughModal({ ...modalState, isOpen: true })}
+                        onDataPointClick={(column, value, options) => handleCrossFilterClick(widget.id, column, value, options)}
+                        onClearWidgetCrossFilter={() => handleClearWidgetCrossFilter(widget.id)}
+                        onUpdateWidget={(updatedConfig) => handleUpdateWidget(widget.id, updatedConfig)}
+                      />
+                    </div>
 
-                        {/* Move Up/Down */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-zinc-400 hover:text-zinc-800"
-                          disabled={index === 0}
-                          onClick={() => handleMoveWidget(index, 'up')}
-                          title="Move Up"
+                    {/* Resize Handles in Build Mode */}
+                    {mode === 'build' && (
+                      <>
+                        {/* Bottom-Right Corner Diagonal Handle */}
+                        <div
+                          onPointerDown={(e) => handleResizeStart(e, widget, validLayout, 'se')}
+                          onPointerMove={handleResizeMove}
+                          onPointerUp={handleResizeEnd}
+                          className="absolute bottom-1 right-1 w-6 h-6 flex items-center justify-center cursor-nwse-resize text-blue-500 hover:text-blue-600 hover:bg-blue-500/20 rounded-md transition-all z-30 touch-none group/resize"
+                          title="Drag to resize widget width and height"
                         >
-                          <ArrowUp className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-zinc-400 hover:text-zinc-800"
-                          disabled={index === currentDash.widgets.length - 1}
-                          onClick={() => handleMoveWidget(index, 'down')}
-                          title="Move Down"
-                        >
-                          <ArrowDown className="w-3 h-3" />
-                        </Button>
+                          <Maximize2 className="w-3.5 h-3.5 rotate-90 transform group-hover/resize:scale-110" />
+                        </div>
 
-                        {/* Edit Widget */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-zinc-500 hover:text-blue-600"
-                          onClick={() => {
-                            setEditingWidget(widget);
-                            setIsWidgetModalOpen(true);
-                          }}
-                          title="Edit Widget"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </Button>
+                        {/* Right Edge Handle */}
+                        <div
+                          onPointerDown={(e) => handleResizeStart(e, widget, validLayout, 'e')}
+                          onPointerMove={handleResizeMove}
+                          onPointerUp={handleResizeEnd}
+                          className="absolute top-6 bottom-6 right-0 w-2 hover:w-3 cursor-ew-resize bg-blue-500/0 hover:bg-blue-500/30 rounded-r-lg transition-all z-20 touch-none"
+                          title="Drag right edge to adjust width"
+                        />
 
-                        {/* Duplicate Widget */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-zinc-500 hover:text-blue-600"
-                          onClick={() => handleDuplicateWidget(widget)}
-                          title="Duplicate Widget"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </Button>
-
-                        {/* Delete Widget */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-zinc-400 hover:text-red-500"
-                          onClick={() => handleDeleteWidget(widget.id)}
-                          title="Delete Widget"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      /* VIEW MODE: Quick hover options */
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-                          onClick={() => {
-                            setEditingWidget(widget);
-                            setIsWidgetModalOpen(true);
-                          }}
-                          title="Edit Widget"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+                        {/* Bottom Edge Handle */}
+                        <div
+                          onPointerDown={(e) => handleResizeStart(e, widget, validLayout, 's')}
+                          onPointerMove={handleResizeMove}
+                          onPointerUp={handleResizeEnd}
+                          className="absolute left-6 right-6 bottom-0 h-2 hover:h-3 cursor-ns-resize bg-blue-500/0 hover:bg-blue-500/30 rounded-b-lg transition-all z-20 touch-none"
+                          title="Drag bottom edge to adjust height"
+                        />
+                      </>
                     )}
                   </div>
-
-                  {/* Widget Body */}
-                  <div className="flex-1 min-h-0">
-                    <WidgetRenderer
-                      widget={widget}
-                      datasets={datasets}
-                      relationships={relationships}
-                      filters={currentDash.filters}
-                      savedKpis={savedKpis}
-                      onDataPointClick={handleCrossFilterClick}
-                      onUpdateWidget={(updatedConfig) => handleUpdateWidget(widget.id, updatedConfig)}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
         )}
       </div>
+
+      {/* DRILL-THROUGH / VIEW DETAIL RECORDS MODAL */}
+      {drillThroughModal && (
+        <DrillThroughModal
+          isOpen={!!drillThroughModal}
+          onClose={() => setDrillThroughModal(null)}
+          dataset={drillThroughModal.dataset}
+          filteredRecords={drillThroughModal.records}
+          widgetTitle={drillThroughModal.title}
+          drillPath={drillThroughModal.drillPath}
+        />
+      )}
 
       {/* WIDGET BUILDER MODAL */}
       <WidgetBuilderModal
         isOpen={isWidgetModalOpen}
         onClose={() => setIsWidgetModalOpen(false)}
         onSave={handleSaveWidget}
-        datasets={datasets}
+        datasets={fullyFilteredDatasets}
         savedKpis={savedKpis}
         activeDatasetId={primaryDataset?.id || ''}
         initialWidget={editingWidget}
@@ -772,9 +1552,64 @@ export function DashboardView({
           isOpen={isAiModalOpen}
           onClose={() => setIsAiModalOpen(false)}
           dashboard={currentDash}
-          datasets={datasets}
+          datasets={fullyFilteredDatasets}
           savedKpis={savedKpis}
+          activeSavedView={activeSavedView}
+          activeCrossFilters={activeCrossFilters}
+          widgetDrillStates={widgetDrillStates}
         />
+      )}
+
+      {/* SAVED VIEWS SIDEBAR PANEL (Phase 7E) */}
+      {currentDash && (
+        <SavedViewsPanel
+          isOpen={isSavedViewsPanelOpen}
+          onClose={() => setIsSavedViewsPanelOpen(false)}
+          savedViews={currentDash.savedViews || []}
+          activeViewId={activeSavedViewId}
+          defaultViewId={currentDash.defaultViewId}
+          hasUnsavedChanges={hasUnsavedChanges}
+          onLoadView={handleLoadView}
+          onOpenSaveDialog={(mode) => {
+            setSaveDialogMode(mode || 'create');
+            setIsSaveViewDialogOpen(true);
+          }}
+          onQuickUpdateActiveView={handleQuickUpdateActiveView}
+          onDiscardChanges={handleDiscardChanges}
+          onSetDefaultView={handleSetDefaultView}
+          onRemoveDefaultView={handleRemoveDefaultView}
+          onRenameView={handleRenameView}
+          onDuplicateView={handleDuplicateView}
+          onDeleteView={handleDeleteView}
+          dashboardTitle={currentDash.title}
+        />
+      )}
+
+      {/* SAVE / UPDATE VIEW DIALOG (Phase 7E) */}
+      {currentDash && (
+        <SaveViewDialog
+          isOpen={isSaveViewDialogOpen}
+          onClose={() => setIsSaveViewDialogOpen(false)}
+          existingViews={currentDash.savedViews || []}
+          activeView={activeSavedView}
+          mode={saveDialogMode}
+          stateSummary={{
+            filterCount: runtimeFilters.length,
+            crossFilterCount: activeCrossFilters.length,
+            drillCount: Object.values(widgetDrillStates).filter(d => (d.path && d.path.length > 0) || d.currentLevelIndex > 0).length,
+            hiddenWidgetCount: hiddenWidgetsCount,
+            customLayoutCount: 0
+          }}
+          onSave={handleSaveView}
+        />
+      )}
+
+      {/* TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900/90 text-white dark:bg-white/95 dark:text-zinc-900 px-4 py-2.5 rounded-xl shadow-2xl border border-zinc-700/50 dark:border-zinc-200 text-xs font-medium flex items-center gap-2 animate-slide-up backdrop-blur-md">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
       )}
 
     </div>

@@ -42,7 +42,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
   const ordersKpi = datasetKpis.find(k => k.name.toLowerCase().includes('order') || k.name.toLowerCase().includes('count'));
 
   const widgets: WidgetConfig[] = [
-    // 1. KPI Cards (Grid Span 1 = 3 cols in 12 col layout)
+    // 1. KPI Cards (x: 0, 3, 6, 9 | y: 0 | w: 3 | h: 2)
     {
       id: `w-kpi-rev-${Date.now()}`,
       type: 'kpi',
@@ -53,6 +53,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       yAxisColumn: 'Revenue',
       aggregation: 'sum',
       gridSpan: 1,
+      layout: { x: 0, y: 0, w: 3, h: 2 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -71,6 +72,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       yAxisColumn: 'Profit',
       aggregation: 'sum',
       gridSpan: 1,
+      layout: { x: 3, y: 0, w: 3, h: 2 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -89,6 +91,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       yAxisColumn: 'Order ID',
       aggregation: 'count',
       gridSpan: 1,
+      layout: { x: 6, y: 0, w: 3, h: 2 },
       format: {
         type: 'number',
         decimals: 0,
@@ -105,6 +108,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       yAxisColumn: 'Revenue',
       aggregation: 'avg',
       gridSpan: 1,
+      layout: { x: 9, y: 0, w: 3, h: 2 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -114,7 +118,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       }
     },
 
-    // 2. Main Revenue Trend Chart (Grid Span 2 = 6 cols / half width)
+    // 2. Main Revenue Trend Chart (x: 0, y: 2, w: 6, h: 4)
     {
       id: `w-chart-trend-${Date.now()}`,
       type: 'area',
@@ -126,6 +130,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       aggregation: 'sum',
       gridSpan: 2,
       height: 'h-80',
+      layout: { x: 0, y: 2, w: 6, h: 4 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -135,7 +140,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       }
     },
 
-    // 3. Regional Revenue Breakdown (Grid Span 2 = 6 cols / half width)
+    // 3. Regional Revenue Breakdown (x: 6, y: 2, w: 6, h: 4)
     {
       id: `w-chart-region-${Date.now()}`,
       type: 'bar',
@@ -148,6 +153,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       gridSpan: 2,
       height: 'h-80',
       topN: 10,
+      layout: { x: 6, y: 2, w: 6, h: 4 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -157,7 +163,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       }
     },
 
-    // 4. Sales Distribution by Category (Grid Span 2 = 6 cols)
+    // 4. Sales Distribution by Category (x: 0, y: 6, w: 6, h: 4)
     {
       id: `w-chart-cat-${Date.now()}`,
       type: 'donut',
@@ -169,6 +175,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       aggregation: 'sum',
       gridSpan: 2,
       height: 'h-80',
+      layout: { x: 0, y: 6, w: 6, h: 4 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -178,7 +185,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       }
     },
 
-    // 5. Top 5 Best Selling Products (Grid Span 2 = 6 cols)
+    // 5. Top 5 Best Selling Products (x: 6, y: 6, w: 6, h: 4)
     {
       id: `w-rank-products-${Date.now()}`,
       type: 'ranking_table',
@@ -191,6 +198,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       topN: 5,
       gridSpan: 2,
       height: 'h-80',
+      layout: { x: 6, y: 6, w: 6, h: 4 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -200,7 +208,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       }
     },
 
-    // 6. Detailed Analytical Performance Table (Grid Span 4 = 12 cols / full width)
+    // 6. Detailed Analytical Performance Table (x: 0, y: 10, w: 12, h: 4)
     {
       id: `w-table-detail-${Date.now()}`,
       type: 'table',
@@ -212,6 +220,7 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
       aggregation: 'sum',
       gridSpan: 4,
       topN: 15,
+      layout: { x: 0, y: 10, w: 12, h: 4 },
       format: {
         type: 'currency',
         currencySymbol: '$',
@@ -231,6 +240,44 @@ export function generateDemoDashboard(dataset: Dataset, savedKpis: KpiDefinition
     updatedAt: Date.now(),
     widgets,
     filters: [],
+    savedViews: [
+      {
+        id: `view-default-${Date.now()}`,
+        name: 'All Sales & Performance',
+        description: 'Complete baseline view with all regional sales, profit trends, and customer breakdowns.',
+        isDefault: true,
+        createdAt: Date.now() - 3600000,
+        updatedAt: Date.now() - 3600000,
+        state: {
+          schemaVersion: 1,
+          globalFilters: [],
+          crossFilters: []
+        }
+      },
+      {
+        id: `view-north-${Date.now()}`,
+        name: 'North Region Focus',
+        description: 'Filtered analytical view focusing on North regional transactions and performance.',
+        isDefault: false,
+        createdAt: Date.now() - 1800000,
+        updatedAt: Date.now() - 1800000,
+        state: {
+          schemaVersion: 1,
+          globalFilters: [
+            {
+              id: `df-demo-north`,
+              datasetId: dsId,
+              column: 'Region',
+              operator: 'equals',
+              value: 'North',
+              values: ['North']
+            }
+          ],
+          crossFilters: []
+        }
+      }
+    ],
+    defaultViewId: `view-default-${Date.now()}`,
     isDemo: true
   };
 }

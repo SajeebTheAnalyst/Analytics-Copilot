@@ -30,39 +30,59 @@ export function evaluateSimpleAggregation(
   column: string | undefined,
   aggregation: KpiAggregation
 ): number | null {
+  if (!column) {
+    if (aggregation === 'count' || aggregation === 'distinct_count') {
+      return data ? data.length : 0;
+    }
+    return null;
+  }
+
+  // Helper to resolve row value, matching keys case-insensitively and trimming whitespace
+  const getRowValue = (row: Record<string, any>, col: string) => {
+    if (row[col] !== undefined) return row[col];
+    const trimmedCol = col.trim().toLowerCase();
+    for (const key of Object.keys(row)) {
+      if (key.trim().toLowerCase() === trimmedCol) {
+        return row[key];
+      }
+    }
+    return undefined;
+  };
+
   if (aggregation === 'count') {
     if (!data || data.length === 0) return 0;
-    if (!column) return data.length;
     let count = 0;
     for (const row of data) {
-      const val = row[column];
-      if (val !== null && val !== undefined && val !== '') count++;
+      const val = getRowValue(row, column);
+      if (val !== null && val !== undefined && String(val).trim() !== '') {
+        count++;
+      }
     }
     return count;
   }
 
   if (aggregation === 'distinct_count') {
     if (!data || data.length === 0) return 0;
-    if (!column) return null;
     const uniqueVals = new Set<any>();
     for (const row of data) {
-      const val = row[column];
-      if (val !== null && val !== undefined && val !== '') {
+      const val = getRowValue(row, column);
+      if (val !== null && val !== undefined && String(val).trim() !== '') {
         uniqueVals.add(String(val).trim());
       }
     }
     return uniqueVals.size;
   }
 
-  if (!column) return null;
   if (!data || data.length === 0) return null;
 
   // Extract non-null numeric values
   const nums: number[] = [];
   for (const row of data) {
-    const rawVal = row[column];
-    if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
-      const num = Number(rawVal);
+    const rawVal = getRowValue(row, column);
+    if (rawVal !== null && rawVal !== undefined && String(rawVal).trim() !== '') {
+      // Try to parse number, ignoring typical currency symbols or commas
+      const cleanVal = String(rawVal).replace(/[\$,]/g, '').trim();
+      const num = Number(cleanVal);
       if (!isNaN(num) && isFinite(num)) {
         nums.push(num);
       }
