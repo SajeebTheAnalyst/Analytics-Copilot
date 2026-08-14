@@ -2,16 +2,24 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Dataset, ColumnType } from '@/types';
 import { cn } from '@/lib/utils';
 import { 
-  Hash, Calendar, Tag, CaseSensitive, 
+  Hash, Calendar, Tag, CaseSensitive, Clock, Sliders, RefreshCw,
   ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
   Copy, Check, ChevronDown, Filter, 
-  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search
+  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, Wrench, History, Sparkles
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
 import { FormulaBuilderModal } from './FormulaBuilderModal';
 import { FindReplaceModal, MatchItem } from './FindReplaceModal';
 import { BulkOperationsBar } from './BulkOperationsBar';
+import { TypeConversionModal } from './TypeConversionModal';
+import { ColumnFormattingModal } from './ColumnFormattingModal';
+import { ExtractDateTimeModal } from './ExtractDateTimeModal';
+import { DataQualityPanel } from './DataQualityPanel';
+import { CleaningPreviewModal } from './CleaningPreviewModal';
+import { CleaningHistoryPanel } from './CleaningHistoryPanel';
+import { CleaningActionType, CleaningHistoryItem, CleaningPreviewResult } from '@/lib/manualCleaningEngine';
+import { formatColumnValue, ColumnFormatConfig, ExtendedType } from '@/lib/typeStandardizer';
 
 interface DataGridProps {
   dataset: Dataset;
@@ -38,7 +46,13 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   const [workingData, setWorkingData] = useState<Record<string, any>[]>([]);
   const [workingHeaders, setWorkingHeaders] = useState<string[]>([]);
   const [workingColumnTypes, setWorkingColumnTypes] = useState<Record<string, ColumnType>>({});
+  const [workingColumnFormats, setWorkingColumnFormats] = useState<Record<string, ColumnFormatConfig>>({});
   const [workingFormulas, setWorkingFormulas] = useState<Record<string, string>>({});
+
+  // Phase 8H Type & Format Modals State
+  const [typeModalCol, setTypeModalCol] = useState<string | null>(null);
+  const [formatModalCol, setFormatModalCol] = useState<string | null>(null);
+  const [extractModalCol, setExtractModalCol] = useState<string | null>(null);
 
   // Unsaved Changes & Modification Indicators
   const [isDirty, setIsDirty] = useState<boolean>(false);
@@ -54,6 +68,19 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   const [showFindReplaceModal, setShowFindReplaceModal] = useState<boolean>(false);
   const [highlightedMatches, setHighlightedMatches] = useState<MatchItem[]>([]);
   const [activeMatchIndex, setActiveMatchIndex] = useState<number>(-1);
+
+  // Quality Scanner Modal State
+  const [showQualityModal, setShowQualityModal] = useState<boolean>(false);
+
+  // Manual Cleaning Actions & History State (Phase 8J)
+  const [cleaningHistory, setCleaningHistory] = useState<CleaningHistoryItem[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
+  const [showCleanDropdown, setShowCleanDropdown] = useState<boolean>(false);
+  const [activeCleaningModal, setActiveCleaningModal] = useState<{
+    actionType: CleaningActionType;
+    column?: string;
+    variations?: string[];
+  } | null>(null);
 
   // ----------------------------------------------------
   // 2. Grid UI View State
@@ -128,6 +155,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     setWorkingData(formattedRows);
     setWorkingHeaders([...dataset.headers]);
     setWorkingColumnTypes({ ...(dataset.columnTypes || {}) });
+    setWorkingColumnFormats({ ...(dataset.columnFormats || {}) });
     setWorkingFormulas({ ...(dataset.formulas || {}) });
 
     setIsDirty(false);
@@ -158,6 +186,82 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     },
     []
   );
+
+  // Phase 8H Conversion & Formatting Handlers
+  const handleConfirmConversion = useCallback((header: string, targetType: ExtendedType, convertedData: Record<string, any>[]) => {
+    const targetLower = String(targetType).toLowerCase();
+    const normType = (targetLower === 'integer' || targetLower === 'decimal' ? 'numeric' : (targetLower === 'datetime' || targetLower === 'time' ? 'date' : targetLower)) as ColumnType;
+    setWorkingColumnTypes(prev => ({ ...prev, [header]: normType }));
+    recalculateAndSetData(convertedData, workingHeaders, workingFormulas);
+    setIsDirty(true);
+    setSaveFeedback(`Converted column "${header}" to ${targetType}`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+  }, [workingHeaders, workingFormulas, recalculateAndSetData]);
+
+  const handleApplyFormat = useCallback((header: string, config: ColumnFormatConfig) => {
+    setWorkingColumnFormats(prev => ({ ...prev, [header]: config }));
+    setIsDirty(true);
+    setSaveFeedback(`Applied display format to "${header}"`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+  }, []);
+
+  const handleExtractConfirmed = useCallback((newHeaderName: string, newColType: 'date' | 'time', updatedData: Record<string, any>[]) => {
+    const nextHeaders = [...workingHeaders, newHeaderName];
+    const normType = (newColType === 'time' ? 'date' : newColType) as ColumnType;
+    setWorkingHeaders(nextHeaders);
+    setWorkingColumnTypes(prev => ({ ...prev, [newHeaderName]: normType }));
+    setAddedColumns(prev => new Set(prev).add(newHeaderName));
+    recalculateAndSetData(updatedData, nextHeaders, workingFormulas);
+    setIsDirty(true);
+    setSaveFeedback(`Extracted new column "${newHeaderName}"`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+  }, [workingHeaders, workingFormulas, recalculateAndSetData]);
+
+  // Phase 8J Manual Cleaning Actions & History Handlers
+  const handleApplyCleaningResult = useCallback((result: CleaningPreviewResult) => {
+    const historyItem: CleaningHistoryItem = {
+      id: `clean-${Date.now()}`,
+      actionName: result.actionTitle,
+      target: result.targetDescription,
+      rowsAffected: result.rowsAffectedCount,
+      cellsAffected: result.cellsAffectedCount,
+      timestamp: new Date(),
+      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousHeadersSnapshot: [...workingHeaders],
+    };
+
+    let updatedRows = result.updatedData;
+    if (workingFormulas && Object.keys(workingFormulas).length > 0) {
+      updatedRows = evaluateAllFormulas(result.updatedHeaders, updatedRows, workingFormulas).updatedData;
+    }
+
+    setWorkingData(updatedRows);
+    setWorkingHeaders(result.updatedHeaders);
+    setCleaningHistory(prev => [...prev, historyItem]);
+    setIsDirty(true);
+
+    setSaveFeedback(`Applied: ${result.actionTitle} (${result.cellsAffectedCount} cells affected)`);
+    setTimeout(() => setSaveFeedback(null), 3500);
+  }, [workingData, workingHeaders, workingFormulas]);
+
+  const handleUndoLastCleaningAction = useCallback(() => {
+    if (cleaningHistory.length === 0) return;
+
+    const lastItem = cleaningHistory[cleaningHistory.length - 1];
+    let restoredRows = JSON.parse(JSON.stringify(lastItem.previousDataSnapshot));
+
+    if (workingFormulas && Object.keys(workingFormulas).length > 0) {
+      restoredRows = evaluateAllFormulas(lastItem.previousHeadersSnapshot, restoredRows, workingFormulas).updatedData;
+    }
+
+    setWorkingData(restoredRows);
+    setWorkingHeaders([...lastItem.previousHeadersSnapshot]);
+    setCleaningHistory(prev => prev.slice(0, -1));
+    setIsDirty(true);
+
+    setSaveFeedback(`Undid: ${lastItem.actionName}`);
+    setTimeout(() => setSaveFeedback(null), 3500);
+  }, [cleaningHistory, workingFormulas]);
 
   // Apply or update a calculated column formula
   const handleApplyFormula = (colName: string, formulaStr: string) => {
@@ -581,9 +685,14 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   };
 
   // Format cell display value helper
-  const formatCellValue = (val: any) => {
+  const formatCellValue = (val: any, header?: string) => {
     if (val === null || val === undefined || val === '') {
       return null;
+    }
+    const colType = header ? (workingColumnTypes[header] || 'text') : 'text';
+    const fmtConfig = header ? workingColumnFormats[header] : undefined;
+    if (fmtConfig) {
+      return formatColumnValue(val, colType, fmtConfig);
     }
     if (val instanceof Date) {
       return val.toISOString();
@@ -907,6 +1016,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
       ...dataset,
       headers: workingHeaders,
       columnTypes: workingColumnTypes,
+      columnFormats: workingColumnFormats,
       formulas: workingFormulas,
       rowCount: cleanData.length,
       colCount: workingHeaders.length,
@@ -939,6 +1049,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     setWorkingData(formattedRows);
     setWorkingHeaders([...dataset.headers]);
     setWorkingColumnTypes({ ...(dataset.columnTypes || {}) });
+    setWorkingColumnFormats({ ...(dataset.columnFormats || {}) });
     setWorkingFormulas({ ...(dataset.formulas || {}) });
 
     setIsDirty(false);
@@ -1230,33 +1341,81 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   };
 
   // Data type badge formatter
-  const getTypeBadge = (type?: string) => {
-    switch (type) {
+  const getTypeBadge = (type?: string, header?: string) => {
+    const lowerType = (type || 'text').toLowerCase();
+    
+    let content = null;
+    switch (lowerType) {
       case 'numeric':
-        return (
+      case 'number':
+      case 'integer':
+      case 'decimal':
+        content = (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/40">
-            <Hash className="w-2.5 h-2.5" /> NUM
+            <Hash className="w-2.5 h-2.5" /> {lowerType === 'integer' ? 'INT' : lowerType === 'decimal' ? 'DEC' : 'NUM'}
           </span>
         );
+        break;
       case 'date':
-        return (
+        content = (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40">
             <Calendar className="w-2.5 h-2.5" /> DATE
           </span>
         );
+        break;
+      case 'datetime':
+        content = (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400 border border-purple-200/60 dark:border-purple-900/40">
+            <Clock className="w-2.5 h-2.5" /> DATETIME
+          </span>
+        );
+        break;
+      case 'time':
+        content = (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-900/40">
+            <Clock className="w-2.5 h-2.5" /> TIME
+          </span>
+        );
+        break;
       case 'categorical':
-        return (
+        content = (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40">
             <Tag className="w-2.5 h-2.5" /> CAT
           </span>
         );
+        break;
+      case 'boolean':
+        content = (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-400 border border-cyan-200/60 dark:border-cyan-900/40">
+            BOOL
+          </span>
+        );
+        break;
       default:
-        return (
+        content = (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700/50">
             <CaseSensitive className="w-2.5 h-2.5 text-zinc-500" /> TEXT
           </span>
         );
+        break;
     }
+
+    if (header) {
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setTypeModalCol(header);
+          }}
+          className="hover:opacity-80 cursor-pointer"
+          title={`Click to analyze & convert data type for "${header}"`}
+        >
+          {content}
+        </button>
+      );
+    }
+    return content;
   };
 
   // Position indicator text (e.g., "Cell B2 (Revenue)")
@@ -1405,6 +1564,160 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
           >
             <Search className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
             <span>Find & Replace</span>
+          </Button>
+
+          {/* Quality Audit Action */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowQualityModal(true)}
+            className="h-8 text-xs gap-1.5 border-blue-200 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 cursor-pointer shadow-xs"
+            title="Open Data Quality Scanner & Audit Panel"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Quality Audit</span>
+          </Button>
+
+          {/* Clean Data Action Dropdown */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCleanDropdown(!showCleanDropdown)}
+              className="h-8 text-xs gap-1.5 border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/60 cursor-pointer shadow-xs"
+              title="Deterministic manual data cleaning tools"
+            >
+              <Wrench className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Clean Data</span>
+              <ChevronDown className="w-3 h-3 ml-0.5 text-emerald-600 dark:text-emerald-400" />
+            </Button>
+
+            {showCleanDropdown && (
+              <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 py-1.5 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 border-b border-zinc-100 dark:border-zinc-800 pb-1 mb-1">
+                  Manual Cleaning Actions
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'trim_whitespace' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
+                >
+                  <span>Trim Whitespace</span>
+                  <span className="text-[10px] text-zinc-400">Leading/Trailing</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'text_capitalization' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
+                >
+                  <span>Standardize Case</span>
+                  <span className="text-[10px] text-zinc-400">Upper/Lower/Title</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'find_replace' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
+                >
+                  <span>Find & Replace</span>
+                  <span className="text-[10px] text-zinc-400">Values/Text</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'merge_categorical' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
+                >
+                  <span>Merge Similar Categorical</span>
+                  <span className="text-[10px] text-zinc-400">Variations</span>
+                </button>
+
+                <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'remove_duplicates' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
+                >
+                  <span>Remove Duplicates</span>
+                  <span className="text-[10px] text-zinc-400">Row Redundancy</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'remove_empty_rows' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
+                >
+                  <span>Remove Empty Rows</span>
+                  <span className="text-[10px] text-zinc-400">100% Blank</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'fill_missing' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium flex items-center justify-between cursor-pointer"
+                >
+                  <span>Fill Missing Values</span>
+                  <span className="text-[10px] text-zinc-400">Custom/Mean/Mode</span>
+                </button>
+
+                <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'clear_cells' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium cursor-pointer"
+                >
+                  <span>Clear Cell Values</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCleanDropdown(false);
+                    setActiveCleaningModal({ actionType: 'delete_columns' });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 font-medium cursor-pointer"
+                >
+                  <span>Delete Column(s)</span>
+                </button>
+
+              </div>
+            )}
+          </div>
+
+          {/* Cleaning History Action */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowHistoryModal(true)}
+            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
+            title="View Cleaning History & Undo Actions"
+          >
+            <History className="w-3.5 h-3.5 text-zinc-500" />
+            <span>History</span>
+            {cleaningHistory.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold">
+                {cleaningHistory.length}
+              </span>
+            )}
           </Button>
 
           {/* Search */}
@@ -1606,7 +1919,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
                           ) : null}
                         </div>
                         <div className="mt-0.5">
-                          {getTypeBadge(workingColumnTypes[header])}
+                          {getTypeBadge(workingColumnTypes[header], header)}
                         </div>
                       </div>
 
@@ -1668,7 +1981,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
                   {/* Grid Data Cells */}
                   {visibleHeaders.map((header, cIndex) => {
                     const rawVal = row[header];
-                    const formattedVal = formatCellValue(rawVal);
+                    const formattedVal = formatCellValue(rawVal, header);
                     const isNull = formattedVal === null;
 
                     const isInRange = rangeBounds && 
@@ -1893,6 +2206,46 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
               Add Formula Column
             </button>
           )}
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          {/* Phase 8H Standardization & Formatting Actions */}
+          <button
+            onClick={() => {
+              setTypeModalCol(contextMenu.header);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
+            Convert / Standardize Type
+          </button>
+
+          <button
+            onClick={() => {
+              setFormatModalCol(contextMenu.header);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Sliders className="w-3.5 h-3.5 text-purple-500" />
+            Format Column Display
+          </button>
+
+          {['date', 'datetime'].includes((workingColumnTypes[contextMenu.header] || '').toLowerCase()) && (
+            <button
+              onClick={() => {
+                setExtractModalCol(contextMenu.header);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-500" />
+              Extract Date / Time Part
+            </button>
+          )}
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
 
           <button
             onClick={() => {
@@ -2174,6 +2527,98 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
         onReplaceAll={handleFindReplaceAll}
         onMatchesFoundChange={handleMatchesFoundChange}
       />
+
+      {/* Phase 8H Data Type Conversion Modal */}
+      {typeModalCol && (
+        <TypeConversionModal
+          isOpen={!!typeModalCol}
+          onClose={() => setTypeModalCol(null)}
+          header={typeModalCol}
+          currentType={workingColumnTypes[typeModalCol] || 'text'}
+          workingData={workingData}
+          isFormulaColumn={!!workingFormulas[typeModalCol]}
+          onConfirmConversion={(hdr, targetType, convertedData) => {
+            handleConfirmConversion(hdr, targetType, convertedData);
+            setTypeModalCol(null);
+          }}
+        />
+      )}
+
+      {/* Phase 8H Column Formatting Modal */}
+      {formatModalCol && (
+        <ColumnFormattingModal
+          isOpen={!!formatModalCol}
+          onClose={() => setFormatModalCol(null)}
+          header={formatModalCol}
+          colType={workingColumnTypes[formatModalCol] || 'text'}
+          currentConfig={workingColumnFormats[formatModalCol]}
+          sampleValues={workingData.slice(0, 50).map(r => r[formatModalCol])}
+          onApplyFormat={(hdr, config) => {
+            handleApplyFormat(hdr, config);
+            setFormatModalCol(null);
+          }}
+        />
+      )}
+
+      {/* Phase 8H Extract Date/Time Part Modal */}
+      {extractModalCol && (
+        <ExtractDateTimeModal
+          isOpen={!!extractModalCol}
+          onClose={() => setExtractModalCol(null)}
+          header={extractModalCol}
+          workingData={workingData}
+          onExtractConfirmed={(newHeaderName, newColType, updatedData) => {
+            handleExtractConfirmed(newHeaderName, newColType, updatedData);
+            setExtractModalCol(null);
+          }}
+        />
+      )}
+
+      {/* Phase 8I Data Quality Audit Modal Overlay */}
+      {showQualityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
+          <div className="max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar my-auto">
+            <DataQualityPanel
+              dataset={dataset}
+              workingData={workingData}
+              onOpenFixModal={(actionType, col, vars) => {
+                setShowQualityModal(false);
+                setActiveCleaningModal({ actionType, column: col, variations: vars });
+              }}
+              onNavigateView={(view) => {
+                setShowQualityModal(false);
+                if (onNavigateView) onNavigateView(view);
+              }}
+              onClose={() => setShowQualityModal(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Phase 8J Cleaning Preview Modal */}
+      {activeCleaningModal && (
+        <CleaningPreviewModal
+          initialAction={activeCleaningModal.actionType}
+          initialColumn={activeCleaningModal.column}
+          initialVariations={activeCleaningModal.variations}
+          data={workingData}
+          headers={workingHeaders}
+          formulas={workingFormulas}
+          onClose={() => setActiveCleaningModal(null)}
+          onApply={handleApplyCleaningResult}
+        />
+      )}
+
+      {/* Phase 8J Cleaning History Panel Overlay */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <CleaningHistoryPanel
+            history={cleaningHistory}
+            onUndoLastAction={handleUndoLastCleaningAction}
+            onClose={() => setShowHistoryModal(false)}
+          />
+        </div>
+      )}
 
     </div>
   );

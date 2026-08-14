@@ -72,6 +72,7 @@ export interface Dataset {
   originalData: Record<string, any>[]; // Immutable original dataset
   columnTypes: Record<string, ColumnProfile['type']>;
   columnProfiles: Record<string, ColumnProfile>;
+  columnFormats?: Record<string, any>;
   formulas?: Record<string, string>; // { [calculatedColumnHeader]: formulaString }
   
   cleaningStatus?: DatasetCleaningStatus;

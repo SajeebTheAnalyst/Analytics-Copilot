@@ -5,10 +5,11 @@ import {
   Database, History, Wrench, Download, Filter, Type, RefreshCw, 
   Search, ChevronLeft, ChevronRight, Eye, ArrowLeft, RotateCcw, 
   HelpCircle, Calendar, Hash, Tag, Layers, Sliders, CheckCircle2,
-  Trash2, ArrowRight
+  Trash2, ArrowRight, ShieldAlert
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
+import { DataQualityPanel } from '../workspace/DataQualityPanel';
 import { 
   removeNullsCustom, 
   cleanHeadersCustom, 
@@ -47,6 +48,7 @@ export function CleaningView({
   const [severityFilter, setSeverityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showQualityAudit, setShowQualityAudit] = useState(false);
 
   // Selected issue for live highlight in preview
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -334,6 +336,17 @@ export function CleaningView({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-8 text-blue-700 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/60 font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60"
+              onClick={() => setShowQualityAudit(true)}
+              title="Open Data Quality Scanner & Audit Panel"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 mr-1 text-blue-600 dark:text-blue-400" />
+              Quality Audit
+            </Button>
+
             <Button 
               size="sm" 
               variant="outline" 
@@ -1291,6 +1304,24 @@ export function CleaningView({
                 Yes, Reset Dataset
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================== */}
+      {/* DATA QUALITY AUDIT MODAL OVERLAY                   */}
+      {/* ================================================== */}
+      {showQualityAudit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
+          <div className="max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar my-auto">
+            <DataQualityPanel
+              dataset={selectedDataset}
+              onNavigateView={(view) => {
+                setShowQualityAudit(false);
+                if (onNavigateView) onNavigateView(view);
+              }}
+              onClose={() => setShowQualityAudit(false)}
+            />
           </div>
         </div>
       )}
