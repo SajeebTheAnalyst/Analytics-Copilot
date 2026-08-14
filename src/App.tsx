@@ -140,8 +140,14 @@ export default function App() {
     }
   }, [dataFingerprint, suggestionsFingerprint]);
 
-  const handleImport = (newDatasets: Dataset[]) => {
-    setDatasets(prev => [...prev, ...newDatasets]);
+  const handleImport = (newDatasets: Dataset[], replaceFilenames?: string[]) => {
+    setDatasets(prev => {
+      let next = [...prev];
+      if (replaceFilenames && replaceFilenames.length > 0) {
+        next = next.filter(d => !replaceFilenames.includes(d.filename));
+      }
+      return [...next, ...newDatasets];
+    });
     if (newDatasets.length > 0) {
       setSelectedDatasetId(newDatasets[0].id);
     }

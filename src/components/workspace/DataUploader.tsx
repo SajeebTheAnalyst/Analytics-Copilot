@@ -7,7 +7,8 @@ import { Dataset } from '@/types';
 import { Button } from '../ui/button';
 
 interface DataUploaderProps {
-  onDatasetsImported: (datasets: Dataset[]) => void;
+  onDatasetsImported: (datasets: Dataset[], replaceFilenames?: string[]) => void;
+  existingDatasets?: Dataset[];
   compact?: boolean;
 }
 
@@ -16,6 +17,14 @@ interface ProcessingState {
   type: string;
   size: number;
   progress: number;
+}
+
+interface QueuedFile {
+  id: string;
+  file: File;
+  status: 'pending' | 'processing' | 'success' | 'error';
+  errorMessage?: string;
+  datasetsCreated?: number;
 }
 
 function formatBytes(bytes: number, decimals = 1) {
@@ -27,12 +36,20 @@ function formatBytes(bytes: number, decimals = 1) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-export function DataUploader({ onDatasetsImported, compact = false }: DataUploaderProps) {
+export function DataUploader({ onDatasetsImported, existingDatasets = [], compact = false }: DataUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [processingFile, setProcessingFile] = useState<ProcessingState | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  const [uploadQueue, setUploadQueue] = useState<QueuedFile[] | null>(null);
+  const [importComplete, setImportComplete] = useState(false);
+  const [processedDatasets, setProcessedDatasets] = useState<Dataset[]>([]);
+  const [duplicateConflict, setDuplicateConflict] = useState<string[]>([]);
+  const [replaces, setReplaces] = useState<string[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const handleDemoData = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -76,63 +93,81 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
     }
   }, []);
 
-  const handleFiles = async (files: FileList) => {
+  const handleFiles = (files: FileList) => {
     setErrorMessage(null);
     const fileList = Array.from(files);
 
     if (fileList.length === 0) return;
 
-    // Validate file extensions
-    const invalidFiles = fileList.filter(f => !f.name.match(/\.(csv|xlsx?|json|txt|pdf|png|jpe?g)$/i));
-    if (invalidFiles.length > 0) {
-      setErrorMessage(`Invalid file format: "${invalidFiles[0].name}". Please upload supported business data formats.`);
-      return;
-    }
+    const newQueue: QueuedFile[] = fileList.map(f => {
+      const isValid = !!f.name.match(/\.(csv|xlsx?|json|txt|pdf|png|jpe?g)$/i);
+      return {
+        id: Math.random().toString(36).substring(2, 11),
+        file: f,
+        status: isValid ? 'pending' : 'error',
+        errorMessage: isValid ? undefined : 'Unsupported format'
+      };
+    });
 
+    setUploadQueue(newQueue);
+    setImportComplete(false);
+    setProcessedDatasets([]);
+    setReplaces([]);
+    
+    if (existingDatasets.length > 0) {
+      const existingNames = new Set(existingDatasets.map(d => d.filename));
+      const conflicts = fileList.filter(f => existingNames.has(f.name)).map(f => f.name);
+      if (conflicts.length > 0) {
+        setDuplicateConflict(conflicts);
+      } else {
+        setDuplicateConflict([]);
+      }
+    } else {
+      setDuplicateConflict([]);
+    }
+    
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (folderInputRef.current) folderInputRef.current.value = '';
+  };
+
+  const handleCancelQueue = () => {
+    setUploadQueue(null);
+    setImportComplete(false);
+    setProcessedDatasets([]);
+  };
+
+  const handleImportQueue = async () => {
+    if (!uploadQueue) return;
+    
     setIsUploading(true);
-
-    try {
-      let processedDatasets: Dataset[] = [];
+    let newDatasets: Dataset[] = [];
+    let currentQueue = [...uploadQueue];
+    
+    for (let i = 0; i < currentQueue.length; i++) {
+      const item = currentQueue[i];
+      if (item.status !== 'pending') continue;
       
-      for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i];
-        
-        // Validate file size > 0
-        if (file.size === 0) {
-          throw new Error(`The file "${file.name}" is empty (0 bytes).`);
-        }
-
-        const extMatch = file.name.match(/\.([a-z0-9]+)$/i);
-        setProcessingFile({
-          filename: file.name,
-          type: extMatch ? extMatch[1].toUpperCase() : 'UNKNOWN',
-          size: file.size,
-          progress: Math.round(((i + 0.5) / fileList.length) * 100)
-        });
-
-        const datasets = await processDataset(file);
-        
-        processedDatasets = processedDatasets.concat(datasets);
-      }
-
-      setProcessingFile(prev => prev ? { ...prev, progress: 100 } : null);
+      // Update status to processing
+      currentQueue = currentQueue.map((q, idx) => idx === i ? { ...q, status: 'processing' } : q);
+      setUploadQueue(currentQueue);
       
-      setTimeout(() => {
-        onDatasetsImported(processedDatasets);
-        setIsUploading(false);
-        setProcessingFile(null);
-      }, 200);
-
-    } catch (error: any) {
-      console.error("Error processing files:", error);
-      setErrorMessage(error.message || "Failed to process the uploaded file. Please verify file structure.");
-      setIsUploading(false);
-      setProcessingFile(null);
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      try {
+        if (item.file.size === 0) throw new Error("File is empty (0 bytes)");
+        
+        const datasets = await processDataset(item.file);
+        newDatasets = newDatasets.concat(datasets);
+        
+        currentQueue = currentQueue.map((q, idx) => idx === i ? { ...q, status: 'success', datasetsCreated: datasets.length } : q);
+        setUploadQueue(currentQueue);
+      } catch (err: any) {
+        currentQueue = currentQueue.map((q, idx) => idx === i ? { ...q, status: 'error', errorMessage: err.message || 'Failed to parse' } : q);
+        setUploadQueue(currentQueue);
       }
     }
+    
+    setProcessedDatasets(newDatasets);
+    setIsUploading(false);
+    setImportComplete(true);
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -151,6 +186,124 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
       handleFiles(e.target.files);
     }
   };
+
+  if (uploadQueue) {
+    const pendingCount = uploadQueue.filter(q => q.status === 'pending').length;
+    const errorCount = uploadQueue.filter(q => q.status === 'error').length;
+    const successCount = uploadQueue.filter(q => q.status === 'success').length;
+    
+    if (duplicateConflict.length > 0) {
+      return (
+        <div className="w-full space-y-3 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-zinc-950 border border-amber-200 dark:border-amber-900/50 rounded-xl overflow-hidden shadow-sm">
+            <div className="p-4 border-b border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-900/20 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-sm text-amber-900 dark:text-amber-100">
+                  Duplicate Files Detected
+                </h3>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  You are attempting to import files that already exist in your workspace. How would you like to proceed?
+                </p>
+                <div className="mt-3 space-y-1">
+                  {duplicateConflict.map(name => (
+                    <div key={name} className="text-[11px] font-mono text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded inline-block mr-2 mb-1">
+                      {name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-white dark:bg-zinc-950 flex flex-wrap gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={handleCancelQueue}>
+                Cancel Import
+              </Button>
+              <Button variant="outline" size="sm" className="border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-900/30" onClick={() => {
+                setDuplicateConflict([]);
+                setReplaces([]); // Keep both
+              }}>
+                Keep Both
+              </Button>
+              <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white" onClick={() => {
+                setReplaces(duplicateConflict);
+                setDuplicateConflict([]);
+              }}>
+                Replace Existing
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="w-full space-y-3 animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                {importComplete ? 'Import Complete' : 'Ready to Import'}
+              </h3>
+              <p className="text-[11px] text-zinc-500 mt-0.5">
+                {importComplete 
+                  ? `${uploadQueue.length} files processed • ${successCount} successful • ${errorCount} failed` 
+                  : `${uploadQueue.length} files • ${pendingCount} supported • ${errorCount} skipped`}
+              </p>
+            </div>
+            {importComplete && (
+              <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded">
+                {processedDatasets.length} datasets created
+              </div>
+            )}
+          </div>
+          
+          <div className="max-h-[300px] overflow-auto custom-scrollbar p-1.5 space-y-1">
+            {uploadQueue.map(item => (
+              <div key={item.id} className="flex items-center justify-between p-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 rounded-lg text-xs transition-colors">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <FileSpreadsheet className={cn(
+                    "w-4 h-4 shrink-0", 
+                    item.status === 'success' ? "text-emerald-500" : item.status === 'error' ? "text-red-400" : "text-zinc-400"
+                  )} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="truncate font-medium text-zinc-700 dark:text-zinc-300">{item.file.name}</span>
+                    <span className="text-[10px] text-zinc-500 font-mono mt-0.5">{formatBytes(item.file.size)}</span>
+                  </div>
+                </div>
+                <div className="shrink-0 ml-4 flex items-center justify-end min-w-[80px]">
+                  {item.status === 'pending' && <span className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider">Waiting</span>}
+                  {item.status === 'processing' && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+                  {item.status === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                  {item.status === 'error' && (
+                    <span className="text-red-500 text-[10px] bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/50 px-1.5 py-0.5 rounded shadow-sm max-w-[120px] truncate" title={item.errorMessage}>
+                      {item.errorMessage}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="p-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 flex justify-end gap-2">
+            {importComplete ? (
+              <Button size="sm" onClick={() => onDatasetsImported(processedDatasets, replaces)}>
+                Finish & View Workspace
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={handleCancelQueue} disabled={isUploading}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleImportQueue} disabled={isUploading || pendingCount === 0}>
+                  {isUploading ? 'Importing...' : 'Import All'}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-3">
@@ -205,54 +358,33 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
           onChange={handleChange}
           disabled={isUploading}
         />
+        <input
+          ref={folderInputRef}
+          type="file"
+          // @ts-ignore
+          webkitdirectory="true"
+          directory="true"
+          multiple
+          className="hidden"
+          onChange={handleChange}
+          disabled={isUploading}
+        />
         
-        {isUploading ? (
-          <div className="flex flex-col items-center text-center space-y-3 w-full max-w-sm z-10">
-            <div className="w-10 h-10 rounded-xl bg-blue-50/85 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-xs animate-float">
-              <Loader2 className="w-5 h-5 animate-spin" />
-            </div>
-            
-            <div className="w-full space-y-1">
-              <div className="flex items-center justify-between text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                <span className="truncate max-w-[200px]">{processingFile?.filename || 'Processing file...'}</span>
-                <span className="text-zinc-400 font-mono text-[11px]">{processingFile?.progress}%</span>
-              </div>
-              
-              <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-blue-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${processingFile?.progress || 10}%` }}
-                />
-              </div>
+        <div className="flex flex-col items-center text-center space-y-3.5 z-10">
+          <div className="w-12 h-12 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100/60 dark:border-blue-900/20 flex items-center justify-center text-blue-650 dark:text-blue-400 shadow-3xs animate-float">
+            <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          </div>
 
-              {processingFile && (
-                <div className="flex items-center justify-between text-[10px] text-zinc-400 pt-1 font-mono">
-                  <span>Type: {processingFile.type}</span>
-                  <span>Size: {formatBytes(processingFile.size)}</span>
-                </div>
-              )}
-            </div>
-
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium animate-pulse">
-              Parsing schema and compiling column profiles...
+          <div>
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Drag and drop your spreadsheet here
+            </p>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">
+              or click to browse local files
             </p>
           </div>
-        ) : (
-          <div className="flex flex-col items-center text-center space-y-3.5 z-10">
-            <div className="w-12 h-12 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100/60 dark:border-blue-900/20 flex items-center justify-center text-blue-650 dark:text-blue-400 shadow-3xs animate-float">
-              <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
 
-            <div>
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                Drag and drop your spreadsheet here
-              </p>
-              <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">
-                or click to browse local files
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 pt-0.5">
+          <div className="flex items-center gap-3 pt-0.5">
               <Button 
                 type="button" 
                 variant="outline" 
@@ -275,9 +407,8 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
                 className="text-xs h-8 px-4 border-zinc-250 hover:bg-zinc-100 dark:border-zinc-800/80 font-bold shadow-3xs hover-elevate transition-all duration-200"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (fileInputRef.current) {
-                    fileInputRef.current.setAttribute('webkitdirectory', 'true');
-                    fileInputRef.current.click();
+                  if (folderInputRef.current) {
+                    folderInputRef.current.click();
                   }
                 }}
               >
@@ -290,11 +421,28 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
               <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.CSV</span>
               <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.XLSX</span>
               <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.JSON</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.TXT</span>
               <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.PDF / IMG</span>
             </div>
           </div>
-        )}
       </div>
+
+      {!compact && !isUploading && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+          {[
+            { icon: <Database className="w-4 h-4 text-zinc-400" />, label: "PostgreSQL", status: "Coming Soon" },
+            { icon: <Database className="w-4 h-4 text-zinc-400" />, label: "MySQL", status: "Coming Soon" },
+            { icon: <FileSpreadsheet className="w-4 h-4 text-zinc-400" />, label: "Google Sheets", status: "Coming Soon" },
+            { icon: <Database className="w-4 h-4 text-zinc-400" />, label: "Salesforce", status: "Coming Soon" }
+          ].map((connector, i) => (
+            <div key={i} className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 opacity-60 cursor-not-allowed">
+              {connector.icon}
+              <span className="text-[11px] font-bold text-zinc-600 dark:text-zinc-400">{connector.label}</span>
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 font-mono">{connector.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!compact && !isUploading && (
         <div className="flex items-center justify-center gap-2.5 text-xs py-3.5 border border-zinc-200/60 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl px-4 text-zinc-500">

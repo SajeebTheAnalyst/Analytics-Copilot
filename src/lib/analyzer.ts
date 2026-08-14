@@ -5,7 +5,7 @@ import { isValid, parseISO } from "date-fns";
 
 export async function parseFile(file: File): Promise<{ data: Record<string, any>[], headers: string[], sheetName?: string }[]> {
   return new Promise((resolve, reject) => {
-    if (file.name.match(/\.csv$/i)) {
+    if (file.name.match(/\.(csv|txt)$/i)) {
       Papa.parse(file, {
         header: true,
         dynamicTyping: true,
@@ -18,7 +18,7 @@ export async function parseFile(file: File): Promise<{ data: Record<string, any>
           }]);
         },
         error: (error) => {
-          reject(new Error("Failed to parse CSV: " + error.message));
+          reject(new Error("Failed to parse file: " + error.message));
         }
       });
     } else if (file.name.match(/\.xlsx?$/i)) {
@@ -67,7 +67,7 @@ export async function parseFile(file: File): Promise<{ data: Record<string, any>
       };
       reader.onerror = (err) => reject(err);
       reader.readAsText(file);
-    } else if (file.name.match(/\.(pdf|png|jpe?g|txt)$/i)) {
+    } else if (file.name.match(/\.(pdf|png|jpe?g)$/i)) {
       // Return empty tabular data for unstructured formats, to be processed later in data preparation
       resolve([{ data: [], headers: [] }]);
     } else {

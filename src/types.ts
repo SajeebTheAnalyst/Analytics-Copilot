@@ -53,6 +53,8 @@ export interface ColumnProfile {
   exampleValue: string | number | boolean | null;
 }
 
+export type ColumnType = ColumnProfile['type'];
+
 export interface Dataset {
   id: string;
   name: string;
@@ -61,6 +63,7 @@ export interface Dataset {
   type: string;
   size: number;
   uploadTime: number;
+  updatedAt?: number;
   rowCount: number;
   colCount: number;
   headers: string[];
@@ -69,6 +72,7 @@ export interface Dataset {
   originalData: Record<string, any>[]; // Immutable original dataset
   columnTypes: Record<string, ColumnProfile['type']>;
   columnProfiles: Record<string, ColumnProfile>;
+  formulas?: Record<string, string>; // { [calculatedColumnHeader]: formulaString }
   
   cleaningStatus?: DatasetCleaningStatus;
   cleaningLogs?: CleaningLog[];

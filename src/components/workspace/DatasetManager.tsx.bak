@@ -1,12 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Dataset, ViewState } from '@/types';
 import { DataUploader } from './DataUploader';
-import { DataGrid } from './DataGrid';
 import { calculateDatasetHealth, profileColumn, ExtendedColumnProfile } from '@/lib/profiler';
 import { formatDistanceToNow } from 'date-fns';
 import { 
-  FileSpreadsheet, Trash2, Edit3, CheckCircle2, AlertTriangle, XCircle, 
-  Hash, Calendar, Tag, CaseSensitive, Activity, Layers, Table, Search, RefreshCw
+  FileSpreadsheet, 
+  Trash2, 
+  Edit3, 
+  CheckCircle2, 
+  AlertTriangle, 
+  XCircle, 
+  Hash, 
+  Calendar, 
+  Tag, 
+  CaseSensitive, 
+  Activity, 
+  Layers, 
+  Table
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -45,24 +55,6 @@ export function DatasetManager({
   const [searchQuery, setSearchQuery] = useState("");
 
   const activeDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0] || null;
-
-  const filteredDatasets = useMemo(() => {
-    if (!searchQuery.trim()) return datasets;
-    const q = searchQuery.toLowerCase();
-    return datasets.filter(d => 
-      d.name.toLowerCase().includes(q) || 
-      d.filename.toLowerCase().includes(q) ||
-      (d.sheetName && d.sheetName.toLowerCase().includes(q))
-    );
-  }, [datasets, searchQuery]);
-
-  const groupedDatasets = useMemo(() => {
-    return filteredDatasets.reduce((acc, ds) => {
-      if (!acc[ds.filename]) acc[ds.filename] = [];
-      acc[ds.filename].push(ds);
-      return acc;
-    }, {} as Record<string, Dataset[]>);
-  }, [filteredDatasets]);
 
   const getTypeBadge = (type: string) => {
     switch (type) {
@@ -157,16 +149,13 @@ export function DatasetManager({
   }
 
   // Active Dataset Health & Profiles
-  const health = useMemo(() => calculateDatasetHealth(activeDataset), [activeDataset]);
-  
-  const columnProfilesMap = useMemo(() => {
-    const map: Record<string, ExtendedColumnProfile> = {};
-    activeDataset.headers.forEach(header => {
-      const colType = activeDataset.columnTypes?.[header] || 'text';
-      map[header] = profileColumn(activeDataset.fullData || [], header, colType);
-    });
-    return map;
-  }, [activeDataset]);
+  const health = calculateDatasetHealth(activeDataset);
+  const columnProfilesMap: Record<string, ExtendedColumnProfile> = {};
+
+  activeDataset.headers.forEach(header => {
+    const colType = activeDataset.columnTypes?.[header] || 'text';
+    columnProfilesMap[header] = profileColumn(activeDataset.fullData || [], header, colType);
+  });
 
   const isCleaned = activeDataset.cleaningStatus === 'cleaned';
 
@@ -232,65 +221,6 @@ export function DatasetManager({
         </div>
       )}
 
-      {/* 0. Dataset Navigation */}
-      <div className="glass-panel glass-card rounded-xl p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/50 dark:border-zinc-800/50 pb-4">
-          <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <Layers className="w-4 h-4 text-blue-500" />
-            Workspace Datasets
-          </h3>
-          <div className="relative max-w-sm w-full">
-            <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search datasets, sheets, or files..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-4 text-xs font-semibold bg-white/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500"
-            />
-          </div>
-        </div>
-        
-        <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-          {Object.keys(groupedDatasets).length === 0 ? (
-            <div className="text-center py-6 text-xs text-zinc-500 font-semibold">
-              No datasets found matching your search.
-            </div>
-          ) : (
-            Object.entries(groupedDatasets).map(([filename, groupDatasets]) => (
-              <div key={filename} className="flex flex-col sm:flex-row gap-3 items-start sm:items-center border border-zinc-100 dark:border-zinc-800/50 rounded-lg p-3 bg-zinc-50/50 dark:bg-zinc-900/20">
-                <div className="flex items-center gap-2 sm:w-48 shrink-0">
-                  <FileSpreadsheet className="w-4 h-4 text-blue-500" />
-                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate" title={filename}>
-                    {filename}
-                  </span>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-2">
-                  {groupDatasets.map(ds => {
-                    const isActive = ds.id === activeDataset.id;
-                    return (
-                      <button
-                        key={ds.id}
-                        onClick={() => onSelectDataset(ds.id)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-md text-xs font-bold transition-all border",
-                          isActive 
-                            ? "bg-blue-600 text-white border-blue-600 shadow-sm" 
-                            : "bg-white dark:bg-zinc-950 text-zinc-650 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                        )}
-                      >
-                        {ds.sheetName || ds.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
       {/* 1. Dataset Information Card */}
       <div className="glass-panel glass-card rounded-xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-5">
@@ -331,20 +261,6 @@ export function DatasetManager({
             <div>
               <span className="text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block font-sans">Quality Rating</span>
               <span className="font-bold text-zinc-800 dark:text-zinc-200 mt-0.5 block">{health.status}</span>
-            </div>
-            <div className="pl-2 border-l border-zinc-200/50 dark:border-zinc-800/50 flex items-center gap-2">
-               <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/30 transition-all"
-                  onClick={() => {
-                     if (window.confirm("Are you sure you want to remove this dataset from the workspace?")) {
-                        onRemove(activeDataset.id);
-                     }
-                  }}
-               >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Remove
-               </Button>
             </div>
           </div>
         </div>
@@ -581,11 +497,160 @@ export function DatasetManager({
         </div>
       </div>
 
-      {/* 5. Interactive Data Grid */}
-      <div className="mb-6">
-        <DataGrid dataset={activeDataset} onNavigateView={onNavigateView} onUpdateDataset={onUpdateDataset} />
+      {/* 5. Data Preview Table */}
+      <div className="glass-panel glass-card rounded-xl mb-6">
+        <div className="p-4.5 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-black/20 flex items-center justify-between backdrop-blur-md rounded-t-xl">
+          <div>
+            <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50 flex items-center gap-2">
+              <Table className="w-4 h-4 text-blue-500" />
+              Raw Data Preview
+            </h3>
+            <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
+              Showing top {Math.min(100, activeDataset.rowCount)} of {activeDataset.rowCount.toLocaleString()} rows.
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-auto max-h-[400px] custom-scrollbar">
+          <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
+            <thead className="sticky top-0 z-10 shadow-sm">
+              <tr className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800/80 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest select-none">
+                <th className="py-2.5 px-3 border-r border-zinc-200 dark:border-zinc-800 sticky left-0 bg-zinc-50 dark:bg-zinc-900 z-20 shadow-[1px_0_0_0_#e4e4e7] dark:shadow-[1px_0_0_0_#27272a] text-center w-12">#</th>
+                {activeDataset.headers.map(header => (
+                  <th key={header} className="py-2.5 px-4">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-200/50 dark:divide-zinc-800 font-mono text-[11px] bg-white/40 dark:bg-zinc-950/40">
+              {activeDataset.fullData?.slice(0, 100).map((row, rowIndex) => (
+                <tr key={rowIndex} className="hover:bg-zinc-100/60 dark:hover:bg-zinc-900/60 transition-colors">
+                  <td className="py-2 px-3 border-r border-zinc-200/50 dark:border-zinc-800 sticky left-0 bg-white dark:bg-zinc-950 text-zinc-400 font-bold text-center z-10 shadow-[1px_0_0_0_#e4e4e7] dark:shadow-[1px_0_0_0_#27272a]">
+                    {rowIndex + 1}
+                  </td>
+                  {activeDataset.headers.map((header) => {
+                    let val = row[header];
+                    if (val instanceof Date) {
+                      val = val.toISOString();
+                    } else if (val === null || val === undefined) {
+                      val = '';
+                    } else if (typeof val === 'object') {
+                      val = JSON.stringify(val);
+                    }
+                    
+                    return (
+                      <td key={header} className="py-2 px-4 text-zinc-800 dark:text-zinc-300 max-w-xs truncate">
+                        {val === '' ? <span className="text-zinc-300 dark:text-zinc-600 italic">null</span> : String(val)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {(!activeDataset.fullData || activeDataset.fullData.length === 0) && (
+                <tr>
+                  <td colSpan={activeDataset.headers.length + 1} className="py-8 text-center text-zinc-500">
+                    No records available in this dataset.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
+      {/* 6. Workspace Datasets */}
+      {datasets.length > 0 && (
+        <div className="glass-panel glass-card rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-3">
+            <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-blue-500" />
+              Source Files & Datasets ({datasets.length})
+            </h3>
+            <span className="text-[11px] font-bold text-zinc-450 dark:text-zinc-500">Click to switch Active Dataset</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(
+              datasets.reduce((acc, ds) => {
+                if (!acc[ds.filename]) acc[ds.filename] = [];
+                acc[ds.filename].push(ds);
+                return acc;
+              }, {} as Record<string, Dataset[]>)
+            ).map(([filename, groupDatasets]) => (
+              <div key={filename} className="glass-panel glass-card rounded-xl border border-zinc-200/50 dark:border-zinc-800 p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-zinc-200/50 dark:border-zinc-800">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <FileSpreadsheet className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate" title={filename}>{filename}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[10px] font-mono font-bold bg-zinc-100 dark:bg-zinc-800/50 px-1.5 py-0.5 rounded text-zinc-500">
+                      {filename.split('.').pop()?.toUpperCase() || 'FILE'}
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Imported
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-500 hidden sm:inline-block">
+                      {groupDatasets.length} dataset{groupDatasets.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {groupDatasets.map(dataset => {
+                    const isActive = dataset.id === activeDataset.id;
+                    const dsHealth = calculateDatasetHealth(dataset);
+
+                    return (
+                      <div
+                        key={dataset.id}
+                        onClick={() => onSelectDataset(dataset.id)}
+                        className={cn(
+                          "p-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-between group",
+                          isActive 
+                            ? "bg-blue-50/70 dark:bg-blue-950/30 border border-blue-500/80 shadow-2xs" 
+                            : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50 border border-transparent"
+                        )}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-2">
+                            <Table className="w-3.5 h-3.5 text-zinc-400" />
+                            <span className="font-bold text-zinc-900 dark:text-zinc-50 truncate text-[11px]">
+                              {dataset.sheetName || dataset.name}
+                            </span>
+                            {isActive && (
+                              <span className="text-[9px] font-extrabold px-1 py-0.5 rounded bg-blue-600 text-white uppercase tracking-widest shrink-0 ml-1">
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-zinc-500 font-mono font-bold mt-1 ml-5">
+                            {dataset.rowCount.toLocaleString()} rows • {dataset.colCount} cols
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {getHealthBadge(dsHealth.status)}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-zinc-400 hover:text-red-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemove(dataset.id);
+                            }}
+                            title="Remove dataset"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

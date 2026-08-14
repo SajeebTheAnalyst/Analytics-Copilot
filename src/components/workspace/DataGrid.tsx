@@ -1,0 +1,1830 @@
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { Dataset, ColumnType } from '@/types';
+import { cn } from '@/lib/utils';
+import { 
+  Hash, Calendar, Tag, CaseSensitive, 
+  ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
+  Copy, Check, ChevronDown, Filter, 
+  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator
+} from 'lucide-react';
+import { Button } from '../ui/button';
+import { evaluateAllFormulas } from '@/lib/formulaEngine';
+import { FormulaBuilderModal } from './FormulaBuilderModal';
+
+interface DataGridProps {
+  dataset: Dataset;
+  onNavigateView?: (view: any) => void;
+  onUpdateDataset?: (dataset: Dataset) => void;
+}
+
+interface CellCoords {
+  row: number;
+  col: number;
+}
+
+interface SelectionRange {
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+}
+
+export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridProps) {
+  // ----------------------------------------------------
+  // 1. Working Copy Architecture
+  // ----------------------------------------------------
+  const [workingData, setWorkingData] = useState<Record<string, any>[]>([]);
+  const [workingHeaders, setWorkingHeaders] = useState<string[]>([]);
+  const [workingColumnTypes, setWorkingColumnTypes] = useState<Record<string, ColumnType>>({});
+  const [workingFormulas, setWorkingFormulas] = useState<Record<string, string>>({});
+
+  // Unsaved Changes & Modification Indicators
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [editedCells, setEditedCells] = useState<Set<string>>(new Set()); // `${_rowId}:${header}`
+  const [addedRowIds, setAddedRowIds] = useState<Set<string>>(new Set()); // `_rowId`
+  const [addedColumns, setAddedColumns] = useState<Set<string>>(new Set()); // `header`
+
+  // Formula Builder Modal State
+  const [showFormulaModal, setShowFormulaModal] = useState<boolean>(false);
+  const [editingFormulaCol, setEditingFormulaCol] = useState<string | null>(null);
+
+  // ----------------------------------------------------
+  // 2. Grid UI View State
+  // ----------------------------------------------------
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [rowLimit, setRowLimit] = useState<number>(100);
+
+  // Selection state
+  const [selectedCell, setSelectedCell] = useState<CellCoords | null>({ row: 0, col: 0 });
+  const [selectionRange, setSelectionRange] = useState<SelectionRange | null>({
+    startRow: 0,
+    startCol: 0,
+    endRow: 0,
+    endCol: 0,
+  });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Cell Editing state
+  const [editingCell, setEditingCell] = useState<CellCoords | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+
+  // Context Menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    row: number;
+    col: number;
+    header: string;
+  } | null>(null);
+
+  // Column Visibility Popover
+  const [showColumnsDropdown, setShowColumnsDropdown] = useState<boolean>(false);
+
+  // Feedback Toasts
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [warningToast, setWarningToast] = useState<string | null>(null);
+
+  // Modals state
+  const [showAddColumnModal, setShowAddColumnModal] = useState<boolean>(false);
+  const [newColName, setNewColName] = useState<string>('');
+  const [newColType, setNewColType] = useState<ColumnType>('text');
+  const [addColumnError, setAddColumnError] = useState<string | null>(null);
+
+  const [renamingHeader, setRenamingHeader] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  const [deletingRowIndex, setDeletingRowIndex] = useState<number | null>(null);
+  const [showDiscardModal, setShowDiscardModal] = useState<boolean>(false);
+
+  // Column Resizing state
+  const [resizingCol, setResizingCol] = useState<string | null>(null);
+  const resizeStartX = useRef<number>(0);
+  const resizeStartWidth = useRef<number>(0);
+
+  const gridRef = useRef<HTMLDivElement>(null);
+  const columnsDropdownRef = useRef<HTMLDivElement>(null);
+  const cellInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync working copy when active dataset changes or is saved
+  useEffect(() => {
+    const sourceRows = dataset.fullData && dataset.fullData.length > 0 ? dataset.fullData : dataset.data || [];
+    const formattedRows = sourceRows.map((r, idx) => ({
+      ...r,
+      _rowId: r._rowId || `r-${idx}-${Date.now()}`
+    }));
+
+    setWorkingData(formattedRows);
+    setWorkingHeaders([...dataset.headers]);
+    setWorkingColumnTypes({ ...(dataset.columnTypes || {}) });
+    setWorkingFormulas({ ...(dataset.formulas || {}) });
+
+    setIsDirty(false);
+    setEditedCells(new Set());
+    setAddedRowIds(new Set());
+    setAddedColumns(new Set());
+
+    setSelectedCell({ row: 0, col: 0 });
+    setSelectionRange({ startRow: 0, startCol: 0, endRow: 0, endCol: 0 });
+    setEditingCell(null);
+    setSortConfig(null);
+    setSearchQuery('');
+  }, [dataset.id, dataset.updatedAt]);
+
+  // Recalculate all formulas over working copy
+  const recalculateAndSetData = useCallback(
+    (data: Record<string, any>[], headers: string[], formulas: Record<string, string>) => {
+      if (!formulas || Object.keys(formulas).length === 0) {
+        setWorkingData(data);
+        return;
+      }
+      const evalRes = evaluateAllFormulas(headers, data, formulas);
+      if (!evalRes.error && evalRes.updatedData) {
+        setWorkingData(evalRes.updatedData);
+      } else if (evalRes.error) {
+        setWarningToast(`Formula Calculation Error: ${evalRes.error}`);
+      }
+    },
+    []
+  );
+
+  // Apply or update a calculated column formula
+  const handleApplyFormula = (colName: string, formulaStr: string) => {
+    let nextHeaders = [...workingHeaders];
+    let nextTypes = { ...workingColumnTypes };
+
+    if (!nextHeaders.includes(colName)) {
+      nextHeaders.push(colName);
+      nextTypes[colName] = 'numeric';
+      setAddedColumns((prev) => new Set(prev).add(colName));
+    }
+
+    const nextFormulas = { ...workingFormulas, [colName]: formulaStr };
+
+    setWorkingHeaders(nextHeaders);
+    setWorkingColumnTypes(nextTypes);
+    setWorkingFormulas(nextFormulas);
+    setIsDirty(true);
+
+    // Evaluate immediately over current workingData
+    recalculateAndSetData(workingData, nextHeaders, nextFormulas);
+
+    setSaveFeedback(`Formula applied for column "${colName}"!`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+  };
+
+  // Delete a formula column
+  const handleDeleteFormulaColumn = (colName: string) => {
+    const nextFormulas = { ...workingFormulas };
+    delete nextFormulas[colName];
+
+    const nextHeaders = workingHeaders.filter((h) => h !== colName);
+    const nextTypes = { ...workingColumnTypes };
+    delete nextTypes[colName];
+
+    const nextData = workingData.map((row) => {
+      const { [colName]: _, ...rest } = row;
+      return rest;
+    });
+
+    setWorkingHeaders(nextHeaders);
+    setWorkingColumnTypes(nextTypes);
+    setWorkingFormulas(nextFormulas);
+    setWorkingData(nextData);
+    setIsDirty(true);
+
+    setContextMenu(null);
+    setSaveFeedback(`Formula column "${colName}" removed.`);
+    setTimeout(() => setSaveFeedback(null), 2500);
+  };
+
+  // Visible Headers
+  const visibleHeaders = useMemo(() => {
+    return workingHeaders.filter(h => !hiddenColumns.has(h));
+  }, [workingHeaders, hiddenColumns]);
+
+  // Filtered & Sorted Rows (Grid View State)
+  const processedRows = useMemo(() => {
+    let result = [...workingData];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(row =>
+        visibleHeaders.some(h => {
+          const val = row[h];
+          if (val === null || val === undefined) return false;
+          return String(val).toLowerCase().includes(q);
+        })
+      );
+    }
+
+    // Column sorting
+    if (sortConfig && sortConfig.key) {
+      const { key, direction } = sortConfig;
+      result.sort((a, b) => {
+        let valA = a[key];
+        let valB = b[key];
+
+        // Handle empty values (null, undefined, '') -> always push to end
+        const isAEmpty = valA === null || valA === undefined || valA === '';
+        const isBEmpty = valB === null || valB === undefined || valB === '';
+        if (isAEmpty && isBEmpty) return 0;
+        if (isAEmpty) return 1;
+        if (isBEmpty) return -1;
+
+        // Numeric comparison
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return direction === 'asc' ? valA - valB : valB - valA;
+        }
+
+        const numA = Number(valA);
+        const numB = Number(valB);
+        if (!isNaN(numA) && !isNaN(numB) && String(valA).trim() !== '' && String(valB).trim() !== '') {
+          return direction === 'asc' ? numA - numB : numB - numA;
+        }
+
+        // Date comparison
+        if (valA instanceof Date || valB instanceof Date || (!isNaN(Date.parse(String(valA))) && !isNaN(Date.parse(String(valB))))) {
+          const timeA = new Date(valA).getTime();
+          const timeB = new Date(valB).getTime();
+          if (!isNaN(timeA) && !isNaN(timeB)) {
+            return direction === 'asc' ? timeA - timeB : timeB - timeA;
+          }
+        }
+
+        // String comparison
+        const strA = String(valA).toLowerCase();
+        const strB = String(valB).toLowerCase();
+        if (strA < strB) return direction === 'asc' ? -1 : 1;
+        if (strA > strB) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [workingData, visibleHeaders, searchQuery, sortConfig]);
+
+  // Displayed slice based on limit
+  const displayedRows = useMemo(() => {
+    if (rowLimit === -1) return processedRows;
+    return processedRows.slice(0, rowLimit);
+  }, [processedRows, rowLimit]);
+
+  // Normalized Range Bounds
+  const rangeBounds = useMemo(() => {
+    if (!selectionRange) return null;
+    return {
+      minRow: Math.min(selectionRange.startRow, selectionRange.endRow),
+      maxRow: Math.max(selectionRange.startRow, selectionRange.endRow),
+      minCol: Math.min(selectionRange.startCol, selectionRange.endCol),
+      maxCol: Math.max(selectionRange.startCol, selectionRange.endCol),
+    };
+  }, [selectionRange]);
+
+  // Handle Sort Toggle
+  const handleHeaderClick = (header: string) => {
+    if (editingCell) return;
+    setSortConfig(prev => {
+      if (!prev || prev.key !== header) {
+        return { key: header, direction: 'asc' };
+      }
+      if (prev.direction === 'asc') {
+        return { key: header, direction: 'desc' };
+      }
+      return null;
+    });
+  };
+
+  // Format cell display value helper
+  const formatCellValue = (val: any) => {
+    if (val === null || val === undefined || val === '') {
+      return null;
+    }
+    if (val instanceof Date) {
+      return val.toISOString();
+    }
+    if (typeof val === 'object') {
+      return JSON.stringify(val);
+    }
+    return String(val);
+  };
+
+  // ----------------------------------------------------
+  // 3. Cell Editing Logic
+  // ----------------------------------------------------
+  const startEditingCell = useCallback((rIndex: number, cIndex: number, initialChar?: string) => {
+    const row = displayedRows[rIndex];
+    if (!row) return;
+    const header = visibleHeaders[cIndex];
+    if (!header) return;
+
+    // Check if column is a calculated formula column
+    if (workingFormulas[header]) {
+      setWarningToast(`Column "${header}" is calculated by formula "${workingFormulas[header]}". Click "+ Formula Column" to edit.`);
+      setTimeout(() => setWarningToast(null), 3500);
+      return;
+    }
+
+    setEditingCell({ row: rIndex, col: cIndex });
+    if (initialChar !== undefined) {
+      setEditValue(initialChar);
+    } else {
+      const rawVal = row[header];
+      setEditValue(rawVal === null || rawVal === undefined ? '' : String(rawVal));
+    }
+  }, [displayedRows, visibleHeaders, workingFormulas]);
+
+  const commitCellEdit = useCallback((rIndex: number, cIndex: number, rawInput: string) => {
+    const targetRow = displayedRows[rIndex];
+    if (!targetRow) {
+      setEditingCell(null);
+      return;
+    }
+    const header = visibleHeaders[cIndex];
+    if (!header) {
+      setEditingCell(null);
+      return;
+    }
+
+    const colType = workingColumnTypes[header] || 'text';
+    let newValue: any = rawInput;
+    const trimmed = rawInput.trim();
+
+    if (colType === 'numeric') {
+      if (trimmed === '') {
+        newValue = null;
+      } else {
+        const num = Number(trimmed);
+        if (!isNaN(num)) {
+          newValue = num;
+        } else {
+          // Invalid number entered - preserve string safely without crashing
+          newValue = trimmed;
+          setWarningToast(`"${trimmed}" is not a valid number for numeric column "${header}". Preserved as string.`);
+          setTimeout(() => setWarningToast(null), 3500);
+        }
+      }
+    } else if (colType === 'date') {
+      if (trimmed === '') {
+        newValue = null;
+      } else {
+        newValue = trimmed;
+      }
+    } else {
+      if (trimmed === '') {
+        newValue = null;
+      } else {
+        newValue = rawInput;
+      }
+    }
+
+    // Check if value actually changed
+    const previousVal = targetRow[header];
+    const hasChanged = previousVal !== newValue;
+
+    if (hasChanged) {
+      const nextData = workingData.map(r => {
+        if (r._rowId === targetRow._rowId) {
+          return { ...r, [header]: newValue };
+        }
+        return r;
+      });
+
+      // Recalculate any formulas dependent on this cell edit
+      recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+
+      setIsDirty(true);
+      setEditedCells(prev => new Set(prev).add(`${targetRow._rowId}:${header}`));
+    }
+
+    setEditingCell(null);
+  }, [displayedRows, visibleHeaders, workingColumnTypes, workingData, workingHeaders, workingFormulas, recalculateAndSetData]);
+
+  // Handle keys while editing inside input element
+  const handleCellInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rIndex: number, cIndex: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      commitCellEdit(rIndex, cIndex, editValue);
+
+      // Move selection down
+      if (rIndex < displayedRows.length - 1) {
+        const nextR = rIndex + 1;
+        setSelectedCell({ row: nextR, col: cIndex });
+        setSelectionRange({ startRow: nextR, startCol: cIndex, endRow: nextR, endCol: cIndex });
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingCell(null); // Cancel edit
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+      commitCellEdit(rIndex, cIndex, editValue);
+
+      // Move selection right/left
+      const maxC = visibleHeaders.length - 1;
+      const maxR = displayedRows.length - 1;
+      if (e.shiftKey) {
+        if (cIndex > 0) {
+          setSelectedCell({ row: rIndex, col: cIndex - 1 });
+          setSelectionRange({ startRow: rIndex, startCol: cIndex - 1, endRow: rIndex, endCol: cIndex - 1 });
+        } else if (rIndex > 0) {
+          setSelectedCell({ row: rIndex - 1, col: maxC });
+          setSelectionRange({ startRow: rIndex - 1, startCol: maxC, endRow: rIndex - 1, endCol: maxC });
+        }
+      } else {
+        if (cIndex < maxC) {
+          setSelectedCell({ row: rIndex, col: cIndex + 1 });
+          setSelectionRange({ startRow: rIndex, startCol: cIndex + 1, endRow: rIndex, endCol: cIndex + 1 });
+        } else if (rIndex < maxR) {
+          setSelectedCell({ row: rIndex + 1, col: 0 });
+          setSelectionRange({ startRow: rIndex + 1, startCol: 0, endRow: rIndex + 1, endCol: 0 });
+        }
+      }
+    }
+  };
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingCell && cellInputRef.current) {
+      cellInputRef.current.focus();
+      cellInputRef.current.select();
+    }
+  }, [editingCell]);
+
+  // ----------------------------------------------------
+  // 4. Copy Helper
+  // ----------------------------------------------------
+  const copyToClipboard = useCallback((rangeOverride?: SelectionRange) => {
+    const targetRange = rangeOverride || selectionRange;
+    if (!targetRange || displayedRows.length === 0 || visibleHeaders.length === 0) return;
+
+    const minRow = Math.max(0, Math.min(targetRange.startRow, targetRange.endRow));
+    const maxRow = Math.min(displayedRows.length - 1, Math.max(targetRange.startRow, targetRange.endRow));
+    const minCol = Math.max(0, Math.min(targetRange.startCol, targetRange.endCol));
+    const maxCol = Math.min(visibleHeaders.length - 1, Math.max(targetRange.startCol, targetRange.endCol));
+
+    const lines: string[] = [];
+    for (let r = minRow; r <= maxRow; r++) {
+      const row = displayedRows[r];
+      if (!row) continue;
+      const cells: string[] = [];
+      for (let c = minCol; c <= maxCol; c++) {
+        const header = visibleHeaders[c];
+        const val = row[header];
+        cells.push(val === null || val === undefined ? '' : String(val));
+      }
+      lines.push(cells.join('\t'));
+    }
+
+    const tsvText = lines.join('\n');
+    navigator.clipboard.writeText(tsvText).then(() => {
+      const cellCount = (maxRow - minRow + 1) * (maxCol - minCol + 1);
+      setCopyFeedback(`Copied ${cellCount} cell${cellCount > 1 ? 's' : ''} to clipboard`);
+      setTimeout(() => setCopyFeedback(null), 2000);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+    });
+  }, [selectionRange, displayedRows, visibleHeaders]);
+
+  // ----------------------------------------------------
+  // 5. Grid Actions (Row/Column Mutators in Working Copy)
+  // ----------------------------------------------------
+  
+  // Add Row
+  const handleAddRow = () => {
+    const newRowId = `r-new-${Date.now()}`;
+    const newRow: Record<string, any> = { _rowId: newRowId };
+    workingHeaders.forEach(h => {
+      newRow[h] = null;
+    });
+
+    const nextData = [...workingData, newRow];
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+
+    setIsDirty(true);
+    setAddedRowIds(prev => new Set(prev).add(newRowId));
+
+    // Focus & select new row's first cell
+    const newRowIndex = workingData.length;
+    setSelectedCell({ row: newRowIndex, col: 0 });
+    setSelectionRange({ startRow: newRowIndex, startCol: 0, endRow: newRowIndex, endCol: 0 });
+    
+    // Immediately open edit mode on new row if first col is not formula
+    const firstCol = visibleHeaders[0];
+    if (firstCol && !workingFormulas[firstCol]) {
+      setTimeout(() => {
+        startEditingCell(newRowIndex, 0, '');
+      }, 50);
+    }
+  };
+
+  // Confirm Delete Row
+  const handleConfirmDeleteRow = () => {
+    if (deletingRowIndex === null) return;
+    const targetRow = displayedRows[deletingRowIndex];
+    if (!targetRow) return;
+
+    const nextData = workingData.filter(r => r._rowId !== targetRow._rowId);
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+
+    setIsDirty(true);
+    setDeletingRowIndex(null);
+
+    // Adjust selection safely
+    const maxR = Math.max(0, displayedRows.length - 2);
+    const nextR = Math.min(deletingRowIndex, maxR);
+    setSelectedCell({ row: nextR, col: 0 });
+    setSelectionRange({ startRow: nextR, startCol: 0, endRow: nextR, endCol: 0 });
+  };
+
+  // Add Column
+  const handleConfirmAddColumn = (e: React.FormEvent) => {
+    e.preventDefault();
+    const colName = newColName.trim();
+    if (!colName) {
+      setAddColumnError('Column name cannot be empty.');
+      return;
+    }
+    if (workingHeaders.some(h => h.toLowerCase() === colName.toLowerCase())) {
+      setAddColumnError(`A column named "${colName}" already exists.`);
+      return;
+    }
+
+    setWorkingHeaders(prev => [...prev, colName]);
+    setWorkingColumnTypes(prev => ({ ...prev, [colName]: newColType }));
+    setWorkingData(prev => prev.map(r => ({ ...r, [colName]: null })));
+    setAddedColumns(prev => new Set(prev).add(colName));
+
+    setIsDirty(true);
+    setShowAddColumnModal(false);
+    setNewColName('');
+    setAddColumnError(null);
+  };
+
+  // Rename Column
+  const handleConfirmRenameColumn = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renamingHeader) return;
+    const oldName = renamingHeader;
+    const newName = renameValue.trim();
+
+    if (!newName) {
+      setRenameError('Column name cannot be empty.');
+      return;
+    }
+
+    if (
+      oldName.toLowerCase() !== newName.toLowerCase() && 
+      workingHeaders.some(h => h.toLowerCase() === newName.toLowerCase())
+    ) {
+      setRenameError(`A column named "${newName}" already exists.`);
+      return;
+    }
+
+    if (oldName !== newName) {
+      setWorkingHeaders(prev => prev.map(h => h === oldName ? newName : h));
+      setWorkingColumnTypes(prev => {
+        const next = { ...prev };
+        const type = next[oldName] || 'text';
+        delete next[oldName];
+        next[newName] = type;
+        return next;
+      });
+
+      setWorkingData(prev => prev.map(row => {
+        const { [oldName]: val, ...rest } = row;
+        return { ...rest, [newName]: val };
+      }));
+
+      if (sortConfig?.key === oldName) {
+        setSortConfig({ key: newName, direction: sortConfig.direction });
+      }
+
+      setIsDirty(true);
+    }
+
+    setRenamingHeader(null);
+    setRenameValue('');
+    setRenameError(null);
+  };
+
+  // Save Changes to Persistence
+  const handleSaveChanges = () => {
+    // Strip internal `_rowId` before saving dataset
+    const cleanData = workingData.map(r => {
+      const { _rowId, ...rest } = r;
+      return rest;
+    });
+
+    const updatedDataset: Dataset = {
+      ...dataset,
+      headers: workingHeaders,
+      columnTypes: workingColumnTypes,
+      formulas: workingFormulas,
+      rowCount: cleanData.length,
+      colCount: workingHeaders.length,
+      data: cleanData.slice(0, 100),
+      fullData: cleanData,
+      updatedAt: Date.now(),
+    };
+
+    if (onUpdateDataset) {
+      onUpdateDataset(updatedDataset);
+    }
+
+    setIsDirty(false);
+    setEditedCells(new Set());
+    setAddedRowIds(new Set());
+    setAddedColumns(new Set());
+
+    setSaveFeedback('Changes saved successfully to workspace!');
+    setTimeout(() => setSaveFeedback(null), 3000);
+  };
+
+  // Discard Changes
+  const handleConfirmDiscardChanges = () => {
+    const sourceRows = dataset.fullData && dataset.fullData.length > 0 ? dataset.fullData : dataset.data || [];
+    const formattedRows = sourceRows.map((r, idx) => ({
+      ...r,
+      _rowId: r._rowId || `r-${idx}-${Date.now()}`
+    }));
+
+    setWorkingData(formattedRows);
+    setWorkingHeaders([...dataset.headers]);
+    setWorkingColumnTypes({ ...(dataset.columnTypes || {}) });
+    setWorkingFormulas({ ...(dataset.formulas || {}) });
+
+    setIsDirty(false);
+    setEditedCells(new Set());
+    setAddedRowIds(new Set());
+    setAddedColumns(new Set());
+    setEditingCell(null);
+    setShowDiscardModal(false);
+  };
+
+  // ----------------------------------------------------
+  // 6. Cell Selection Handlers
+  // ----------------------------------------------------
+  const handleCellMouseDown = (rIndex: number, cIndex: number, e: React.MouseEvent) => {
+    if (editingCell) return;
+    if (e.button !== 0 && e.button !== 2) return; // Left or Right click
+
+    setContextMenu(null);
+
+    if (e.shiftKey && selectedCell) {
+      setSelectionRange({
+        startRow: selectedCell.row,
+        startCol: selectedCell.col,
+        endRow: rIndex,
+        endCol: cIndex,
+      });
+    } else {
+      setSelectedCell({ row: rIndex, col: cIndex });
+      setSelectionRange({
+        startRow: rIndex,
+        startCol: cIndex,
+        endRow: rIndex,
+        endCol: cIndex,
+      });
+      if (e.button === 0) {
+        setIsDragging(true);
+      }
+    }
+  };
+
+  const handleCellMouseEnter = (rIndex: number, cIndex: number) => {
+    if (isDragging && selectedCell && !editingCell) {
+      setSelectionRange(prev => prev ? {
+        ...prev,
+        endRow: rIndex,
+        endCol: cIndex,
+      } : null);
+    }
+  };
+
+  // Mouse up window listener for drag selection & column resize
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      if (resizingCol) {
+        setResizingCol(null);
+      }
+    };
+
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [resizingCol]);
+
+  // Column Resizing Logic
+  const handleResizeMouseDown = (header: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setResizingCol(header);
+    resizeStartX.current = e.clientX;
+    const currentW = columnWidths[header] || 150;
+    resizeStartWidth.current = currentW;
+  };
+
+  useEffect(() => {
+    if (!resizingCol) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - resizeStartX.current;
+      const newWidth = Math.max(80, Math.min(600, resizeStartWidth.current + deltaX));
+      setColumnWidths(prev => ({
+        ...prev,
+        [resizingCol]: newWidth,
+      }));
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [resizingCol]);
+
+  // ----------------------------------------------------
+  // 7. Grid Keyboard Navigation & Shortcuts
+  // ----------------------------------------------------
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (editingCell) return; // Input handles keys while editing
+    if (!selectedCell || displayedRows.length === 0 || visibleHeaders.length === 0) return;
+
+    const maxR = displayedRows.length - 1;
+    const maxC = visibleHeaders.length - 1;
+
+    let { row, col } = selectedCell;
+    let endRow = selectionRange ? selectionRange.endRow : row;
+    let endCol = selectionRange ? selectionRange.endCol : col;
+
+    let handled = false;
+
+    // Ctrl+C / Cmd+C Copy
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      copyToClipboard();
+      e.preventDefault();
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      setContextMenu(null);
+      setShowColumnsDropdown(false);
+      e.preventDefault();
+      return;
+    }
+
+    // Direct Typing -> Start editing cell with initial typed char
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      startEditingCell(row, col, e.key);
+      e.preventDefault();
+      return;
+    }
+
+    // Enter key -> Start editing cell
+    if (e.key === 'Enter') {
+      startEditingCell(row, col);
+      e.preventDefault();
+      return;
+    }
+
+    if (e.shiftKey) {
+      // Range selection
+      if (e.key === 'ArrowUp') {
+        endRow = Math.max(0, endRow - 1);
+        handled = true;
+      } else if (e.key === 'ArrowDown') {
+        endRow = Math.min(maxR, endRow + 1);
+        handled = true;
+      } else if (e.key === 'ArrowLeft') {
+        endCol = Math.max(0, endCol - 1);
+        handled = true;
+      } else if (e.key === 'ArrowRight') {
+        endCol = Math.min(maxC, endCol + 1);
+        handled = true;
+      }
+
+      if (handled) {
+        setSelectionRange({
+          startRow: row,
+          startCol: col,
+          endRow,
+          endCol,
+        });
+      }
+    } else {
+      // Cell navigation
+      if (e.key === 'ArrowUp') {
+        row = Math.max(0, row - 1);
+        handled = true;
+      } else if (e.key === 'ArrowDown') {
+        row = Math.min(maxR, row + 1);
+        handled = true;
+      } else if (e.key === 'ArrowLeft') {
+        col = Math.max(0, col - 1);
+        handled = true;
+      } else if (e.key === 'ArrowRight') {
+        col = Math.min(maxC, col + 1);
+        handled = true;
+      } else if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          if (col > 0) col--;
+          else if (row > 0) { row--; col = maxC; }
+        } else {
+          if (col < maxC) col++;
+          else if (row < maxR) { row++; col = 0; }
+        }
+        handled = true;
+      }
+
+      if (handled) {
+        setSelectedCell({ row, col });
+        setSelectionRange({
+          startRow: row,
+          startCol: col,
+          endRow: row,
+          endCol: col,
+        });
+      }
+    }
+
+    if (handled) {
+      e.preventDefault();
+    }
+  };
+
+  // Right-Click Context Menu Handler
+  const handleContextMenu = (rIndex: number, cIndex: number, header: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    if (editingCell) return;
+
+    if (
+      !rangeBounds || 
+      rIndex < rangeBounds.minRow || 
+      rIndex > rangeBounds.maxRow || 
+      cIndex < rangeBounds.minCol || 
+      cIndex > rangeBounds.maxCol
+    ) {
+      setSelectedCell({ row: rIndex, col: cIndex });
+      setSelectionRange({
+        startRow: rIndex,
+        startCol: cIndex,
+        endRow: rIndex,
+        endCol: cIndex,
+      });
+    }
+
+    setContextMenu({
+      x: Math.min(e.clientX, window.innerWidth - 220),
+      y: Math.min(e.clientY, window.innerHeight - 300),
+      row: rIndex,
+      col: cIndex,
+      header,
+    });
+  };
+
+  // Context Menu Actions
+  const handleSelectRow = (rIndex: number) => {
+    setSelectionRange({
+      startRow: rIndex,
+      startCol: 0,
+      endRow: rIndex,
+      endCol: visibleHeaders.length - 1,
+    });
+    setContextMenu(null);
+  };
+
+  const handleSelectColumn = (cIndex: number) => {
+    setSelectionRange({
+      startRow: 0,
+      startCol: cIndex,
+      endRow: displayedRows.length - 1,
+      endCol: cIndex,
+    });
+    setContextMenu(null);
+  };
+
+  const handleHideColumn = (header: string) => {
+    setHiddenColumns(prev => {
+      const next = new Set(prev);
+      next.add(header);
+      return next;
+    });
+    setContextMenu(null);
+  };
+
+  const handleToggleColumnVisibility = (header: string) => {
+    setHiddenColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(header)) {
+        next.delete(header);
+      } else {
+        if (visibleHeaders.length <= 1) return prev;
+        next.add(header);
+      }
+      return next;
+    });
+  };
+
+  const handleShowAllColumns = () => {
+    setHiddenColumns(new Set());
+    setShowColumnsDropdown(false);
+  };
+
+  // Data type badge formatter
+  const getTypeBadge = (type?: string) => {
+    switch (type) {
+      case 'numeric':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/40">
+            <Hash className="w-2.5 h-2.5" /> NUM
+          </span>
+        );
+      case 'date':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40">
+            <Calendar className="w-2.5 h-2.5" /> DATE
+          </span>
+        );
+      case 'categorical':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40">
+            <Tag className="w-2.5 h-2.5" /> CAT
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700/50">
+            <CaseSensitive className="w-2.5 h-2.5 text-zinc-500" /> TEXT
+          </span>
+        );
+    }
+  };
+
+  // Position indicator text (e.g., "Cell B2 (Revenue)")
+  const selectionInfoText = useMemo(() => {
+    if (!selectionRange || visibleHeaders.length === 0 || displayedRows.length === 0) return '';
+    const { minRow, maxRow, minCol, maxCol } = rangeBounds!;
+    
+    const getColLetter = (colIdx: number) => {
+      let letter = '';
+      let temp = colIdx;
+      while (temp >= 0) {
+        letter = String.fromCharCode((temp % 26) + 65) + letter;
+        temp = Math.floor(temp / 26) - 1;
+      }
+      return letter;
+    };
+
+    const startCellStr = `${getColLetter(minCol)}${minRow + 1}`;
+    if (minRow === maxRow && minCol === maxCol) {
+      const colHeader = visibleHeaders[minCol];
+      return `Cell ${startCellStr} (${colHeader})`;
+    }
+
+    const endCellStr = `${getColLetter(maxCol)}${maxRow + 1}`;
+    const totalCells = (maxRow - minRow + 1) * (maxCol - minCol + 1);
+    return `Range ${startCellStr}:${endCellStr} (${totalCells} cells selected)`;
+  }, [selectionRange, rangeBounds, visibleHeaders, displayedRows]);
+
+  // Close context menu & dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenu) setContextMenu(null);
+      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(e.target as Node)) {
+        setShowColumnsDropdown(false);
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, [contextMenu]);
+
+  return (
+    <div className="glass-panel glass-card rounded-xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 shadow-lg flex flex-col">
+      
+      {/* 1. Grid Toolbar Bar */}
+      <div className="p-3.5 border-b border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-3 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <TableIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <h3 className="font-bold text-xs lg:text-sm text-zinc-900 dark:text-zinc-100">
+              Interactive Data Grid
+            </h3>
+          </div>
+
+          {/* Unsaved Changes Indicator Badge & Actions */}
+          {isDirty ? (
+            <div className="flex items-center gap-2 animate-in fade-in duration-200">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-[11px] font-bold font-mono">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                Unsaved Edits
+              </span>
+
+              <Button
+                size="sm"
+                onClick={handleSaveChanges}
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 cursor-pointer shadow-sm"
+                title="Save working copy changes to workspace"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save Changes</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDiscardModal(true)}
+                className="h-8 text-xs border-zinc-200 dark:border-zinc-800 font-bold gap-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                title="Discard working copy changes and revert"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="hidden sm:inline">Discard</span>
+              </Button>
+            </div>
+          ) : (
+            <span className="h-4 w-px bg-zinc-300 dark:bg-zinc-700 hidden sm:inline-block" />
+          )}
+
+          {/* Selected Cell/Range Indicator */}
+          {selectionInfoText && (
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-900/40 text-blue-800 dark:text-blue-300 text-[11px] font-mono font-bold">
+              {selectionInfoText}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Add Row Action */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddRow}
+            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
+            title="Append a new empty row to working copy"
+          >
+            <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>Add Row</span>
+          </Button>
+
+          {/* Add Column Action */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setShowAddColumnModal(true);
+              setNewColName('');
+              setAddColumnError(null);
+            }}
+            className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-zinc-800 dark:text-zinc-200"
+            title="Create a new column in working copy"
+          >
+            <PlusCircle className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">Add Column</span>
+          </Button>
+
+          {/* Add Formula Column Action */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditingFormulaCol(null);
+              setShowFormulaModal(true);
+            }}
+            className="h-8 text-xs gap-1.5 border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer shadow-xs"
+            title="Create or edit a calculated formula column"
+          >
+            <Calculator className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span>+ Formula Column</span>
+          </Button>
+
+          {/* Search */}
+          <div className="relative">
+            <Filter className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search cells..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 pr-3 py-1 text-xs font-medium bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-32 sm:w-44 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 shadow-2xs"
+            />
+          </div>
+
+          {/* Column Visibility Popover */}
+          <div className="relative" ref={columnsDropdownRef}>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 text-xs gap-1 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-semibold cursor-pointer",
+                hiddenColumns.size > 0 && "text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-800 bg-blue-50/50"
+              )}
+              onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
+            >
+              <Eye className="w-3.5 h-3.5 text-zinc-500" />
+              <span className="hidden xl:inline">Cols ({visibleHeaders.length}/{workingHeaders.length})</span>
+              <ChevronDown className="w-3 h-3 text-zinc-400" />
+            </Button>
+
+            {showColumnsDropdown && (
+              <div className="absolute right-0 mt-1.5 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Column Visibility</span>
+                  {hiddenColumns.size > 0 && (
+                    <button
+                      onClick={handleShowAllColumns}
+                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold"
+                    >
+                      Show All
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                  {workingHeaders.map((h) => {
+                    const isVisible = !hiddenColumns.has(h);
+                    return (
+                      <label
+                        key={h}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/60 cursor-pointer text-xs font-medium text-zinc-800 dark:text-zinc-200"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isVisible}
+                          onChange={() => handleToggleColumnVisibility(h)}
+                          className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 accent-blue-600 cursor-pointer"
+                        />
+                        <span className="truncate flex-1">{h}</span>
+                        {getTypeBadge(workingColumnTypes[h])}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Row Display Limit */}
+          <div className="hidden lg:flex items-center text-xs text-zinc-500 gap-1.5">
+            <select
+              value={rowLimit}
+              onChange={(e) => setRowLimit(Number(e.target.value))}
+              className="h-8 px-2 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer"
+            >
+              <option value={50}>50 rows</option>
+              <option value={100}>100 rows</option>
+              <option value={250}>250 rows</option>
+              <option value={500}>500 rows</option>
+              <option value={-1}>All ({processedRows.length.toLocaleString()})</option>
+            </select>
+          </div>
+
+          {/* Sort Reset Button */}
+          {sortConfig && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1"
+              onClick={() => setSortConfig(null)}
+              title="Clear Column Sorting"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </Button>
+          )}
+
+          {/* Copy Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+            onClick={() => copyToClipboard()}
+            title="Copy selected cell or range (Ctrl+C)"
+          >
+            <Copy className="w-3.5 h-3.5 text-blue-500" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Save Feedback Banner */}
+      {saveFeedback && (
+        <div className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between animate-in fade-in slide-in-from-top-1 duration-150">
+          <span className="flex items-center gap-2">
+            <Check className="w-4 h-4" />
+            {saveFeedback}
+          </span>
+          <span className="text-[10px] font-mono opacity-80">IndexedDB Persisted</span>
+        </div>
+      )}
+
+      {/* Copy Feedback Banner */}
+      {copyFeedback && (
+        <div className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 flex items-center justify-between animate-in fade-in slide-in-from-top-1 duration-150">
+          <span className="flex items-center gap-1.5">
+            <Check className="w-3.5 h-3.5" />
+            {copyFeedback}
+          </span>
+          <span className="text-[10px] font-mono opacity-80">TSV formatted</span>
+        </div>
+      )}
+
+      {/* Invalid Input Warning Toast */}
+      {warningToast && (
+        <div className="bg-amber-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between animate-in fade-in slide-in-from-top-1 duration-150">
+          <span className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            {warningToast}
+          </span>
+          <button onClick={() => setWarningToast(null)} className="hover:opacity-75 cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 2. Spreadsheet Grid Container */}
+      <div
+        ref={gridRef}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className="overflow-auto max-h-[550px] min-h-[320px] custom-scrollbar focus:outline-none select-none relative bg-white dark:bg-[#0c0c0e]"
+      >
+        <table className="w-full text-left border-collapse whitespace-nowrap min-w-max font-mono text-xs">
+          {/* Sticky Column Headers */}
+          <thead className="sticky top-0 z-20 shadow-xs">
+            <tr className="bg-zinc-100/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+              {/* Corner Header: Row Numbers (#) */}
+              <th className="py-2.5 px-3 border-r border-zinc-200 dark:border-zinc-800 sticky left-0 bg-zinc-100 dark:bg-zinc-900 z-30 shadow-[1px_0_0_0_#e4e4e7] dark:shadow-[1px_0_0_0_#27272a] text-center w-12 shrink-0">
+                #
+              </th>
+
+              {visibleHeaders.map((header, cIndex) => {
+                const isSorted = sortConfig?.key === header;
+                const colW = columnWidths[header] || 150;
+                const isHeaderActive = rangeBounds && cIndex >= rangeBounds.minCol && cIndex <= rangeBounds.maxCol;
+                const isNewColumn = addedColumns.has(header);
+
+                return (
+                  <th
+                    key={header}
+                    style={{ width: `${colW}px`, minWidth: `${colW}px`, maxWidth: `${colW}px` }}
+                    className={cn(
+                      "py-2.5 px-3 border-r border-zinc-200/80 dark:border-zinc-800/80 relative group cursor-pointer transition-colors hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60",
+                      isHeaderActive && "bg-blue-100/70 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 font-bold"
+                    )}
+                    onClick={() => handleHeaderClick(header)}
+                    onDoubleClick={() => {
+                      setRenamingHeader(header);
+                      setRenameValue(header);
+                      setRenameError(null);
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2 overflow-hidden">
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-xs font-bold text-zinc-900 dark:text-zinc-100 font-sans" title={`Double-click to rename "${header}"`}>
+                            {header}
+                          </span>
+                          {workingFormulas[header] ? (
+                            <span 
+                              className="text-[9px] font-black font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-950/90 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 px-1 rounded flex items-center gap-0.5 shrink-0" 
+                              title={`Formula: ${workingFormulas[header]}`}
+                            >
+                              fx
+                            </span>
+                          ) : isNewColumn ? (
+                            <span className="text-[8px] bg-blue-500 text-white px-1 rounded font-mono uppercase font-black">
+                              NEW
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-0.5">
+                          {getTypeBadge(workingColumnTypes[header])}
+                        </div>
+                      </div>
+
+                      {/* Sort Indicator */}
+                      <span className="shrink-0 text-zinc-400">
+                        {isSorted ? (
+                          sortConfig.direction === 'asc' ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400" />
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Column Resizer Boundary Handle */}
+                    <div
+                      onMouseDown={(e) => handleResizeMouseDown(header, e)}
+                      className={cn(
+                        "absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-500/80 transition-colors z-10",
+                        resizingCol === header && "bg-blue-600"
+                      )}
+                    />
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+
+          {/* Spreadsheet Body */}
+          <tbody className="divide-y divide-zinc-200/50 dark:divide-zinc-800/60 text-[11px] bg-white dark:bg-[#0c0c0e]">
+            {displayedRows.map((row, rIndex) => {
+              const isRowActive = rangeBounds && rIndex >= rangeBounds.minRow && rIndex <= rangeBounds.maxRow;
+              const isNewRow = addedRowIds.has(row._rowId);
+
+              return (
+                <tr key={row._rowId || rIndex} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-900/30 transition-colors">
+                  {/* Fixed Row Number (#) */}
+                  <td
+                    onClick={() => handleSelectRow(rIndex)}
+                    className={cn(
+                      "py-2 px-2 border-r border-zinc-200/80 dark:border-zinc-800/80 sticky left-0 font-bold text-center z-10 shadow-[1px_0_0_0_#e4e4e7] dark:shadow-[1px_0_0_0_#27272a] cursor-pointer text-[10px] select-none transition-colors",
+                      isRowActive 
+                        ? "bg-blue-100/80 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-extrabold" 
+                        : "bg-zinc-50 dark:bg-zinc-950 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    )}
+                    title="Click to select entire row"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      {isNewRow && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Newly added row" />
+                      )}
+                      <span>{rIndex + 1}</span>
+                    </div>
+                  </td>
+
+                  {/* Grid Data Cells */}
+                  {visibleHeaders.map((header, cIndex) => {
+                    const rawVal = row[header];
+                    const formattedVal = formatCellValue(rawVal);
+                    const isNull = formattedVal === null;
+
+                    const isInRange = rangeBounds && 
+                      rIndex >= rangeBounds.minRow && 
+                      rIndex <= rangeBounds.maxRow && 
+                      cIndex >= rangeBounds.minCol && 
+                      cIndex <= rangeBounds.maxCol;
+
+                    const isSelectedCell = selectedCell && selectedCell.row === rIndex && selectedCell.col === cIndex;
+                    const isEditing = editingCell && editingCell.row === rIndex && editingCell.col === cIndex;
+                    const colW = columnWidths[header] || 150;
+                    const isCellEdited = editedCells.has(`${row._rowId}:${header}`);
+                    const formula = workingFormulas[header];
+
+                    return (
+                      <td
+                        key={header}
+                        style={{ width: `${colW}px`, minWidth: `${colW}px`, maxWidth: `${colW}px` }}
+                        onMouseDown={(e) => handleCellMouseDown(rIndex, cIndex, e)}
+                        onMouseEnter={() => handleCellMouseEnter(rIndex, cIndex)}
+                        onDoubleClick={() => startEditingCell(rIndex, cIndex)}
+                        onContextMenu={(e) => handleContextMenu(rIndex, cIndex, header, e)}
+                        className={cn(
+                          "py-2 px-3 border-r border-zinc-200/50 dark:border-zinc-800/50 truncate relative cursor-default transition-all",
+                          formula && "bg-indigo-50/30 dark:bg-indigo-950/20 font-mono",
+                          isInRange && "bg-blue-500/12 dark:bg-blue-500/22",
+                          isSelectedCell && !isEditing && "ring-2 ring-blue-600 dark:ring-blue-500 z-10 bg-blue-50 dark:bg-blue-950/40 border-transparent shadow-xs font-semibold"
+                        )}
+                        title={formula ? `Calculated: ${formula}` : isNull ? 'Double click or press Enter to edit' : String(formattedVal)}
+                      >
+                        {/* Edited Cell Dot */}
+                        {isCellEdited && !isEditing && (
+                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-xs" title="Edited cell" />
+                        )}
+
+                        {isEditing ? (
+                          <input
+                            ref={cellInputRef}
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => handleCellInputKeyDown(e, rIndex, cIndex)}
+                            onBlur={() => commitCellEdit(rIndex, cIndex, editValue)}
+                            className="w-full h-full bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border-2 border-blue-600 dark:border-blue-400 rounded px-1.5 py-0.5 text-xs font-mono focus:outline-none shadow-md z-30"
+                          />
+                        ) : isNull ? (
+                          <span className="text-zinc-300 dark:text-zinc-700 italic text-[10px] select-none">null</span>
+                        ) : formula ? (
+                          <span className="text-indigo-700 dark:text-indigo-300 font-semibold">
+                            {formattedVal}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-800 dark:text-zinc-200">
+                            {formattedVal}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+
+            {displayedRows.length === 0 && (
+              <tr>
+                <td colSpan={visibleHeaders.length + 1} className="py-12 text-center text-zinc-400">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <Filter className="w-8 h-8 text-zinc-300 dark:text-zinc-700" />
+                    <p className="font-semibold text-xs text-zinc-500">No records found. Click "Add Row" to insert data.</p>
+                    <Button size="sm" variant="outline" onClick={handleAddRow} className="mt-2 text-xs font-bold gap-1">
+                      <Plus className="w-3.5 h-3.5 text-emerald-500" /> Add New Row
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 3. Grid Status Bar */}
+      <div className="p-2.5 border-t border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-zinc-500 backdrop-blur-md">
+        <div className="flex items-center gap-4">
+          <span>
+            Rows: <strong className="text-zinc-800 dark:text-zinc-200">{workingData.length.toLocaleString()}</strong> | Cols: <strong className="text-zinc-800 dark:text-zinc-200">{workingHeaders.length}</strong>
+          </span>
+          {sortConfig && (
+            <span className="text-blue-600 dark:text-blue-400 font-bold">
+              Sorted by {sortConfig.key} ({sortConfig.direction.toUpperCase()})
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="text-zinc-400 hidden sm:inline">Double-click / Enter to edit cells | Tab to move</span>
+          <span className={cn(
+            "px-2 py-0.5 rounded font-bold uppercase tracking-wider",
+            isDirty 
+              ? "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+              : "bg-zinc-200/60 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+          )}>
+            {isDirty ? "Working Copy (Unsaved)" : "Saved State"}
+          </span>
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* 4. Cell Context Menu */}
+      {/* ---------------------------------------------------- */}
+      {contextMenu && (
+        <div
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          className="fixed z-50 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              startEditingCell(contextMenu.row, contextMenu.col);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Edit3 className="w-3.5 h-3.5 text-blue-500" />
+              Edit Cell
+            </span>
+            <span className="text-[10px] text-zinc-400 font-mono">Enter</span>
+          </button>
+
+          <button
+            onClick={() => {
+              copyToClipboard();
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Copy className="w-3.5 h-3.5 text-blue-500" />
+              Copy
+            </span>
+            <span className="text-[10px] text-zinc-400 font-mono">Ctrl+C</span>
+          </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          <button
+            onClick={() => {
+              handleAddRow();
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 text-emerald-500" />
+            Add Row
+          </button>
+
+          <button
+            onClick={() => {
+              setDeletingRowIndex(contextMenu.row);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            Delete Row #{contextMenu.row + 1}
+          </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          <button
+            onClick={() => {
+              setShowAddColumnModal(true);
+              setNewColName('');
+              setAddColumnError(null);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <PlusCircle className="w-3.5 h-3.5 text-blue-500" />
+            Add Standard Column
+          </button>
+
+          {workingFormulas[contextMenu.header] ? (
+            <>
+              <button
+                onClick={() => {
+                  setEditingFormulaCol(contextMenu.header);
+                  setShowFormulaModal(true);
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
+              >
+                <Calculator className="w-3.5 h-3.5 text-indigo-500" />
+                Edit Formula ({contextMenu.header})
+              </button>
+
+              <button
+                onClick={() => handleDeleteFormulaColumn(contextMenu.header)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                Delete Formula Column "{contextMenu.header}"
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => {
+                setEditingFormulaCol(null);
+                setShowFormulaModal(true);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
+            >
+              <Calculator className="w-3.5 h-3.5 text-indigo-500" />
+              Add Formula Column
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              setRenamingHeader(contextMenu.header);
+              setRenameValue(contextMenu.header);
+              setRenameError(null);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+            Rename Column "{contextMenu.header}"
+          </button>
+
+          <button
+            onClick={() => handleHideColumn(contextMenu.header)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
+            Hide Column "{contextMenu.header}"
+          </button>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 5. Modals */}
+      {/* ---------------------------------------------------- */}
+
+      {/* Add Column Modal */}
+      {showAddColumnModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100">Add New Column</h3>
+              </div>
+              <button onClick={() => setShowAddColumnModal(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmAddColumn} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Column Name
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. DiscountPercentage"
+                  value={newColName}
+                  onChange={(e) => setNewColName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-medium bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Data Type
+                </label>
+                <select
+                  value={newColType}
+                  onChange={(e) => setNewColType(e.target.value as ColumnType)}
+                  className="w-full px-3 py-2 text-xs font-bold bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100 cursor-pointer"
+                >
+                  <option value="text">Text (String)</option>
+                  <option value="numeric">Numeric (Number)</option>
+                  <option value="date">Date</option>
+                  <option value="categorical">Categorical</option>
+                </select>
+              </div>
+
+              {addColumnError && (
+                <div className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2.5 rounded-lg border border-red-200 dark:border-red-900/30 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{addColumnError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAddColumnModal(false)}
+                  className="text-xs font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                >
+                  Add Column
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Column Modal */}
+      {renamingHeader && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100">Rename Column</h3>
+              </div>
+              <button onClick={() => setRenamingHeader(null)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmRenameColumn} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                  New Name for "{renamingHeader}"
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-medium bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100"
+                />
+              </div>
+
+              {renameError && (
+                <div className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2.5 rounded-lg border border-red-200 dark:border-red-900/30 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{renameError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRenamingHeader(null)}
+                  className="text-xs font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                >
+                  Save Name
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Row Confirmation Modal */}
+      {deletingRowIndex !== null && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/60 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100">Delete Row #{deletingRowIndex + 1}?</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">This will remove the row from your editable working copy.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeletingRowIndex(null)}
+                className="text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmDeleteRow}
+                className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold"
+              >
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discard Changes Confirmation Modal */}
+      {showDiscardModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3 text-amber-600 dark:text-amber-400">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center shrink-0">
+                <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100">Discard Unsaved Edits?</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">All unsaved cell edits, added rows, and column changes will be discarded.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDiscardModal(false)}
+                className="text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmDiscardChanges}
+                className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold"
+              >
+                Discard Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Formula Builder Modal */}
+      <FormulaBuilderModal
+        isOpen={showFormulaModal}
+        onClose={() => {
+          setShowFormulaModal(false);
+          setEditingFormulaCol(null);
+        }}
+        onApplyFormula={handleApplyFormula}
+        availableHeaders={workingHeaders}
+        existingFormulas={workingFormulas}
+        editingColName={editingFormulaCol}
+        sampleData={workingData}
+      />
+
+    </div>
+  );
+}
