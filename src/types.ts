@@ -133,6 +133,8 @@ export interface FormulaToken {
   value?: number;
 }
 
+export type ComparisonType = 'None' | 'MoM' | 'YoY';
+
 export interface KpiDefinition {
   id: string;
   name: string;
@@ -144,6 +146,11 @@ export interface KpiDefinition {
   // Simple Metric
   column?: string;
   aggregation?: KpiAggregation;
+
+  // Comparison
+  comparison?: ComparisonType;
+  dateColumn?: string;
+  targetValue?: number;
 
   // Calculated Metric Formula Tokens
   formulaTokens?: FormulaToken[];
