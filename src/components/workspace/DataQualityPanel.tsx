@@ -20,6 +20,7 @@ interface DataQualityPanelProps {
   onNavigateView?: (view: ViewState) => void;
   onSelectColumnForInspection?: (header: string) => void;
   onOpenFixModal?: (actionType: CleaningActionType, column?: string, variations?: string[]) => void;
+  onOpenAICopilot?: () => void;
   onClose?: () => void;
   embedded?: boolean;
 }
@@ -40,6 +41,7 @@ export function DataQualityPanel({
   onNavigateView,
   onSelectColumnForInspection,
   onOpenFixModal,
+  onOpenAICopilot,
   onClose,
   embedded = false,
 }: DataQualityPanelProps) {
@@ -137,11 +139,25 @@ export function DataQualityPanel({
           </div>
         </div>
 
-        {onClose && (
-          <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onOpenAICopilot && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={onOpenAICopilot}
+              className="h-8 text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold cursor-pointer shadow-xs gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Ask AI Copilot</span>
+            </Button>
+          )}
+
+          {onClose && (
+            <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 2. Dataset-Level Quality Summary KPI Grid */}

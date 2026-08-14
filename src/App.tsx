@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { get, set } from 'idb-keyval';
 import { ErrorBoundary } from 'react-error-boundary';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,8 +16,11 @@ import { DataDictionaryView } from './components/assets/DataDictionaryView';
 import { RenameModal } from './components/workspace/RenameModal';
 
 import { Dataset, ViewState, RelationshipSuggestion, Dashboard, DashboardPlan } from '@/types';
-import { detectRelationships } from '@/lib/relationshipDetector';
+import { discoverRelationships } from '@/lib/relationshipDiscovery';
 import { detectIssues, applyCleaningAction, undoCleaningAction, restoreOriginal } from '@/lib/dataCleaner';
+import { evaluateDataReadiness } from '@/lib/dataReadinessEngine';
+import { DataReadinessPanel } from './components/workspace/DataReadinessPanel';
+import { Button } from './components/ui/button';
 
 function ErrorFallback({ error, resetErrorBoundary }: any) {
   return (
@@ -120,14 +123,18 @@ export default function App() {
   };
 
   useEffect(() => {
-    const newSuggestions = detectRelationships(datasets);
+    const newSuggestions = discoverRelationships(datasets);
     setSuggestions(prev => {
-      const existing = new Map<string, RelationshipSuggestion>(prev.map(p => [p.id, p]));
-      return newSuggestions.map(ns => {
-        const ext = existing.get(ns.id);
+      const manualSuggestions = prev.filter(s => s.isManual);
+      const existingDiscovered = new Map<string, RelationshipSuggestion>(
+        prev.filter(s => !s.isManual).map(p => [p.id, p])
+      );
+      const mergedDiscovered = newSuggestions.map(ns => {
+        const ext = existingDiscovered.get(ns.id);
         if (ext) return { ...ns, status: ext.status };
         return ns;
       });
+      return [...manualSuggestions, ...mergedDiscovered];
     });
   }, [datasets]);
 
@@ -210,6 +217,69 @@ export default function App() {
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
   const renamingTargetDataset = datasets.find(d => d.id === renamingDatasetId) || null;
+
+  const readinessEval = useMemo(() => {
+    if (!selectedDataset) return null;
+    return evaluateDataReadiness(selectedDataset);
+  }, [selectedDataset, datasets]);
+
+  const renderReportingOrGate = (viewNode: React.ReactNode) => {
+    if (!selectedDataset) {
+      return (
+        <div className="flex-1 flex items-center justify-center p-8 bg-white dark:bg-zinc-950 text-center">
+          <p className="text-zinc-500 text-xs font-mono">No active dataset selected for reporting.</p>
+        </div>
+      );
+    }
+
+    if (readinessEval && readinessEval.status !== 'READY') {
+      return (
+        <div className="flex-1 flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto">
+          <div className="max-w-4xl w-full">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">Reporting Gate Blocked</h2>
+                <p className="text-xs text-zinc-500">Your active dataset has unresolved critical quality problems or a low quality score. You must validate the dataset before viewing dashboards or MIS reports.</p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setCurrentView('data-manager')}
+                className="text-xs h-8 text-zinc-700 dark:text-zinc-350 border-zinc-200 dark:border-zinc-800"
+              >
+                Go to Workspace
+              </Button>
+            </div>
+            <DataReadinessPanel
+              dataset={selectedDataset}
+              onOpenFixModal={(actionType, col, vars) => {
+                setCurrentView('cleaning');
+              }}
+              onProceedToReporting={(snapshot) => {
+                setDatasets(prev => prev.map(d => {
+                  if (d.id === selectedDataset.id) {
+                    return {
+                      ...d,
+                      cleaningStatus: 'cleaned',
+                      readinessSnapshot: {
+                        ...snapshot,
+                        validationTimestamp: snapshot.validationTimestamp.toISOString(),
+                      } as any
+                    };
+                  }
+                  return d;
+                }));
+              }}
+              onNavigateView={setCurrentView}
+              embedded
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return viewNode;
+  };
 
   if (!isInitialized) {
     return <div className="h-full flex items-center justify-center bg-white dark:bg-[#050505] text-zinc-500 text-xs font-mono">Loading workspace session...</div>;
@@ -296,13 +366,13 @@ export default function App() {
                   />
                 ) : currentView === 'relationships' ? (
                   <RelationshipView datasets={datasets} suggestions={suggestions} setSuggestions={setSuggestions} />
-                ) : currentView === 'kpi-builder' ? (
+                ) : currentView === 'kpi-builder' ? renderReportingOrGate(
                   <KpiBuilderView 
                     datasets={datasets} 
                     selectedDatasetId={selectedDatasetId || undefined}
                     onNavigateView={(view) => setCurrentView(view)}
                   />
-                ) : currentView === 'dashboards' ? (
+                ) : currentView === 'dashboards' ? renderReportingOrGate(
                   <DashboardView 
                     dashboards={dashboards} 
                     datasets={datasets} 
@@ -335,7 +405,7 @@ export default function App() {
                       if (selectedDashId === id) setSelectedDashId(null);
                     }}
                   />
-                ) : currentView === 'mis-report' ? (
+                ) : currentView === 'mis-report' ? renderReportingOrGate(
                   <MisReportView datasets={datasets} dashboards={dashboards} />
                 ) : currentView === 'data-dictionary' ? (
                   <DataDictionaryView datasets={datasets} dashboards={dashboards} />

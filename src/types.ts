@@ -78,6 +78,7 @@ export interface Dataset {
   cleaningStatus?: DatasetCleaningStatus;
   cleaningLogs?: CleaningLog[];
   issues?: CleaningIssue[];
+  readinessSnapshot?: any;
 }
 
 export interface RelationshipSuggestion {
@@ -91,6 +92,7 @@ export interface RelationshipSuggestion {
   reason: string;
   status: 'pending' | 'accepted' | 'rejected';
   warnings: string[];
+  isManual?: boolean;
 }
 
 export type ViewState = 

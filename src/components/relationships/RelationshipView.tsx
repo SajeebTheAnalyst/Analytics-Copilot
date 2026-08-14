@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Dataset, RelationshipSuggestion } from '@/types';
-import { detectRelationships } from '@/lib/relationshipDetector';
-import { Network, ZoomIn, ZoomOut, Maximize, AlertTriangle, Check, X, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
+import { RelationshipSuggestions } from '../workspace/RelationshipSuggestions';
+import { Network, ZoomIn, ZoomOut, Maximize, AlertTriangle, Check, X, EyeOff, ChevronUp, ChevronDown, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 import { RelationshipDetails } from './RelationshipDetails';
+import { ManualRelationshipModal } from './ManualRelationshipModal';
 
 interface RelationshipViewProps {
   datasets: Dataset[];
@@ -18,6 +19,7 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDraggingNode, setIsDraggingNode] = useState<string | null>(null);
@@ -108,6 +110,21 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
     }
   };
 
+  const handleCreateRelationship = (newRel: RelationshipSuggestion) => {
+    setSuggestions(prev => [...prev, newRel]);
+    setSelectedRel(newRel);
+  };
+
+  const handleUpdateRelationship = (id: string, updated: Partial<RelationshipSuggestion>) => {
+    setSuggestions(prev => prev.map(s => s.id === id ? { ...s, ...updated } : s));
+    setSelectedRel(prev => prev && prev.id === id ? { ...prev, ...updated } : prev);
+  };
+
+  const handleDeleteRelationship = (id: string) => {
+    setSuggestions(prev => prev.filter(s => s.id !== id));
+    setSelectedRel(null);
+  };
+
   if (datasets.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400">
@@ -127,7 +144,7 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
-        <div className="absolute top-4 left-4 z-20 glass-panel glass-card p-3 max-w-sm shadow-xl">
+        <div className="absolute top-4 left-4 z-20 glass-panel glass-card p-3 max-w-sm shadow-xl flex flex-col">
           <div className="flex items-center gap-2 mb-1">
             <Network className="w-5 h-5 text-blue-500" />
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Relationship Model</h3>
@@ -135,6 +152,14 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
           <p className="text-xs text-zinc-500">
             Detected {suggestions.length} possible relationships. Click on connections to review and approve them.
           </p>
+          <Button 
+            size="sm" 
+            className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold gap-1.5 shadow-xs cursor-pointer h-8.5 rounded-lg"
+            onClick={() => setIsManualModalOpen(true)}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Create Relationship
+          </Button>
         </div>
 
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
@@ -252,16 +277,36 @@ export function RelationshipView({ datasets, suggestions, setSuggestions }: Rela
         </div>
       </div>
 
-      {/* Side Panel for details */}
-      {selectedRel && (
+      {/* Side Panel for details or suggestions list */}
+      {selectedRel ? (
         <RelationshipDetails 
           relationship={selectedRel}
           sourceDataset={datasets.find(d => d.id === selectedRel.sourceDatasetId)!}
           targetDataset={datasets.find(d => d.id === selectedRel.targetDatasetId)!}
           onClose={() => setSelectedRel(null)}
           onStatusChange={handleStatusChange}
+          onUpdate={handleUpdateRelationship}
+          onDelete={handleDeleteRelationship}
+          datasets={datasets}
+        />
+      ) : (
+        <RelationshipSuggestions 
+          suggestions={suggestions}
+          datasets={datasets}
+          onAccept={(id) => handleStatusChange(id, 'accepted')}
+          onDismiss={(id) => handleStatusChange(id, 'rejected')}
+          onReview={(s) => setSelectedRel(s)}
+          className="w-80 border-t-0 border-r-0 border-b-0 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0c0c0e] flex flex-col shrink-0 overflow-hidden rounded-none shadow-2xl relative z-30"
         />
       )}
+
+      {/* Manual Builder Modal */}
+      <ManualRelationshipModal
+        datasets={datasets}
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        onSave={handleCreateRelationship}
+      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ import {
   Hash, Calendar, Tag, CaseSensitive, Clock, Sliders, RefreshCw,
   ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
   Copy, Check, ChevronDown, Filter, 
-  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, Wrench, History, Sparkles
+  RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, ShieldCheck, Wrench, History, Sparkles
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
@@ -18,6 +18,10 @@ import { ExtractDateTimeModal } from './ExtractDateTimeModal';
 import { DataQualityPanel } from './DataQualityPanel';
 import { CleaningPreviewModal } from './CleaningPreviewModal';
 import { CleaningHistoryPanel } from './CleaningHistoryPanel';
+import { AICleaningCopilotPanel } from './AICleaningCopilotPanel';
+import { DataReadinessPanel } from './DataReadinessPanel';
+import { scanDatasetQuality } from '@/lib/qualityScanner';
+import { evaluateDataReadiness } from '@/lib/dataReadinessEngine';
 import { CleaningActionType, CleaningHistoryItem, CleaningPreviewResult } from '@/lib/manualCleaningEngine';
 import { formatColumnValue, ColumnFormatConfig, ExtendedType } from '@/lib/typeStandardizer';
 
@@ -69,8 +73,15 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   const [highlightedMatches, setHighlightedMatches] = useState<MatchItem[]>([]);
   const [activeMatchIndex, setActiveMatchIndex] = useState<number>(-1);
 
-  // Quality Scanner Modal State
+  // Quality Scanner, AI Copilot & Data Readiness State (Phase 8I, 8K & 8L)
   const [showQualityModal, setShowQualityModal] = useState<boolean>(false);
+  const [showAICopilotModal, setShowAICopilotModal] = useState<boolean>(false);
+  const [showReadinessModal, setShowReadinessModal] = useState<boolean>(false);
+
+  // Phase 8L Deterministic Data Readiness Evaluation
+  const readinessEval = useMemo(() => {
+    return evaluateDataReadiness(dataset, workingData, workingHeaders, workingFormulas);
+  }, [dataset, workingData, workingHeaders, workingFormulas]);
 
   // Manual Cleaning Actions & History State (Phase 8J)
   const [cleaningHistory, setCleaningHistory] = useState<CleaningHistoryItem[]>([]);
@@ -1578,6 +1589,44 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
             <span>Quality Audit</span>
           </Button>
 
+          {/* AI Data Cleaning Copilot Action (Phase 8K) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAICopilotModal(true)}
+            className="h-8 text-xs gap-1.5 border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 text-indigo-700 dark:text-indigo-300 font-bold hover:from-indigo-100 hover:to-blue-100 dark:hover:from-indigo-900/60 dark:hover:to-blue-900/60 cursor-pointer shadow-xs"
+            title="Ask AI Copilot for grounded dataset quality analysis & recommendations"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span>AI Copilot</span>
+          </Button>
+
+          {/* Phase 8L Data Readiness Gate Action */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowReadinessModal(true)}
+            className={cn(
+              "h-8 text-xs gap-1.5 font-bold cursor-pointer shadow-xs border",
+              readinessEval.status === 'READY'
+                ? "border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
+                : readinessEval.status === 'NEEDS_CLEANING'
+                ? "border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+                : "border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/40 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60"
+            )}
+            title="Open Deterministic Data Readiness Gate & Quality Validation Panel"
+          >
+            {readinessEval.status === 'READY' ? (
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <ShieldCheck className="hidden" /> // placeholder for ts compatibility
+            )}
+            {readinessEval.status !== 'READY' && (
+              <ShieldAlert className="w-3.5 h-3.5 text-red-600 dark:text-red-400 animate-pulse" />
+            )}
+            <span>Data Readiness ({readinessEval.qualityScore}%)</span>
+          </Button>
+
           {/* Clean Data Action Dropdown */}
           <div className="relative">
             <Button
@@ -2585,6 +2634,10 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
                 setShowQualityModal(false);
                 setActiveCleaningModal({ actionType, column: col, variations: vars });
               }}
+              onOpenAICopilot={() => {
+                setShowQualityModal(false);
+                setShowAICopilotModal(true);
+              }}
               onNavigateView={(view) => {
                 setShowQualityModal(false);
                 if (onNavigateView) onNavigateView(view);
@@ -2592,6 +2645,25 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
               onClose={() => setShowQualityModal(false)}
             />
           </div>
+        </div>
+      )}
+
+      {/* Phase 8K AI Data Cleaning Copilot Modal Overlay */}
+      {showAICopilotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <AICleaningCopilotPanel
+            dataset={dataset}
+            workingData={workingData}
+            workingHeaders={workingHeaders}
+            qualityReport={scanDatasetQuality(dataset, workingData)}
+            workingFormulas={workingFormulas}
+            cleaningHistory={cleaningHistory}
+            onOpenFixModal={(actionType, col, vars) => {
+              setShowAICopilotModal(false);
+              setActiveCleaningModal({ actionType, column: col, variations: vars });
+            }}
+            onClose={() => setShowAICopilotModal(false)}
+          />
         </div>
       )}
 
@@ -2616,6 +2688,63 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
             history={cleaningHistory}
             onUndoLastAction={handleUndoLastCleaningAction}
             onClose={() => setShowHistoryModal(false)}
+          />
+        </div>
+      )}
+
+      {/* Phase 8L Data Readiness Gate & Validation Overlay */}
+      {showReadinessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <DataReadinessPanel
+            dataset={dataset}
+            workingData={workingData}
+            workingHeaders={workingHeaders}
+            workingFormulas={workingFormulas}
+            onOpenFixModal={(actionType, col, vars) => {
+              setShowReadinessModal(false);
+              setActiveCleaningModal({ actionType, column: col, variations: vars });
+            }}
+            onOpenAICopilot={() => {
+              setShowReadinessModal(false);
+              setShowAICopilotModal(true);
+            }}
+            onProceedToReporting={(snapshot) => {
+              setShowReadinessModal(false);
+              
+              if (onUpdateDataset) {
+                // Strip internal `_rowId` before saving dataset
+                const cleanData = workingData.map(r => {
+                  const { _rowId, ...rest } = r;
+                  return rest;
+                });
+                
+                onUpdateDataset({
+                  ...dataset,
+                  fullData: cleanData,
+                  headers: workingHeaders,
+                  columnTypes: workingColumnTypes,
+                  formulas: workingFormulas,
+                  cleaningStatus: 'cleaned',
+                  rowCount: cleanData.length,
+                  colCount: workingHeaders.length,
+                  data: cleanData.slice(0, 100),
+                  updatedAt: Date.now(),
+                  // store snapshot validation details
+                  readinessSnapshot: {
+                    ...snapshot,
+                    validationTimestamp: snapshot.validationTimestamp.toISOString(),
+                  } as any
+                });
+              }
+              if (onNavigateView) {
+                onNavigateView('mis-report');
+              }
+            }}
+            onNavigateView={(view) => {
+              setShowReadinessModal(false);
+              if (onNavigateView) onNavigateView(view);
+            }}
+            onClose={() => setShowReadinessModal(false)}
           />
         </div>
       )}

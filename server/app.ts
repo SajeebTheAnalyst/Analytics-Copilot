@@ -393,6 +393,143 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
   }
 });
 
+app.post("/api/cleaning-copilot", async (req, res) => {
+  console.log("[API_REQUEST] /api/cleaning-copilot started");
+  try {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
+
+    if (!geminiKey && !groqKey) {
+      console.log("[API_REQUEST] /api/cleaning-copilot - ERROR: NOT_CONFIGURED");
+      return res.status(401).json({
+        error: "NOT_CONFIGURED",
+        message: "Neither GEMINI_API_KEY nor GROQ_API_KEY is configured in the environment."
+      });
+    }
+
+    const { message, history, context } = req.body;
+
+    if (!message && (!history || history.length === 0)) {
+      return res.status(400).json({ error: "Missing message parameter" });
+    }
+
+    const systemInstruction = `You are an expert AI Data Cleaning Copilot in an enterprise Data Workspace.
+Your mission is to help users understand their dataset's quality problems and recommend Phase 8J deterministic cleaning actions.
+
+CRITICAL RULES:
+1. Grounding & Anti-Hallucination: Ground ALL findings, stats, and advice strictly on the supplied GROUNDED_DATASET_CONTEXT below. Never invent numbers, columns, or defects not supported by the context.
+2. Concise Evidence: Always include exact figures, counts, and sample affected values (e.g. "4 inconsistent variants detected across 38 records", "12 records missing Revenue values").
+3. Read-Only Scope: You CANNOT modify data directly. You MUST recommend standard Phase 8J cleaning actions for the user to review and approve.
+4. Supported Phase 8J Action Types:
+   - "trim_whitespace": Trim leading/trailing spaces
+   - "text_capitalization": Standardize upper/lower/title case
+   - "find_replace": Find & replace string patterns
+   - "merge_categorical": Review & merge similar/inconsistent categorical variations
+   - "remove_duplicates": Remove duplicate rows
+   - "remove_empty_rows": Remove completely blank rows
+   - "fill_missing": Fill missing values with constant/mean/median/mode
+   - "clear_cells": Clear values in specific cells
+   - "delete_columns": Delete uninformative or constant columns
+
+When user asks if dataset is ready for an MIS report ("Can I use this for an MIS report?"), summarize data quality score, remaining issues, missing values, date consistency, duplicate rows, and major risks. Do NOT claim dataset is clean unless quality state supports it!
+
+OUTPUT FORMAT: Return a valid JSON object matching this schema exactly:
+{
+  "answer": "Markdown string with detailed evidence, findings, and explanations...",
+  "recommendations": [
+    {
+      "id": "rec-1",
+      "actionType": "merge_categorical",
+      "column": "Location",
+      "title": "Merge Inconsistent Location Variations",
+      "explanation": "Location column contains 4 inconsistent variations ('Rangpur', 'rangpur', 'Rangpurrr', 'Raaangpur') across 38 records.",
+      "variations": ["Rangpur", "rangpur", "Rangpurrr", "Raaangpur"],
+      "affectedRowsCount": 38,
+      "affectedCellsCount": 38
+    }
+  ]
+}
+
+GROUNDED_DATASET_CONTEXT:
+${JSON.stringify(context || {}, null, 2)}`;
+
+    let responseText = "";
+
+    if (geminiKey) {
+      console.log("[API_REQUEST] Using Gemini API for AI Cleaning Copilot...");
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+
+      const geminiResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          { role: "user", parts: [{ text: `${systemInstruction}\n\nUser Question: ${message}` }] }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.2,
+        }
+      });
+
+      responseText = geminiResponse.text || "";
+    } else if (groqKey) {
+      console.log("[API_REQUEST] Using Groq API for AI Cleaning Copilot...");
+      const groqClient = new Groq({ apiKey: groqKey });
+
+      const messages = [
+        { role: "system", content: systemInstruction },
+        ...(history || []).map((h: any) => ({
+          role: h.role === "user" ? "user" : "assistant",
+          content: h.content || h.text || ""
+        })),
+        { role: "user", content: message }
+      ];
+
+      const groqResponse = await groqClient.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages,
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      });
+
+      responseText = groqResponse.choices[0]?.message?.content || "";
+    }
+
+    if (!responseText) {
+      throw new Error("Empty response received from AI model provider");
+    }
+
+    let parsedJSON;
+    try {
+      parsedJSON = JSON.parse(responseText);
+    } catch (e) {
+      console.error("Failed to parse AI response as JSON:", responseText);
+      return res.status(500).json({
+        error: "INVALID_JSON",
+        message: "AI model returned a non-JSON string response"
+      });
+    }
+
+    res.json(parsedJSON);
+
+  } catch (error: any) {
+    console.error("Error in /api/cleaning-copilot:", error.message || error);
+    let statusCode = 500;
+    if (typeof error.status === 'number') statusCode = error.status;
+    else if (error.status === 429) statusCode = 429;
+
+    let friendlyMessage = error.message || "An error occurred in AI Copilot service.";
+    if (error.status === 429) {
+      friendlyMessage = "AI API rate limit exceeded. Please wait a few seconds and try again.";
+    }
+
+    res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
+      error: "AI_ERROR",
+      message: friendlyMessage
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("UNHANDLED_EXCEPTION:", err);

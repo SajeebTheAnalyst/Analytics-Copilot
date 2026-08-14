@@ -10,6 +10,10 @@ import {
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 import { DataQualityPanel } from '../workspace/DataQualityPanel';
+import { AICleaningCopilotPanel } from '../workspace/AICleaningCopilotPanel';
+import { CleaningPreviewModal } from '../workspace/CleaningPreviewModal';
+import { scanDatasetQuality } from '@/lib/qualityScanner';
+import { CleaningActionType } from '@/lib/manualCleaningEngine';
 import { 
   removeNullsCustom, 
   cleanHeadersCustom, 
@@ -49,6 +53,12 @@ export function CleaningView({
   const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showQualityAudit, setShowQualityAudit] = useState(false);
+  const [showAICopilotModal, setShowAICopilotModal] = useState(false);
+  const [activeCleaningModal, setActiveCleaningModal] = useState<{
+    actionType: CleaningActionType;
+    column?: string;
+    variations?: string[];
+  } | null>(null);
 
   // Selected issue for live highlight in preview
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -1309,13 +1319,20 @@ export function CleaningView({
       )}
 
       {/* ================================================== */}
-      {/* DATA QUALITY AUDIT MODAL OVERLAY                   */}
-      {/* ================================================== */}
+      {/* DATA QUALITY AUDIT MODAL OVERLAY */}
       {showQualityAudit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
           <div className="max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar my-auto">
             <DataQualityPanel
               dataset={selectedDataset}
+              onOpenFixModal={(actionType, col, vars) => {
+                setShowQualityAudit(false);
+                setActiveCleaningModal({ actionType, column: col, variations: vars });
+              }}
+              onOpenAICopilot={() => {
+                setShowQualityAudit(false);
+                setShowAICopilotModal(true);
+              }}
               onNavigateView={(view) => {
                 setShowQualityAudit(false);
                 if (onNavigateView) onNavigateView(view);
@@ -1324,6 +1341,47 @@ export function CleaningView({
             />
           </div>
         </div>
+      )}
+
+      {/* AI DATA CLEANING COPILOT MODAL OVERLAY */}
+      {showAICopilotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <AICleaningCopilotPanel
+            dataset={selectedDataset}
+            workingData={selectedDataset.data}
+            workingHeaders={selectedDataset.headers}
+            qualityReport={scanDatasetQuality(selectedDataset, selectedDataset.data)}
+            onOpenFixModal={(actionType, col, vars) => {
+              setShowAICopilotModal(false);
+              setActiveCleaningModal({ actionType, column: col, variations: vars });
+            }}
+            onClose={() => setShowAICopilotModal(false)}
+          />
+        </div>
+      )}
+
+      {/* CLEANING PREVIEW MODAL */}
+      {activeCleaningModal && (
+        <CleaningPreviewModal
+          initialAction={activeCleaningModal.actionType}
+          initialColumn={activeCleaningModal.column}
+          initialVariations={activeCleaningModal.variations}
+          data={selectedDataset.data}
+          headers={selectedDataset.headers}
+          onClose={() => setActiveCleaningModal(null)}
+          onApply={(result) => {
+            if (onUpdateDataset && selectedDataset) {
+              const updated = {
+                ...selectedDataset,
+                data: result.updatedData,
+                headers: result.updatedHeaders,
+                rowCount: result.updatedData.length,
+              };
+              onUpdateDataset(updated);
+            }
+            setActiveCleaningModal(null);
+          }}
+        />
       )}
 
     </div>
