@@ -199,7 +199,7 @@ export function DatasetManager({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-zinc-950 dark:text-zinc-50">Import & Profile</h1>
+            <h1 className="text-xl font-bold text-zinc-950 dark:text-zinc-50">Data Import & Profile</h1>
             {getHealthBadge(health.status)}
             {isCleaned && (
               <span className="px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-400 border border-blue-200 dark:border-blue-900/30">

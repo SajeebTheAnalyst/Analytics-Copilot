@@ -50,6 +50,13 @@ export default function App() {
   
   // Shell UX States
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ac_sidebar_collapsed');
+      return saved === 'true';
+    }
+    return false;
+  });
   const [renamingDatasetId, setRenamingDatasetId] = useState<string | null>(null);
 
   const [suggestions, setSuggestions] = useState<RelationshipSuggestion[]>([]);
@@ -95,6 +102,10 @@ export default function App() {
     if (!isInitialized) return;
     set('ac_suggestions', suggestions).catch(console.error);
   }, [suggestions, isInitialized]);
+
+  useEffect(() => {
+    localStorage.setItem('ac_sidebar_collapsed', isSidebarCollapsed.toString());
+  }, [isSidebarCollapsed]);
 
   const handleBuildDashboard = (plan: DashboardPlan) => {
     const newId = `dash-${Date.now()}`;
@@ -322,6 +333,8 @@ export default function App() {
             onViewChange={setCurrentView}
             onToggleCopilot={() => setIsCopilotOpen(!isCopilotOpen)}
             isCopilotOpen={isCopilotOpen}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           />
 
           {/* Main View Router Container */}
