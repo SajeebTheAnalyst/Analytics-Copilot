@@ -57,7 +57,8 @@ export interface Dataset {
   id: string;
   name: string;
   filename: string;
-  type: 'csv' | 'xlsx';
+  sheetName?: string;
+  type: string;
   size: number;
   uploadTime: number;
   rowCount: number;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Dataset, ViewState } from '@/types';
 import { DataUploader } from './DataUploader';
+import { DataEditingStudio } from './DataEditingStudio';
 import { calculateDatasetHealth, profileColumn, ExtendedColumnProfile } from '@/lib/profiler';
 import { formatDistanceToNow } from 'date-fns';
 import { 
@@ -29,6 +30,7 @@ interface DatasetManagerProps {
   onRemove: (id: string) => void;
   onRename: (id: string) => void;
   onNavigateView: (view: ViewState) => void;
+  onUpdateDataset?: (dataset: Dataset) => void;
 }
 
 function formatBytes(bytes: number, decimals = 1) {
@@ -47,7 +49,8 @@ export function DatasetManager({
   onImport,
   onRemove,
   onRename,
-  onNavigateView
+  onNavigateView,
+  onUpdateDataset
 }: DatasetManagerProps) {
   const [showImportBox, setShowImportBox] = useState(false);
 
@@ -412,7 +415,7 @@ export function DatasetManager({
       </div>
 
       {/* 4. Column Profiling Table */}
-      <div className="glass-panel glass-card rounded-xl">
+      <div className="glass-panel glass-card rounded-xl mb-6">
         <div className="p-4.5 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-black/20 flex items-center justify-between backdrop-blur-md rounded-t-xl">
           <div>
             <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50">Column Schema & Profiling</h3>
@@ -494,7 +497,17 @@ export function DatasetManager({
         </div>
       </div>
 
-      {/* 5. Recent Workspace Datasets */}
+      {/* 5. Data Preview Table */}
+      <DataEditingStudio 
+        dataset={activeDataset} 
+        onSave={(updatedDataset) => {
+          if (onUpdateDataset) {
+            onUpdateDataset(updatedDataset);
+          }
+        }} 
+      />
+
+      {/* 6. Recent Workspace Datasets */}
       {datasets.length > 1 && (
         <div className="glass-panel glass-card rounded-xl p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-3">
@@ -505,56 +518,73 @@ export function DatasetManager({
             <span className="text-[11px] font-bold text-zinc-450 dark:text-zinc-500">Click to switch Active Dataset</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {datasets.map(dataset => {
-              const isActive = dataset.id === activeDataset.id;
-              const dsHealth = calculateDatasetHealth(dataset);
-
-              return (
-                <div
-                  key={dataset.id}
-                  onClick={() => onSelectDataset(dataset.id)}
-                  className={cn(
-                    "p-3.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between group glass-card glass-surface",
-                    isActive 
-                      ? "bg-blue-50/70 dark:bg-blue-950/30 border-blue-500/80 shadow-2xs" 
-                      : "hover:bg-white/80 dark:hover:bg-white/5"
-                  )}
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-zinc-900 dark:text-zinc-50 truncate">
-                        {dataset.name}
-                      </span>
-                      {isActive && (
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-blue-600 text-white uppercase tracking-widest shrink-0">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-zinc-500 font-mono font-bold mt-1">
-                      {dataset.rowCount.toLocaleString()} rows • {dataset.colCount} cols
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    {getHealthBadge(dsHealth.status)}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-zinc-400 hover:text-red-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemove(dataset.id);
-                      }}
-                      title="Remove dataset"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(
+              datasets.reduce((acc, ds) => {
+                if (!acc[ds.filename]) acc[ds.filename] = [];
+                acc[ds.filename].push(ds);
+                return acc;
+              }, {} as Record<string, Dataset[]>)
+            ).map(([filename, groupDatasets]) => (
+              <div key={filename} className="glass-panel glass-card rounded-xl border border-zinc-200/50 dark:border-zinc-800 p-3 space-y-2">
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-zinc-200/50 dark:border-zinc-800">
+                  <FileSpreadsheet className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">{filename}</span>
                 </div>
-              );
-            })}
+                <div className="space-y-1.5">
+                  {groupDatasets.map(dataset => {
+                    const isActive = dataset.id === activeDataset.id;
+                    const dsHealth = calculateDatasetHealth(dataset);
+
+                    return (
+                      <div
+                        key={dataset.id}
+                        onClick={() => onSelectDataset(dataset.id)}
+                        className={cn(
+                          "p-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-between group",
+                          isActive 
+                            ? "bg-blue-50/70 dark:bg-blue-950/30 border border-blue-500/80 shadow-2xs" 
+                            : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50 border border-transparent"
+                        )}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-2">
+                            <Table className="w-3.5 h-3.5 text-zinc-400" />
+                            <span className="font-bold text-zinc-900 dark:text-zinc-50 truncate text-[11px]">
+                              {dataset.sheetName || dataset.name}
+                            </span>
+                            {isActive && (
+                              <span className="text-[9px] font-extrabold px-1 py-0.5 rounded bg-blue-600 text-white uppercase tracking-widest shrink-0 ml-1">
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-zinc-500 font-mono font-bold mt-1 ml-5">
+                            {dataset.rowCount.toLocaleString()} rows • {dataset.colCount} cols
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {getHealthBadge(dsHealth.status)}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-zinc-400 hover:text-red-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemove(dataset.id);
+                            }}
+                            title="Remove dataset"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

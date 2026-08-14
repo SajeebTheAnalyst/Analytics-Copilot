@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { Dataset } from "../types";
 import { isValid, parseISO } from "date-fns";
 
-export async function parseFile(file: File): Promise<{ data: Record<string, any>[], headers: string[] }> {
+export async function parseFile(file: File): Promise<{ data: Record<string, any>[], headers: string[], sheetName?: string }[]> {
   return new Promise((resolve, reject) => {
     if (file.name.match(/\.csv$/i)) {
       Papa.parse(file, {
@@ -12,10 +12,10 @@ export async function parseFile(file: File): Promise<{ data: Record<string, any>
         skipEmptyLines: true,
         worker: true,
         complete: (results) => {
-          resolve({
+          resolve([{
             data: results.data as Record<string, any>[],
             headers: results.meta.fields || []
-          });
+          }]);
         },
         error: (error) => {
           reject(new Error("Failed to parse CSV: " + error.message));
@@ -27,19 +27,51 @@ export async function parseFile(file: File): Promise<{ data: Record<string, any>
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array", cellDates: true });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
-          const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
-          resolve({ data: jsonData, headers });
+          
+          const sheetsData = workbook.SheetNames.map(sheetName => {
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+            const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
+            return { data: jsonData, headers, sheetName };
+          });
+          
+          resolve(sheetsData);
         } catch (err: any) {
           reject(new Error("Failed to parse Excel file: " + err.message));
         }
       };
       reader.onerror = (err) => reject(err);
       reader.readAsArrayBuffer(file);
+    } else if (file.name.match(/\.json$/i)) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          let parsed = JSON.parse(text);
+          if (!Array.isArray(parsed)) {
+             if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                 // Try to find the first array in the object
+                 const arrayValue = Object.values(parsed).find(v => Array.isArray(v));
+                 if (arrayValue) parsed = arrayValue;
+                 else parsed = [parsed]; // wrap in array
+             } else {
+                 parsed = [parsed];
+             }
+          }
+          const jsonData = parsed as Record<string, any>[];
+          const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
+          resolve([{ data: jsonData, headers }]);
+        } catch (err: any) {
+          reject(new Error("Failed to parse JSON file: " + err.message));
+        }
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsText(file);
+    } else if (file.name.match(/\.(pdf|png|jpe?g|txt)$/i)) {
+      // Return empty tabular data for unstructured formats, to be processed later in data preparation
+      resolve([{ data: [], headers: [] }]);
     } else {
-      reject(new Error("Unsupported file type."));
+      reject(new Error(`Unsupported file type: ${file.name}. Supported formats: .csv, .xlsx, .xls, .json, .txt, .pdf, images`));
     }
   });
 }
@@ -126,66 +158,76 @@ export function recalculateDatasetProfiles(dataset: Dataset): Dataset {
   };
 }
 
-export async function processDataset(file: File): Promise<Dataset> {
-  const { data, headers } = await parseFile(file);
+export async function processDataset(file: File): Promise<Dataset[]> {
+  const parsedResults = await parseFile(file);
   
-  const columnTypes: Record<string, Dataset['columnTypes'][string]> = {};
-  const columnProfiles: Record<string, Dataset['columnProfiles'][string]> = {};
+  const datasets: Dataset[] = [];
+  
+  for (const { data, headers, sheetName } of parsedResults) {
+    const columnTypes: Record<string, Dataset['columnTypes'][string]> = {};
+    const columnProfiles: Record<string, Dataset['columnProfiles'][string]> = {};
 
-  for (const header of headers) {
-    columnTypes[header] = determineColumnType(data, header);
-    
-    let nullCount = 0;
-    const uniqueValues = new Set<any>();
-    let exampleValue: any = null;
-    
-    for (const row of data) {
-      const val = row[header];
-      if (val === null || val === undefined || val === "") {
-        nullCount++;
-      } else {
-        uniqueValues.add(val);
-        if (exampleValue === null) {
-          exampleValue = val;
+    for (const header of headers) {
+      columnTypes[header] = determineColumnType(data, header);
+      
+      let nullCount = 0;
+      const uniqueValues = new Set<any>();
+      let exampleValue: any = null;
+      
+      for (const row of data) {
+        const val = row[header];
+        if (val === null || val === undefined || val === "") {
+          nullCount++;
+        } else {
+          uniqueValues.add(val);
+          if (exampleValue === null) {
+            exampleValue = val;
+          }
         }
       }
+      
+      columnProfiles[header] = {
+        name: header,
+        type: columnTypes[header],
+        nullCount,
+        uniqueCount: uniqueValues.size,
+        exampleValue: exampleValue instanceof Date ? exampleValue.toISOString() : exampleValue,
+      };
     }
     
-    columnProfiles[header] = {
-      name: header,
-      type: columnTypes[header],
-      nullCount,
-      uniqueCount: uniqueValues.size,
-      exampleValue: exampleValue instanceof Date ? exampleValue.toISOString() : exampleValue,
-    };
+    // Fallback names for TXT/JSON/CSV vs EXCEL
+    const baseName = file.name.replace(/\.[^/.]+$/, "");
+    const name = sheetName ? `${baseName} - ${sheetName}` : baseName;
+
+    datasets.push({
+      id: crypto.randomUUID(),
+      name,
+      filename: file.name,
+      sheetName: sheetName,
+      type: file.name.toLowerCase().match(/\.([a-z0-9]+)$/i)?.[1] || 'unknown',
+      size: file.size,
+      uploadTime: Date.now(),
+      rowCount: data.length,
+      colCount: headers.length,
+      headers,
+      data: data.slice(0, 100).map(row => {
+        const newRow = { ...row };
+        for (const key of Object.keys(newRow)) {
+          if (newRow[key] instanceof Date) {
+            newRow[key] = newRow[key].toISOString();
+          }
+        }
+        return newRow;
+      }),
+      fullData: data,
+      originalData: JSON.parse(JSON.stringify(data)),
+      columnTypes,
+      columnProfiles,
+      cleaningStatus: 'original',
+      cleaningLogs: [],
+      issues: []
+    });
   }
 
-  return {
-    id: crypto.randomUUID(),
-    name: file.name.replace(/\.[^/.]+$/, ""),
-    filename: file.name,
-    type: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx',
-    size: file.size,
-    uploadTime: Date.now(),
-    rowCount: data.length,
-    colCount: headers.length,
-    headers,
-    data: data.slice(0, 100).map(row => {
-      // Serialize dates to string for preview
-      const newRow = { ...row };
-      for (const key of Object.keys(newRow)) {
-        if (newRow[key] instanceof Date) {
-          newRow[key] = newRow[key].toISOString();
-        }
-      }
-      return newRow;
-    }), // Only keep top 100 rows in memory for preview
-    fullData: data,
-    originalData: JSON.parse(JSON.stringify(data)), // Deep copy of original data
-    columnTypes,
-    columnProfiles,
-    cleaningStatus: 'original',
-    cleaningLogs: [],
-    issues: []
-  };
+  return datasets;
 }

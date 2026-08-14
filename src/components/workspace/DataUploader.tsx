@@ -83,16 +83,16 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
     if (fileList.length === 0) return;
 
     // Validate file extensions
-    const invalidFiles = fileList.filter(f => !f.name.match(/\.(csv|xlsx?)$/i));
+    const invalidFiles = fileList.filter(f => !f.name.match(/\.(csv|xlsx?|json|txt|pdf|png|jpe?g)$/i));
     if (invalidFiles.length > 0) {
-      setErrorMessage(`Invalid file format: "${invalidFiles[0].name}". Please upload a valid CSV or XLSX spreadsheet.`);
+      setErrorMessage(`Invalid file format: "${invalidFiles[0].name}". Please upload supported business data formats.`);
       return;
     }
 
     setIsUploading(true);
 
     try {
-      const processedDatasets: Dataset[] = [];
+      let processedDatasets: Dataset[] = [];
       
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
@@ -102,20 +102,17 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
           throw new Error(`The file "${file.name}" is empty (0 bytes).`);
         }
 
+        const extMatch = file.name.match(/\.([a-z0-9]+)$/i);
         setProcessingFile({
           filename: file.name,
-          type: file.name.endsWith('.csv') ? 'CSV' : 'XLSX',
+          type: extMatch ? extMatch[1].toUpperCase() : 'UNKNOWN',
           size: file.size,
           progress: Math.round(((i + 0.5) / fileList.length) * 100)
         });
 
-        const dataset = await processDataset(file);
+        const datasets = await processDataset(file);
         
-        if (!dataset.headers || dataset.headers.length === 0) {
-          throw new Error(`Failed to detect columns in "${file.name}". Ensure the file contains headers.`);
-        }
-
-        processedDatasets.push(dataset);
+        processedDatasets = processedDatasets.concat(datasets);
       }
 
       setProcessingFile(prev => prev ? { ...prev, progress: 100 } : null);
@@ -203,7 +200,7 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+          accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, application/json, text/plain, application/pdf, image/png, image/jpeg"
           className="hidden"
           onChange={handleChange}
           disabled={isUploading}
@@ -263,10 +260,28 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
                 className="text-xs h-8 px-4 border-zinc-250 hover:bg-zinc-100 dark:border-zinc-800/80 font-bold shadow-3xs hover-elevate transition-all duration-200"
                 onClick={(e) => {
                   e.stopPropagation();
-                  fileInputRef.current?.click();
+                  if (fileInputRef.current) {
+                    fileInputRef.current.removeAttribute('webkitdirectory');
+                    fileInputRef.current.click();
+                  }
                 }}
               >
                 Browse Files
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="text-xs h-8 px-4 border-zinc-250 hover:bg-zinc-100 dark:border-zinc-800/80 font-bold shadow-3xs hover-elevate transition-all duration-200"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (fileInputRef.current) {
+                    fileInputRef.current.setAttribute('webkitdirectory', 'true');
+                    fileInputRef.current.click();
+                  }
+                }}
+              >
+                Upload Folder
               </Button>
             </div>
 
@@ -274,7 +289,8 @@ export function DataUploader({ onDatasetsImported, compact = false }: DataUpload
               <span>Supported Formats:</span>
               <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.CSV</span>
               <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.XLSX</span>
-              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.XLS</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.JSON</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-400 font-bold">.PDF / IMG</span>
             </div>
           </div>
         )}

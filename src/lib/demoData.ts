@@ -59,9 +59,9 @@ ORD-2024-1050,2024-07-10,Genesis Bio,Asia-Pacific,Software,Enterprise Cloud Lice
 
 export async function createDemoDataset(): Promise<Dataset> {
   const file = new File([DEMO_SALES_CSV], DEMO_FILENAME, { type: "text/csv" });
-  const dataset = await processDataset(file);
+  const datasets = await processDataset(file);
   return {
-    ...dataset,
+    ...datasets[0],
     name: DEMO_DATASET_NAME,
     filename: DEMO_FILENAME,
   };

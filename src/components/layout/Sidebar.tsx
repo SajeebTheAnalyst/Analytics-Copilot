@@ -182,110 +182,126 @@ export function Sidebar({
                   </button>
                 </div>
               ) : (
-                datasets.map(dataset => {
-                  const isExpanded = expandedCards.has(dataset.id);
-                  const isSelected = selectedDatasetId === dataset.id;
-
-                  return (
-                    <div
-                      key={dataset.id}
-                      onClick={() => {
-                        onSelectDataset(dataset.id);
-                      }}
-                      className={cn(
-                        "rounded-lg border text-xs transition-all duration-200 cursor-pointer overflow-hidden group hover:-translate-y-0.5",
-                        isSelected 
-                          ? "bg-white dark:bg-zinc-900 border-blue-500/50 shadow-[0_4px_12px_rgba(37,99,235,0.06)] ring-1 ring-blue-500/20" 
-                          : "bg-white/40 dark:bg-zinc-900/30 border-zinc-200/70 dark:border-zinc-800/75 hover:bg-white dark:hover:bg-zinc-900 hover:border-zinc-350 dark:hover:border-zinc-700 hover:shadow-xs"
-                      )}
-                    >
-                      <div className="p-2.5 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileSpreadsheet className={cn(
-                            "w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110", 
-                            dataset.type === 'csv' ? "text-blue-500" : "text-emerald-500"
-                          )} />
-                          <div className="min-w-0">
-                            <p className={cn(
-                              "font-bold truncate text-[11px] transition-colors",
-                              isSelected ? "text-zinc-900 dark:text-zinc-100 font-bold" : "text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-950 dark:group-hover:text-zinc-100"
-                            )}>
-                              {dataset.name}
-                            </p>
-                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono font-medium">
-                              {dataset.rowCount.toLocaleString()} rows • {dataset.colCount} cols
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          {dataset.cleaningStatus === 'cleaned' && (
-                            <span title="Cleaned" className="text-emerald-500">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </span>
-                          )}
-                          {dataset.cleaningStatus === 'issues-found' && (
-                            <span title="Pending issues" className="text-amber-500">
-                              <AlertCircle className="w-3.5 h-3.5" />
-                            </span>
-                          )}
-                          <button
-                            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded transition-colors duration-150"
-                            onClick={(e) => toggleCardExpand(dataset.id, e)}
-                          >
-                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="px-2.5 pb-2.5 pt-1.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-950/40 text-[11px] space-y-2">
-                          <div className="grid grid-cols-2 gap-2 text-zinc-500 dark:text-zinc-400 pt-1">
-                            <div>
-                              <span className="block text-[9px] uppercase tracking-wider text-zinc-400 font-mono">Size</span>
-                              <span className="font-mono text-zinc-700 dark:text-zinc-200 font-semibold">{formatBytes(dataset.size)}</span>
-                            </div>
-                            <div>
-                              <span className="block text-[9px] uppercase tracking-wider text-zinc-400 font-mono">Type</span>
-                              <span className="font-mono uppercase text-zinc-700 dark:text-zinc-200 font-semibold">{dataset.type}</span>
-                            </div>
-                          </div>
-
-                          <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
-                            Uploaded {formatDistanceToNow(dataset.uploadTime)} ago
-                          </div>
-
-                          <div className="flex items-center gap-1.5 pt-1">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="flex-1 h-6 text-[10px] px-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors duration-150 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold"
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                onRenameDataset(dataset.id); 
-                              }}
-                            >
-                              <Edit2 className="w-3 h-3 mr-1" />
-                              Rename
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="flex-1 h-6 text-[10px] px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900/40 font-semibold transition-colors duration-150"
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                onRemoveDataset(dataset.id); 
-                              }}
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" />
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      )}
+                Object.entries(
+                  datasets.reduce((acc, ds) => {
+                    if (!acc[ds.filename]) acc[ds.filename] = [];
+                    acc[ds.filename].push(ds);
+                    return acc;
+                  }, {} as Record<string, Dataset[]>)
+                ).map(([filename, groupDatasets]) => (
+                  <div key={filename} className="mb-2">
+                    <div className="flex items-center gap-1.5 px-1 py-1 mb-1 text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest break-all">
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span className="truncate">{filename}</span>
                     </div>
-                  );
-                })
+                    <div className="space-y-1.5 pl-2 border-l border-zinc-200/50 dark:border-zinc-800 ml-2.5">
+                      {groupDatasets.map(dataset => {
+                        const isExpanded = expandedCards.has(dataset.id);
+                        const isSelected = selectedDatasetId === dataset.id;
+
+                        return (
+                          <div
+                            key={dataset.id}
+                            onClick={() => {
+                              onSelectDataset(dataset.id);
+                            }}
+                            className={cn(
+                              "rounded-lg border text-xs transition-all duration-200 cursor-pointer overflow-hidden group hover:-translate-y-0.5",
+                              isSelected 
+                                ? "bg-white dark:bg-zinc-900 border-blue-500/50 shadow-[0_4px_12px_rgba(37,99,235,0.06)] ring-1 ring-blue-500/20" 
+                                : "bg-white/40 dark:bg-zinc-900/30 border-zinc-200/70 dark:border-zinc-800/75 hover:bg-white dark:hover:bg-zinc-900 hover:border-zinc-350 dark:hover:border-zinc-700 hover:shadow-xs"
+                            )}
+                          >
+                            <div className="p-2.5 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Table className={cn(
+                                  "w-3.5 h-3.5 shrink-0 transition-transform duration-200 group-hover:scale-110", 
+                                  dataset.type === 'csv' ? "text-blue-500" : "text-emerald-500"
+                                )} />
+                                <div className="min-w-0">
+                                  <p className={cn(
+                                    "font-bold truncate text-[11px] transition-colors",
+                                    isSelected ? "text-zinc-900 dark:text-zinc-100 font-bold" : "text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-950 dark:group-hover:text-zinc-100"
+                                  )}>
+                                    {dataset.sheetName || dataset.name}
+                                  </p>
+                                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono font-medium">
+                                    {dataset.rowCount.toLocaleString()} rows
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                {dataset.cleaningStatus === 'cleaned' && (
+                                  <span title="Cleaned" className="text-emerald-500">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                  </span>
+                                )}
+                                {dataset.cleaningStatus === 'issues-found' && (
+                                  <span title="Pending issues" className="text-amber-500">
+                                    <AlertCircle className="w-3 h-3" />
+                                  </span>
+                                )}
+                                <button
+                                  className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded transition-colors duration-150"
+                                  onClick={(e) => toggleCardExpand(dataset.id, e)}
+                                >
+                                  {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="px-2.5 pb-2.5 pt-1.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-950/40 text-[11px] space-y-2">
+                                <div className="grid grid-cols-2 gap-2 text-zinc-500 dark:text-zinc-400 pt-1">
+                                  <div>
+                                    <span className="block text-[9px] uppercase tracking-wider text-zinc-400 font-mono">Cols</span>
+                                    <span className="font-mono text-zinc-700 dark:text-zinc-200 font-semibold">{dataset.colCount}</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-[9px] uppercase tracking-wider text-zinc-400 font-mono">Type</span>
+                                    <span className="font-mono uppercase text-zinc-700 dark:text-zinc-200 font-semibold">{dataset.type}</span>
+                                  </div>
+                                </div>
+
+                                <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
+                                  {formatDistanceToNow(dataset.uploadTime)} ago
+                                </div>
+
+                                <div className="flex items-center gap-1.5 pt-1">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="flex-1 h-6 text-[10px] px-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors duration-150 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold"
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      onRenameDataset(dataset.id); 
+                                    }}
+                                  >
+                                    <Edit2 className="w-3 h-3 mr-1" />
+                                    Rename
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="flex-1 h-6 text-[10px] px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900/40 font-semibold transition-colors duration-150"
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      onRemoveDataset(dataset.id); 
+                                    }}
+                                  >
+                                    <Trash2 className="w-3 h-3 mr-1" />
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}

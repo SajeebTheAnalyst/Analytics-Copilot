@@ -270,6 +270,7 @@ export default function App() {
                     onRemove={handleRemove}
                     onRename={(id) => setRenamingDatasetId(id)}
                     onNavigateView={(view) => setCurrentView(view)}
+                    onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
                   />
                 ) : currentView === 'cleaning' ? (
                   <CleaningView 
