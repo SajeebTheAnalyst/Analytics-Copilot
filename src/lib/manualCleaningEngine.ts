@@ -9,7 +9,11 @@ export type CleaningActionType =
   | 'remove_empty_rows'
   | 'fill_missing'
   | 'clear_cells'
-  | 'delete_columns';
+  | 'delete_columns'
+  | 'split_column'
+  | 'extract_date'
+  | 'extract_time'
+  | 'change_data_type';
 
 export interface CleaningDiffCell {
   rowIdx: number;
@@ -719,5 +723,241 @@ export function previewDeleteColumns(
     warningFormulaColumns,
     updatedData,
     updatedHeaders: newHeaders,
+  };
+}
+
+export function previewSplitColumn(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  delimiter: string
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'split_column',
+      actionTitle: 'Split Column',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column and cannot be split.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const newCol1 = `${targetCol}_1`;
+  const newCol2 = `${targetCol}_2`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(newCol1)) updatedHeaders.push(newCol1);
+  if (!updatedHeaders.includes(newCol2)) updatedHeaders.push(newCol2);
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = String(newRow[targetCol] ?? '');
+    const parts = val.split(delimiter);
+    const p1 = parts[0]?.trim() ?? '';
+    const p2 = parts.slice(1).join(delimiter).trim() ?? '';
+
+    newRow[newCol1] = p1;
+    newRow[newCol2] = p2;
+
+    if (val) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: `${newCol1}: ${p1}, ${newCol2}: ${p2}`,
+      });
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'split_column',
+    actionTitle: 'Split Column',
+    targetDescription: `Column "${targetCol}" by "${delimiter}"`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Split "${targetCol}" into new columns "${newCol1}" and "${newCol2}" for ${affectedRows.size} rows. Original column retained.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+export function previewExtractDate(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string
+): CleaningPreviewResult {
+  const newCol = `${targetCol}_Date`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(newCol)) updatedHeaders.push(newCol);
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = String(newRow[targetCol] ?? '');
+    // Extract date match YYYY-MM-DD or DD/MM/YYYY
+    const dateMatch = val.match(/\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4}/);
+    const extracted = dateMatch ? dateMatch[0] : val.slice(0, 10);
+
+    newRow[newCol] = extracted;
+    if (val) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: `${newCol}: ${extracted}`,
+      });
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'extract_date',
+    actionTitle: 'Extract Date',
+    targetDescription: `Column "${targetCol}"`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Extracted date into new column "${newCol}" for ${affectedRows.size} rows. Original column retained.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+export function previewExtractTime(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string
+): CleaningPreviewResult {
+  const newCol = `${targetCol}_Time`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(newCol)) updatedHeaders.push(newCol);
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = String(newRow[targetCol] ?? '');
+    // Extract time match HH:mm:ss or HH:mm
+    const timeMatch = val.match(/\d{2}:\d{2}(?::\d{2})?/);
+    const extracted = timeMatch ? timeMatch[0] : '';
+
+    newRow[newCol] = extracted;
+    if (extracted) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: `${newCol}: ${extracted}`,
+      });
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'extract_time',
+    actionTitle: 'Extract Time',
+    targetDescription: `Column "${targetCol}"`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Extracted time into new column "${newCol}" for ${affectedRows.size} rows. Original column retained.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+export function previewChangeDataType(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  targetType: string
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'change_data_type',
+      actionTitle: 'Change Data Type',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column and its type cannot be directly changed.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = newRow[targetCol];
+    let converted: any = val;
+
+    if (targetType === 'Numeric' || targetType === 'Integer' || targetType === 'Decimal') {
+      const num = Number(String(val).replace(/[$€£¥,%]/g, '').trim());
+      if (!isNaN(num) && val !== '') {
+        converted = targetType === 'Integer' ? Math.round(num) : num;
+      }
+    } else if (targetType === 'Boolean') {
+      const s = String(val).toLowerCase().trim();
+      converted = s === 'true' || s === '1' || s === 'yes';
+    } else if (targetType === 'Text') {
+      converted = String(val ?? '');
+    }
+
+    if (converted !== val) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: converted,
+      });
+      newRow[targetCol] = converted;
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'change_data_type',
+    actionTitle: 'Change Data Type',
+    targetDescription: `Column "${targetCol}" → ${targetType}`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Converted ${diffCells.length} values in "${targetCol}" to type ${targetType}.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders: [...headers],
   };
 }

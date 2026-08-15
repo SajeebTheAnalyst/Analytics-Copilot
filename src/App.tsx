@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { Component, ErrorInfo, ReactNode, useState, useEffect, useMemo } from 'react';
 import { get, set } from 'idb-keyval';
-import { ErrorBoundary } from 'react-error-boundary';
 import { motion, AnimatePresence } from 'motion/react';
 import { TopNav } from './components/layout/TopNav';
 import { Sidebar } from './components/layout/Sidebar';
@@ -16,11 +15,67 @@ import { DataDictionaryView } from './components/assets/DataDictionaryView';
 import { RenameModal } from './components/workspace/RenameModal';
 
 import { Dataset, ViewState, RelationshipSuggestion, Dashboard, DashboardPlan, KpiDefinition } from '@/types';
+import { cn } from '@/lib/utils';
 import { discoverRelationships } from '@/lib/relationshipDiscovery';
 import { detectIssues, applyCleaningAction, undoCleaningAction, restoreOriginal } from '@/lib/dataCleaner';
 import { evaluateDataReadiness } from '@/lib/dataReadinessEngine';
 import { DataReadinessPanel } from './components/workspace/DataReadinessPanel';
 import { Button } from './components/ui/button';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  FallbackComponent?: React.ComponentType<{ error: Error | null; resetErrorBoundary: () => void }>;
+  onReset?: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("App error caught by ErrorBoundary:", error, errorInfo);
+  }
+
+  resetErrorBoundary = () => {
+    if (this.props.onReset) {
+      this.props.onReset();
+    }
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.FallbackComponent) {
+        const Fallback = this.props.FallbackComponent;
+        return <Fallback error={this.state.error} resetErrorBoundary={this.resetErrorBoundary} />;
+      }
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white dark:bg-zinc-950 text-center text-zinc-900 dark:text-zinc-50">
+          <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
+          <p className="text-zinc-500 mb-4 text-xs">An unexpected error occurred.</p>
+          <button 
+            onClick={this.resetErrorBoundary} 
+            className="px-4 py-2 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 cursor-pointer"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function ErrorFallback({ error, resetErrorBoundary }: any) {
   return (
@@ -338,7 +393,7 @@ export default function App() {
           />
 
           {/* Main View Router Container */}
-          <main className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-transparent relative">
+          <main className={cn("flex-1 min-w-0 bg-transparent relative", currentView === 'cleaning' ? "overflow-hidden flex flex-col" : "overflow-y-auto custom-scrollbar")}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentView}
@@ -346,7 +401,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="min-h-full flex flex-col"
+                className={cn("min-h-full flex flex-col", currentView === 'cleaning' && "h-full flex-1 min-h-0")}
               >
                 {currentView === 'data-manager' ? (
                   <DatasetManager 

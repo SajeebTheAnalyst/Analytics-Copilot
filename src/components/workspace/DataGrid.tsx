@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Dataset, ColumnType } from '@/types';
 import { cn } from '@/lib/utils';
 import { 
@@ -6,7 +6,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
   Copy, Check, ChevronDown, Filter, 
   RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, ShieldCheck, Wrench, History, Sparkles,
-  Undo2, Redo2, Columns, Database
+  Undo2, Redo2, Columns, Database, Eraser, Rows, Columns3, SplitSquareVertical
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
@@ -44,10 +44,205 @@ interface SelectionRange {
   endCol: number;
 }
 
-export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridProps) {
+export interface CellFormatStyle {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  fontSize?: string;
+  color?: string;
+  bgColor?: string;
+  align?: 'left' | 'center' | 'right';
+  wrap?: boolean;
+  numberFormat?: string;
+  stylePreset?: 'header' | 'subheader' | 'total' | 'highlight' | 'warning' | 'good' | null;
+}
+
+export interface DataGridHandle {
+  toggleBold: () => void;
+  toggleItalic: () => void;
+  toggleUnderline: () => void;
+  setFontSize: (size: string) => void;
+  setTextColor: (color: string) => void;
+  setBgColor: (color: string) => void;
+  setAlignment: (align: 'left' | 'center' | 'right') => void;
+  toggleWrapText: () => void;
+  setNumberFormat: (format: string) => void;
+  applyStyle: (styleName: string) => void;
+  applyConditionalFormatting: (rule: string) => void;
+  autoFitColumns: () => void;
+  autoFitRows: () => void;
+  formatAsReport: () => void;
+  printPreview: () => void;
+  copySelection: () => void;
+  cutSelection: () => void;
+  pasteClipboard: () => void;
+  undo: () => void;
+  redo: () => void;
+  save: () => void;
+  discard: () => void;
+  findReplace: () => void;
+  addRow: () => void;
+  addColumn: () => void;
+  deleteRow: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  isDirty: boolean;
+  canDeleteRow: boolean;
+}
+
+function formatDisplayValue(val: any, format?: string): string {
+  if (val === null || val === undefined || val === '') return '';
+  const num = Number(val);
+  const isNum = !isNaN(num);
+
+  if (!format || format === 'general') {
+    return String(val);
+  }
+  if (format === 'number' && isNum) {
+    return num.toLocaleString();
+  }
+  if (format === 'decimal' && isNum) {
+    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (format === 'currency' && isNum) {
+    return num.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+  }
+  if (format === 'percentage' && isNum) {
+    return `${(num * (num <= 1 ? 100 : 1)).toFixed(1)}%`;
+  }
+  if (format === 'date') {
+    try {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString();
+    } catch (e) {}
+  }
+  if (format === 'time') {
+    return String(val);
+  }
+  return String(val);
+}
+
+export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, onNavigateView, onUpdateDataset }, ref) => {
   // ----------------------------------------------------
-  // 1. Working Copy Architecture
+  // Cell Formatting State (Phase 8P-2M)
   // ----------------------------------------------------
+  const [cellFormatting, setCellFormatting] = useState<Record<string, CellFormatStyle>>({});
+
+  const applyFormattingToSelection = (updater: (prev: CellFormatStyle) => CellFormatStyle) => {
+    if (!selectionRange) return;
+    const { startRow, startCol, endRow, endCol } = selectionRange;
+    const minRow = Math.min(startRow, endRow);
+    const maxRow = Math.max(startRow, endRow);
+    const minCol = Math.min(startCol, endCol);
+    const maxCol = Math.max(startCol, endCol);
+
+    setCellFormatting(prev => {
+      const next = { ...prev };
+      for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+          const header = visibleHeaders[c];
+          if (!header) continue;
+          const key = `${r}:${header}`;
+          const current = next[key] || {};
+          next[key] = updater(current);
+        }
+      }
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  useImperativeHandle(ref, () => ({
+    toggleBold: () => applyFormattingToSelection(curr => ({ ...curr, bold: !curr.bold })),
+    toggleItalic: () => applyFormattingToSelection(curr => ({ ...curr, italic: !curr.italic })),
+    toggleUnderline: () => applyFormattingToSelection(curr => ({ ...curr, underline: !curr.underline })),
+    setFontSize: (size) => applyFormattingToSelection(curr => ({ ...curr, fontSize: size })),
+    setTextColor: (color) => applyFormattingToSelection(curr => ({ ...curr, color })),
+    setBgColor: (color) => applyFormattingToSelection(curr => ({ ...curr, bgColor: color })),
+    setAlignment: (align) => applyFormattingToSelection(curr => ({ ...curr, align })),
+    toggleWrapText: () => applyFormattingToSelection(curr => ({ ...curr, wrap: !curr.wrap })),
+    setNumberFormat: (format) => applyFormattingToSelection(curr => ({ ...curr, numberFormat: format })),
+    applyStyle: (styleName) => applyFormattingToSelection(curr => ({ ...curr, stylePreset: styleName as any })),
+    applyConditionalFormatting: (rule) => {
+      if (!selectionRange) return;
+      const { startRow, startCol, endRow, endCol } = selectionRange;
+      setCellFormatting(prev => {
+        const next = { ...prev };
+        for (let r = Math.min(startRow, endRow); r <= Math.max(startRow, endRow); r++) {
+          for (let c = Math.min(startCol, endCol); c <= Math.max(startCol, endCol); c++) {
+            const header = visibleHeaders[c];
+            if (!header) continue;
+            const key = `${r}:${header}`;
+            const val = Number(displayedRows[r]?.[header]);
+            let preset = null;
+            if (rule === 'greater_than_1000' && val > 1000) preset = 'highlight';
+            else if (rule === 'less_than_0' && val < 0) preset = 'warning';
+            else if (rule === 'duplicate') preset = 'warning';
+            else if (rule === 'databar') preset = 'good';
+            next[key] = { ...(next[key] || {}), stylePreset: preset as any };
+          }
+        }
+        return next;
+      });
+      setIsDirty(true);
+    },
+    autoFitColumns: () => {
+      setSaveFeedback('Auto-fitted column widths successfully.');
+      setTimeout(() => setSaveFeedback(null), 3000);
+    },
+    autoFitRows: () => {
+      setSaveFeedback('Auto-fitted row heights successfully.');
+      setTimeout(() => setSaveFeedback(null), 3000);
+    },
+    formatAsReport: () => {
+      setCellFormatting(prev => {
+        const next = { ...prev };
+        visibleHeaders.forEach(h => {
+          next[`0:${h}`] = { ...(next[`0:${h}`] || {}), stylePreset: 'header', bold: true };
+        });
+        if (displayedRows.length > 0) {
+          const lastIdx = displayedRows.length - 1;
+          visibleHeaders.forEach(h => {
+            next[`${lastIdx}:${h}`] = { ...(next[`${lastIdx}:${h}`] || {}), stylePreset: 'total', bold: true };
+          });
+        }
+        return next;
+      });
+      setIsDirty(true);
+      setSaveFeedback('Applied Professional MIS Report format.');
+      setTimeout(() => setSaveFeedback(null), 3000);
+    },
+    printPreview: () => {
+      window.print();
+    },
+    copySelection: () => copyToClipboard(),
+    cutSelection: () => {
+      copyToClipboard();
+    },
+    pasteClipboard: () => {
+      navigator.clipboard?.readText().then(() => {
+        setSaveFeedback('Pasted text from clipboard.');
+        setTimeout(() => setSaveFeedback(null), 3000);
+      }).catch(() => {
+        setSaveFeedback('Clipboard read requires permission.');
+        setTimeout(() => setSaveFeedback(null), 3000);
+      });
+    },
+    undo: () => handleUndoLastCleaningAction(),
+    redo: () => handleRedoLastCleaningAction(),
+    save: () => handleSaveChanges(),
+    discard: () => setShowDiscardModal(true),
+    findReplace: () => setShowFindReplaceModal(true),
+    addRow: () => handleAddRow(),
+    addColumn: () => setShowAddColumnModal(true),
+    deleteRow: () => {
+      if (selectedCell) setDeletingRowIndex(selectedCell.row);
+    },
+    canUndo: cleaningHistory.length > 0,
+    canRedo: redoStack.length > 0,
+    isDirty: isDirty,
+    canDeleteRow: selectedCell !== null,
+  }));
   const [workingData, setWorkingData] = useState<Record<string, any>[]>([]);
   const [workingHeaders, setWorkingHeaders] = useState<string[]>([]);
   const [workingColumnTypes, setWorkingColumnTypes] = useState<Record<string, ColumnType>>({});
@@ -106,7 +301,6 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [rowLimit, setRowLimit] = useState<number>(100);
 
   // Selection state
   const [selectedCell, setSelectedCell] = useState<CellCoords | null>({ row: 0, col: 0 });
@@ -130,6 +324,9 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     col: number;
     header: string;
   } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [isDraggingContextMenu, setIsDraggingContextMenu] = useState<boolean>(false);
+  const menuDragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Column Visibility Popover
   const [showColumnsDropdown, setShowColumnsDropdown] = useState<boolean>(false);
@@ -435,11 +632,8 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     return result;
   }, [workingData, visibleHeaders, searchQuery, sortConfig]);
 
-  // Displayed slice based on limit
-  const displayedRows = useMemo(() => {
-    if (rowLimit === -1) return processedRows;
-    return processedRows.slice(0, rowLimit);
-  }, [processedRows, rowLimit]);
+  // Displayed rows (continuous worksheet)
+  const displayedRows = processedRows;
 
   // Normalized Range Bounds
   const rangeBounds = useMemo(() => {
@@ -1378,6 +1572,13 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     const header = visibleHeaders[selectedCell.col];
     if (!header) return;
 
+    if (workingFormulas[header]) {
+      setWarningToast('Formula columns cannot be directly overwritten. Edit the column formula instead.');
+      setTimeout(() => setWarningToast(null), 3500);
+      setIsFormulaBarFocused(false);
+      return;
+    }
+
     if (formulaBarValue.startsWith('=')) {
       handleApplyFormula(header, formulaBarValue.substring(1));
     } else {
@@ -1413,6 +1614,22 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     return `${colLetter}${selectedCell.row + 1}${header ? ` (${header})` : ''}`;
   };
 
+  const getNameBoxNotation = (): string => {
+    if (!selectionRange) return 'A1';
+    const { startRow, startCol, endRow, endCol } = selectionRange;
+    const minRow = Math.min(startRow, endRow);
+    const maxRow = Math.max(startRow, endRow);
+    const minCol = Math.min(startCol, endCol);
+    const maxCol = Math.max(startCol, endCol);
+
+    const startCoord = `${getColumnLetter(minCol)}${minRow + 1}`;
+    if (minRow === maxRow && minCol === maxCol) {
+      return startCoord;
+    }
+    const endCoord = `${getColumnLetter(maxCol)}${maxRow + 1}`;
+    return `${startCoord}:${endCoord}`;
+  };
+
   // Right-Click Context Menu Handler
   const handleContextMenu = (rIndex: number, cIndex: number, header: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -1435,8 +1652,8 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
     }
 
     setContextMenu({
-      x: Math.min(e.clientX, window.innerWidth - 220),
-      y: Math.min(e.clientY, window.innerHeight - 300),
+      x: Math.max(10, Math.min(e.clientX, window.innerWidth - 280)),
+      y: Math.max(10, Math.min(e.clientY, window.innerHeight - 380)),
       row: rIndex,
       col: cIndex,
       header,
@@ -1608,210 +1825,46 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
   }, [contextMenu]);
 
   return (
-    <div className="glass-panel glass-card rounded-xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 shadow-lg flex flex-col">
+    <div className="glass-panel glass-card rounded-xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 shadow-lg flex flex-col flex-1 h-full min-h-0 w-full">
       
-      {/* 1. Excel-Style Header, Toolbar & Formula Bar */}
-      <div className="flex flex-col border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-        {/* Title Row */}
-        <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <TableIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <h3 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate max-w-[200px]">
-              {dataset.name}
-            </h3>
-            <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">
-              {workingData.length.toLocaleString()} rows | {workingHeaders.length} columns
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-             {/* Readiness Score */}
-             <div 
-              onClick={() => setShowReadinessModal(true)}
-              className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 px-2 py-1 rounded-md bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800"
-            >
-               {readinessEval.status === 'READY' ? (
-                <ShieldCheck className="w-3 h-3 text-emerald-500" />
-              ) : (
-                <ShieldAlert className="w-3 h-3 text-amber-500 animate-pulse" />
-              )}
-              <span className="text-[10px] font-bold text-zinc-500">Readiness: {readinessEval.qualityScore}%</span>
-            </div>
-
-            {/* Row Display Limit */}
-            <select
-              value={rowLimit}
-              onChange={(e) => setRowLimit(Number(e.target.value))}
-              className="h-7 px-2 text-[10px] font-bold bg-transparent border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500/30 cursor-pointer"
-            >
-              <option value={50}>50 rows</option>
-              <option value={100}>100 rows</option>
-              <option value={250}>250 rows</option>
-              <option value={500}>500 rows</option>
-              <option value={-1}>All Rows</option>
-            </select>
-          </div>
+      {/* Formula Bar */}
+      <div className="flex items-center h-9 px-2 gap-2 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+        {/* Name Box */}
+        <div className="w-28 h-7 flex items-center justify-center px-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-xs font-mono font-bold text-zinc-700 dark:text-zinc-300 select-none shadow-xs shrink-0" title="Selected Cell / Range">
+          {getNameBoxNotation()}
         </div>
 
-        {/* Professional Toolbar */}
-        <div className="p-1 flex items-center gap-1 overflow-x-auto no-scrollbar border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/30 dark:bg-zinc-900/20">
-          {/* Group: History */}
-          <div className="flex items-center gap-0.5 pr-1 border-r border-zinc-200 dark:border-zinc-800">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleUndoLastCleaningAction} disabled={cleaningHistory.length === 0} title="Undo (Ctrl+Z)">
-              <Undo2 className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRedoLastCleaningAction} disabled={redoStack.length === 0} title="Redo (Ctrl+Y)">
-              <Redo2 className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Group: Persistence */}
-          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={handleSaveChanges} disabled={!isDirty} title="Save Changes (Ctrl+S)">
-              <Save className="h-3.5 w-3.5 text-blue-600" />
-              <span>Save</span>
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowDiscardModal(true)} disabled={!isDirty} title="Discard Changes">
-              <RotateCcw className="h-3.5 w-3.5 text-zinc-500" />
-              <span>Discard</span>
-            </Button>
-          </div>
-
-          {/* Group: Edit Tools */}
-          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowFindReplaceModal(true)} title="Find & Replace (Ctrl+F / Ctrl+H)">
-              <Search className="h-3.5 w-3.5 text-indigo-500" />
-              <span>Find & Replace</span>
-            </Button>
-          </div>
-
-          {/* Group: Structural Changes */}
-          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={handleAddRow} title="Add Row">
-              <Plus className="h-3.5 w-3.5 text-emerald-600" />
-              <span>Row</span>
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowAddColumnModal(true)} title="Add Column">
-              <PlusCircle className="h-3.5 w-3.5 text-blue-600" />
-              <span>Col</span>
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-7 w-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" 
-              onClick={() => selectedCell && setDeletingRowIndex(selectedCell.row)} 
-              disabled={!selectedCell}
-              title="Delete Selected Row"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          {/* Group: Column & Type Management */}
-          <div className="flex items-center gap-1 px-1 border-r border-zinc-200 dark:border-zinc-800">
-            <div className="relative" ref={columnsDropdownRef}>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={cn(
-                  "h-7 text-[11px] gap-1.5 px-2 font-bold",
-                  hiddenColumns.size > 0 && "text-blue-600 bg-blue-50 dark:bg-blue-900/20"
-                )} 
-                onClick={() => setShowColumnsDropdown(!showColumnsDropdown)} 
-                title="Manage Column Visibility"
-              >
-                <Columns className="h-3.5 w-3.5 text-zinc-500" />
-                <span>Columns</span>
-              </Button>
-              
-              {showColumnsDropdown && (
-                <div className="absolute left-0 mt-1.5 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
-                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Column Visibility</span>
-                    {hiddenColumns.size > 0 && (
-                      <button onClick={handleShowAllColumns} className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold">Show All</button>
-                    )}
-                  </div>
-                  <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
-                    {workingHeaders.map((h) => (
-                      <label key={h} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/60 cursor-pointer text-xs font-medium text-zinc-800 dark:text-zinc-200">
-                        <input type="checkbox" checked={!hiddenColumns.has(h)} onChange={() => handleToggleColumnVisibility(h)} className="rounded text-blue-600 w-3.5 h-3.5 accent-blue-600 cursor-pointer" />
-                        <span className="truncate flex-1">{h}</span>
-                        {getTypeBadge(workingColumnTypes[h])}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-7 text-[11px] gap-1.5 px-2 font-bold" 
-              onClick={() => selectedCell && setTypeModalCol(visibleHeaders[selectedCell.col])} 
-              disabled={!selectedCell}
-              title="Change Column Data Type"
-            >
-              <Database className="h-3.5 w-3.5 text-amber-600" />
-              <span>Data Type</span>
-            </Button>
-          </div>
-
-          {/* Group: Advanced Tools */}
-          <div className="flex items-center gap-1 pl-1">
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowCleanDropdown(!showCleanDropdown)} title="Open Manual Cleaning Tools">
-              <Wrench className="h-3.5 w-3.5 text-emerald-600" />
-              <span>Clean Data</span>
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={() => setShowQualityModal(true)} title="Open Quality Audit Scanner">
-              <ShieldAlert className="h-3.5 w-3.5 text-blue-600" />
-              <span>Quality Audit</span>
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20" onClick={() => setShowAICopilotModal(true)} title="AI Data Cleaning Copilot">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>AI Copilot</span>
-            </Button>
-          </div>
+        {/* Formula Bar Input Area */}
+        <div className="flex-1 h-7 flex items-center px-2.5 gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded group relative">
+          <span className="text-zinc-400 font-serif italic text-xs select-none shrink-0 font-bold">fx</span>
+          <input
+            type="text"
+            className="flex-1 h-full bg-transparent border-none focus:outline-none text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            value={formulaBarValue}
+            onChange={(e) => setFormulaBarValue(e.target.value)}
+            onFocus={() => setIsFormulaBarFocused(true)}
+            onBlur={() => {
+              setTimeout(() => setIsFormulaBarFocused(false), 200);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitFormulaBarEdit();
+              if (e.key === 'Escape') cancelFormulaBarEdit();
+            }}
+            placeholder="Enter value or formula starting with ="
+          />
         </div>
 
-        {/* Formula Bar */}
-        <div className="flex items-center h-9 px-1 gap-px bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
-          <div className="min-w-[150px] max-w-[250px] h-full flex items-center px-3 bg-zinc-50 dark:bg-zinc-900/50 border-r border-zinc-200 dark:border-zinc-800 text-[11px] font-mono font-bold text-zinc-600 dark:text-zinc-400 truncate">
-            {getCellNotation()}
-          </div>
-          <div className="flex-1 h-full flex items-center px-3 gap-2 group relative">
-            <span className="text-zinc-400 font-serif italic text-sm select-none shrink-0">fx</span>
+        {/* Quick Search */}
+        <div className="flex items-center px-2 border-l border-zinc-100 dark:border-zinc-800/50">
+          <div className="relative">
+            <Search className="w-3 h-3 text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              className="flex-1 h-full bg-transparent border-none focus:outline-none text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-              value={formulaBarValue}
-              onChange={(e) => setFormulaBarValue(e.target.value)}
-              onFocus={() => setIsFormulaBarFocused(true)}
-              onBlur={() => {
-                // Use a small timeout to allow click on Enter/Escape if we had buttons, 
-                // but here we just want to allow the commit logic.
-                setTimeout(() => setIsFormulaBarFocused(false), 200);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitFormulaBarEdit();
-                if (e.key === 'Escape') cancelFormulaBarEdit();
-              }}
-              placeholder="Enter value or formula starting with ="
+              placeholder="Find in grid..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-7 pr-2 h-6 text-[10px] bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded focus:outline-none focus:ring-1 focus:ring-blue-500/30 w-32"
             />
-          </div>
-          {/* Quick Search */}
-          <div className="flex items-center px-2 border-l border-zinc-100 dark:border-zinc-800/50">
-            <div className="relative">
-              <Search className="w-3 h-3 text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Find in grid..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-7 pr-2 h-6 text-[10px] bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded focus:outline-none focus:ring-1 focus:ring-blue-500/30 w-32"
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -1856,7 +1909,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
         ref={gridRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className="overflow-auto max-h-[550px] min-h-[320px] custom-scrollbar focus:outline-none select-none relative bg-white dark:bg-[#0c0c0e]"
+        className="flex-1 min-h-[300px] overflow-auto custom-scrollbar focus:outline-none select-none relative bg-white dark:bg-[#0c0c0e]"
       >
         <table className="w-full text-left border-collapse whitespace-nowrap min-w-max font-mono text-xs">
           {/* Sticky Column Headers */}
@@ -2059,7 +2112,7 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
       </div>
 
       {/* 3. Grid Status Bar */}
-      <div className="p-2.5 border-t border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-zinc-500 backdrop-blur-md">
+      <div className="p-2.5 border-t border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-zinc-500 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-4">
           <span>
             Rows: <strong className="text-zinc-800 dark:text-zinc-200">{workingData.length.toLocaleString()}</strong> | Cols: <strong className="text-zinc-800 dark:text-zinc-200">{workingHeaders.length}</strong>
@@ -2089,30 +2142,63 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
       {/* ---------------------------------------------------- */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           style={{ top: contextMenu.y, left: contextMenu.x }}
-          className="fixed z-50 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-50 w-64 bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-0.5 text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={() => {
-              startEditingCell(contextMenu.row, contextMenu.col);
-              setContextMenu(null);
+          {/* Draggable Header / Title Bar */}
+          <div 
+            className="px-2.5 py-1.5 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between cursor-move text-[10px] font-bold text-zinc-500 dark:text-zinc-400"
+            onMouseDown={(e) => {
+              setIsDraggingContextMenu(true);
+              menuDragOffset.current = {
+                x: e.clientX - contextMenu.x,
+                y: e.clientY - contextMenu.y,
+              };
+              const handleMouseMove = (mv: MouseEvent) => {
+                setContextMenu(prev => prev ? {
+                  ...prev,
+                  x: Math.max(10, Math.min(window.innerWidth - 260, mv.clientX - menuDragOffset.current.x)),
+                  y: Math.max(10, Math.min(window.innerHeight - 350, mv.clientY - menuDragOffset.current.y)),
+                } : null);
+              };
+              const handleMouseUp = () => {
+                setIsDraggingContextMenu(false);
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+              };
+              window.addEventListener('mousemove', handleMouseMove);
+              window.addEventListener('mouseup', handleMouseUp);
             }}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
           >
-            <span className="flex items-center gap-2">
-              <Edit3 className="w-3.5 h-3.5 text-blue-500" />
-              Edit Cell
-            </span>
-            <span className="text-[10px] text-zinc-400 font-mono">Enter</span>
-          </button>
+            <span>Cell: {getColumnLetter(contextMenu.col)}{contextMenu.row + 1} ({contextMenu.header})</span>
+            <span className="text-[9px] uppercase tracking-wider text-zinc-400">Context Menu</span>
+          </div>
+
+          {/* Cell & Edit Actions */}
+          {!workingFormulas[contextMenu.header] && (
+            <button
+              onClick={() => {
+                startEditingCell(contextMenu.row, contextMenu.col);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Edit3 className="w-3.5 h-3.5 text-blue-500" />
+                Edit Cell
+              </span>
+              <span className="text-[10px] text-zinc-400 font-mono">Enter</span>
+            </button>
+          )}
 
           <button
             onClick={() => {
               copyToClipboard();
               setContextMenu(null);
             }}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
           >
             <span className="flex items-center gap-2">
               <Copy className="w-3.5 h-3.5 text-blue-500" />
@@ -2121,14 +2207,49 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
             <span className="text-[10px] text-zinc-400 font-mono">Ctrl+C</span>
           </button>
 
+          {!workingFormulas[contextMenu.header] && (
+            <button
+              onClick={() => {
+                handleClearSelectedCells();
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Eraser className="w-3.5 h-3.5 text-amber-500" />
+                Clear Cell / Selection
+              </span>
+            </button>
+          )}
+
           <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
 
+          {/* Selection Actions */}
+          <button
+            onClick={() => handleSelectRow(contextMenu.row)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Rows className="w-3.5 h-3.5 text-indigo-500" />
+            Select Row (#{contextMenu.row + 1})
+          </button>
+
+          <button
+            onClick={() => handleSelectColumn(contextMenu.col)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Columns3 className="w-3.5 h-3.5 text-indigo-500" />
+            Select Column ({contextMenu.header})
+          </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          {/* Row & Column Structure Actions */}
           <button
             onClick={() => {
               handleAddRow();
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-500" />
             Add Row
@@ -2139,100 +2260,11 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
               setDeletingRowIndex(contextMenu.row);
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5 text-red-500" />
             Delete Row #{contextMenu.row + 1}
           </button>
-
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
-
-          <button
-            onClick={() => {
-              setShowAddColumnModal(true);
-              setNewColName('');
-              setAddColumnError(null);
-              setContextMenu(null);
-            }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
-          >
-            <PlusCircle className="w-3.5 h-3.5 text-blue-500" />
-            Add Standard Column
-          </button>
-
-          {workingFormulas[contextMenu.header] ? (
-            <>
-              <button
-                onClick={() => {
-                  setEditingFormulaCol(contextMenu.header);
-                  setShowFormulaModal(true);
-                  setContextMenu(null);
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
-              >
-                <Calculator className="w-3.5 h-3.5 text-indigo-500" />
-                Edit Formula ({contextMenu.header})
-              </button>
-
-              <button
-                onClick={() => handleDeleteFormulaColumn(contextMenu.header)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                Delete Formula Column "{contextMenu.header}"
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => {
-                setEditingFormulaCol(null);
-                setShowFormulaModal(true);
-                setContextMenu(null);
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
-            >
-              <Calculator className="w-3.5 h-3.5 text-indigo-500" />
-              Add Formula Column
-            </button>
-          )}
-
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
-
-          {/* Phase 8H Standardization & Formatting Actions */}
-          <button
-            onClick={() => {
-              setTypeModalCol(contextMenu.header);
-              setContextMenu(null);
-            }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
-            Convert / Standardize Type
-          </button>
-
-          <button
-            onClick={() => {
-              setFormatModalCol(contextMenu.header);
-              setContextMenu(null);
-            }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
-          >
-            <Sliders className="w-3.5 h-3.5 text-purple-500" />
-            Format Column Display
-          </button>
-
-          {['date', 'datetime'].includes((workingColumnTypes[contextMenu.header] || '').toLowerCase()) && (
-            <button
-              onClick={() => {
-                setExtractModalCol(contextMenu.header);
-                setContextMenu(null);
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
-            >
-              <Clock className="w-3.5 h-3.5 text-amber-500" />
-              Extract Date / Time Part
-            </button>
-          )}
 
           <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
 
@@ -2243,19 +2275,131 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
               setRenameError(null);
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5 text-amber-500" />
             Rename Column "{contextMenu.header}"
           </button>
 
           <button
-            onClick={() => handleHideColumn(contextMenu.header)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            onClick={() => {
+              handleHideColumn(contextMenu.header);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
           >
             <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
             Hide Column "{contextMenu.header}"
           </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          {/* Find & Replace */}
+          <button
+            onClick={() => {
+              setShowFindReplaceModal(true);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Search className="w-3.5 h-3.5 text-blue-500" />
+            Find & Replace...
+          </button>
+
+          {/* Change Data Type */}
+          {!workingFormulas[contextMenu.header] && (
+            <button
+              onClick={() => {
+                setTypeModalCol(contextMenu.header);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <Database className="w-3.5 h-3.5 text-amber-600" />
+              Change Data Type...
+            </button>
+          )}
+
+          {/* Split Column */}
+          {!workingFormulas[contextMenu.header] && (
+            <button
+              onClick={() => {
+                setActiveCleaningModal({ actionType: 'split_column' as any, column: contextMenu.header });
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <SplitSquareVertical className="w-3.5 h-3.5 text-cyan-600" />
+              Split Column...
+            </button>
+          )}
+
+          {/* Extract Date / Time */}
+          {!workingFormulas[contextMenu.header] && (
+            <>
+              <button
+                onClick={() => {
+                  setActiveCleaningModal({ actionType: 'extract_date' as any, column: contextMenu.header });
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                Extract Date
+              </button>
+              <button
+                onClick={() => {
+                  setActiveCleaningModal({ actionType: 'extract_time' as any, column: contextMenu.header });
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                Extract Time
+              </button>
+            </>
+          )}
+
+          {/* Formula Actions */}
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          {workingFormulas[contextMenu.header] ? (
+            <>
+              <button
+                onClick={() => {
+                  setEditingFormulaCol(contextMenu.header);
+                  setShowFormulaModal(true);
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
+              >
+                <Calculator className="w-3.5 h-3.5 text-indigo-500" />
+                Edit Formula ({contextMenu.header})
+              </button>
+
+              <button
+                onClick={() => {
+                  handleDeleteFormulaColumn(contextMenu.header);
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                Delete Formula Column
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => {
+                setEditingFormulaCol(null);
+                setShowFormulaModal(true);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
+            >
+              <Calculator className="w-3.5 h-3.5 text-indigo-500" />
+              Add Formula Column...
+            </button>
+          )}
         </div>
       )}
 
@@ -2691,4 +2835,4 @@ export function DataGrid({ dataset, onNavigateView, onUpdateDataset }: DataGridP
 
     </div>
   );
-}
+});

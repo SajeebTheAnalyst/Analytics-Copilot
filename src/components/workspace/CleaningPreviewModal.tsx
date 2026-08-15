@@ -16,7 +16,11 @@ import {
   previewRemoveEmptyRows,
   previewFillMissing,
   previewClearCells,
-  previewDeleteColumns
+  previewDeleteColumns,
+  previewSplitColumn,
+  previewExtractDate,
+  previewExtractTime,
+  previewChangeDataType
 } from '@/lib/manualCleaningEngine';
 
 interface CleaningPreviewModalProps {
@@ -71,6 +75,12 @@ export function CleaningPreviewModal({
     initialColumn ? [initialColumn] : []
   );
 
+  // Split Column state
+  const [splitDelimiter, setSplitDelimiter] = useState<string>(',');
+
+  // Change Data Type state
+  const [targetDataType, setTargetDataType] = useState<string>('Numeric');
+
   // Calculate live Preview Result
   const previewResult: CleaningPreviewResult = useMemo(() => {
     switch (actionType) {
@@ -117,13 +127,25 @@ export function CleaningPreviewModal({
       case 'delete_columns':
         return previewDeleteColumns(data, headers, formulas, colsToDelete);
 
+      case 'split_column':
+        return previewSplitColumn(data, headers, formulas, selectedColumn, splitDelimiter);
+
+      case 'extract_date':
+        return previewExtractDate(data, headers, formulas, selectedColumn);
+
+      case 'extract_time':
+        return previewExtractTime(data, headers, formulas, selectedColumn);
+
+      case 'change_data_type':
+        return previewChangeDataType(data, headers, formulas, selectedColumn, targetDataType);
+
       default:
         return previewTrimWhitespace(data, headers, formulas, selectedColumn);
     }
   }, [
     actionType, selectedColumn, casingStyle, searchVal, replaceVal, 
     matchExact, caseSensitive, selectedVariations, targetCategoricalVal, 
-    fillStrategy, customFillVal, colsToDelete, data, headers, formulas
+    fillStrategy, customFillVal, colsToDelete, splitDelimiter, targetDataType, data, headers, formulas
   ]);
 
   const handleApply = () => {
@@ -176,7 +198,7 @@ export function CleaningPreviewModal({
               </span>
 
               {/* Column Selector for column-level actions */}
-              {['trim_whitespace', 'text_capitalization', 'find_replace', 'merge_categorical', 'fill_missing', 'clear_cells'].includes(actionType) && (
+              {['trim_whitespace', 'text_capitalization', 'find_replace', 'merge_categorical', 'fill_missing', 'clear_cells', 'split_column', 'extract_date', 'extract_time', 'change_data_type'].includes(actionType) && (
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Target Column:</label>
                   <select
@@ -355,35 +377,85 @@ export function CleaningPreviewModal({
               </div>
             )}
 
-            {/* 5. Delete Columns Controls */}
-            {actionType === 'delete_columns' && (
-              <div className="space-y-2">
-                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400">
-                  Select Columns to Delete:
+            {/* 6. Split Column Controls */}
+            {actionType === 'split_column' && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                  Split Delimiter:
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {headers.map((h) => {
-                    const isSelected = colsToDelete.includes(h);
-                    return (
-                      <button
-                        key={h}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) setColsToDelete(colsToDelete.filter(c => c !== h));
-                          else setColsToDelete([...colsToDelete, h]);
-                        }}
-                        className={cn(
-                          "px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5",
-                          isSelected
-                            ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300 dark:border-red-800"
-                            : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"
-                        )}
-                      >
-                        <Trash2 className="w-3 h-3 text-red-500" />
-                        <span>{h}</span>
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center gap-2">
+                  {[
+                    { label: 'Comma (,)', val: ',' },
+                    { label: 'Space ( )', val: ' ' },
+                    { label: 'Dash (-)', val: '-' },
+                    { label: 'Slash (/)', val: '/' },
+                  ].map((d) => (
+                    <button
+                      key={d.val}
+                      type="button"
+                      onClick={() => setSplitDelimiter(d.val)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        splitDelimiter === d.val
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                      )}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                  <input
+                    type="text"
+                    value={splitDelimiter}
+                    onChange={(e) => setSplitDelimiter(e.target.value)}
+                    placeholder="Custom"
+                    className="w-20 h-8 px-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Original column remains unchanged. Creates two new columns: <span className="font-mono font-bold">{selectedColumn}_1</span> and <span className="font-mono font-bold">{selectedColumn}_2</span>.
+                </p>
+              </div>
+            )}
+
+            {/* 7. Extract Date Controls */}
+            {actionType === 'extract_date' && (
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                <p>Extracts date component (e.g., <span className="font-mono font-bold">2020-12-12</span>) from column <span className="font-bold">{selectedColumn}</span>.</p>
+                <p className="text-[10px] text-zinc-500 mt-1">Original column remains unchanged. Creates new column: <span className="font-mono font-bold">{selectedColumn}_Date</span>.</p>
+              </div>
+            )}
+
+            {/* 8. Extract Time Controls */}
+            {actionType === 'extract_time' && (
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                <p>Extracts time component (e.g., <span className="font-mono font-bold">14:30:00</span>) from column <span className="font-bold">{selectedColumn}</span>.</p>
+                <p className="text-[10px] text-zinc-500 mt-1">Original column remains unchanged. Creates new column: <span className="font-mono font-bold">{selectedColumn}_Time</span>.</p>
+              </div>
+            )}
+
+            {/* 9. Change Data Type Controls */}
+            {actionType === 'change_data_type' && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                  Target Data Type:
+                </label>
+                <div className="flex items-center gap-2">
+                  {['Numeric', 'Integer', 'Decimal', 'Text', 'Boolean'].map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTargetDataType(t)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        targetDataType === t
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Dataset, ViewState } from '@/types';
 import { DataUploader } from './DataUploader';
-import { DataGrid } from './DataGrid';
 import { DataQualityPanel } from './DataQualityPanel';
 import { calculateDatasetHealth, profileColumn, ExtendedColumnProfile } from '@/lib/profiler';
 import { formatDistanceToNow } from 'date-fns';
@@ -496,11 +495,6 @@ export function DatasetManager({
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* 5. Interactive Data Grid */}
-      <div className="mb-6">
-        <DataGrid dataset={activeDataset} onNavigateView={onNavigateView} onUpdateDataset={onUpdateDataset} />
       </div>
 
     </div>
