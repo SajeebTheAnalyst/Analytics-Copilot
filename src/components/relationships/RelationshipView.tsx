@@ -39,13 +39,15 @@ interface RelationshipViewProps {
   suggestions: RelationshipSuggestion[];
   setSuggestions: React.Dispatch<React.SetStateAction<RelationshipSuggestion[]>>;
   onOpenDataset?: (id: string) => void;
+  onNavigateView?: (view: any) => void;
 }
 
 export function RelationshipView({ 
   datasets, 
   suggestions, 
   setSuggestions,
-  onOpenDataset
+  onOpenDataset,
+  onNavigateView
 }: RelationshipViewProps) {
   const [selectedRel, setSelectedRel] = useState<RelationshipSuggestion | null>(null);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
@@ -356,12 +358,25 @@ export function RelationshipView({
   // 5. Render Core View States
   if (datasets.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white dark:bg-[#09090b]">
-        <Network className="w-12 h-12 mb-4 text-zinc-300 dark:text-zinc-700 animate-pulse" />
-        <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-1">No Datasets Available</h2>
-        <p className="text-xs text-zinc-500 max-w-sm leading-relaxed">
-          Upload spreadsheets or CSV files to define structural data relations.
-        </p>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-zinc-50/10 dark:bg-[#09090b] h-full relative overflow-hidden">
+        {/* Ambient Background Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.02)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
+        
+        <div className="relative z-10 max-w-md w-full p-8 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-xl transition-all duration-300 hover:shadow-2xl hover:border-blue-500/30 group">
+          <div className="w-14 h-14 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mx-auto mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+            <Network className="w-7 h-7" />
+          </div>
+          <h2 className="text-lg font-extrabold text-zinc-950 dark:text-zinc-50 tracking-tight">Model Data Relationships</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2.5 mb-6 leading-relaxed">
+            Load multiple datasets to connect schemas and build cross-table formulas.
+          </p>
+          <Button
+            onClick={() => onNavigateView ? onNavigateView('data-manager') : onOpenDataset?.("")}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9.5 text-xs transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm rounded-lg cursor-pointer animate-in fade-in"
+          >
+            Import Dataset
+          </Button>
+        </div>
       </div>
     );
   }

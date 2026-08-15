@@ -51,20 +51,25 @@ export function DataExplorer({
   // If no active dataset, render Empty State (Section 16)
   if (!dataset) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white dark:bg-[#0c0c0e]">
-        <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-zinc-400 mb-4">
-          <FileSpreadsheet className="w-8 h-8" />
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-zinc-50/10 dark:bg-[#09090b] h-full relative overflow-hidden">
+        {/* Ambient Background Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.02)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
+        
+        <div className="relative z-10 max-w-md w-full p-8 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-xl transition-all duration-300 hover:shadow-2xl hover:border-blue-500/30 group">
+          <div className="w-14 h-14 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mx-auto mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+            <FileSpreadsheet className="w-7 h-7" />
+          </div>
+          <h2 className="text-lg font-extrabold text-zinc-950 dark:text-zinc-50 tracking-tight">Explore Your Business Data</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2.5 mb-6 leading-relaxed">
+            Load a dataset to filter, aggregate, group, and query your spreadsheet records.
+          </p>
+          <Button
+            onClick={() => onNavigateView('data-manager')}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9.5 text-xs transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm rounded-lg cursor-pointer"
+          >
+            Import Dataset
+          </Button>
         </div>
-        <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-1">No Active Dataset</h2>
-        <p className="text-xs text-zinc-500 mb-6 max-w-sm">
-          Please import or select a dataset from the workspace to begin analytical exploration.
-        </p>
-        <Button
-          onClick={() => onNavigateView('data-manager')}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-2"
-        >
-          Import Dataset
-        </Button>
       </div>
     );
   }

@@ -21,6 +21,7 @@ import { detectIssues, applyCleaningAction, undoCleaningAction, restoreOriginal 
 import { evaluateDataReadiness } from '@/lib/dataReadinessEngine';
 import { DataReadinessPanel } from './components/workspace/DataReadinessPanel';
 import { Button } from './components/ui/button';
+import { Target, Plus, LayoutGrid, FileText } from 'lucide-react';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -291,6 +292,76 @@ export default function App() {
   }, [selectedDataset, datasets]);
 
   const renderReportingOrGate = (viewNode: React.ReactNode) => {
+    if (datasets.length === 0) {
+      if (currentView === 'kpi-builder') {
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-zinc-50/10 dark:bg-[#09090b] h-full relative overflow-hidden">
+            {/* Ambient Background Grid */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.02)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
+            <div className="relative z-10 max-w-md w-full p-8 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-xl transition-all duration-300 hover:shadow-2xl hover:border-blue-500/30 group">
+              <div className="w-14 h-14 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mx-auto mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <Target className="w-7 h-7" />
+              </div>
+              <h2 className="text-lg font-extrabold text-zinc-950 dark:text-zinc-50 tracking-tight">Build Business KPIs</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2.5 mb-6 leading-relaxed">
+                Import and validate a dataset to start creating custom KPIs.
+              </p>
+              <Button 
+                onClick={() => setCurrentView('data-manager')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9.5 text-xs transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm rounded-lg cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Import Dataset
+              </Button>
+            </div>
+          </div>
+        );
+      }
+      if (currentView === 'dashboards') {
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-zinc-50/10 dark:bg-[#09090b] h-full relative overflow-hidden">
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.02)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
+            <div className="relative z-10 max-w-md w-full p-8 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-xl transition-all duration-300 hover:shadow-2xl hover:border-blue-500/30 group">
+              <div className="w-14 h-14 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mx-auto mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <LayoutGrid className="w-7 h-7" />
+              </div>
+              <h2 className="text-lg font-extrabold text-zinc-950 dark:text-zinc-50 tracking-tight">Build Your Analytics Dashboard</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2.5 mb-6 leading-relaxed">
+                Your KPIs and charts will appear here after preparing a dataset.
+              </p>
+              <Button 
+                onClick={() => setCurrentView('data-manager')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9.5 text-xs transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm rounded-lg cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Import Dataset
+              </Button>
+            </div>
+          </div>
+        );
+      }
+      if (currentView === 'mis-report') {
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-zinc-50/10 dark:bg-[#09090b] h-full relative overflow-hidden">
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.02)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
+            <div className="relative z-10 max-w-md w-full p-8 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-xl transition-all duration-300 hover:shadow-2xl hover:border-blue-500/30 group">
+              <div className="w-14 h-14 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mx-auto mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <FileText className="w-7 h-7" />
+              </div>
+              <h2 className="text-lg font-extrabold text-zinc-950 dark:text-zinc-50 tracking-tight">Create Management Reports</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2.5 mb-6 leading-relaxed">
+                Prepare your data to generate professional Excel/PDF MIS reports.
+              </p>
+              <Button 
+                onClick={() => setCurrentView('data-manager')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9.5 text-xs transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm rounded-lg cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Import Dataset
+              </Button>
+            </div>
+          </div>
+        );
+      }
+    }
+
     if (!selectedDataset) {
       return (
         <div className="flex-1 flex items-center justify-center p-8 bg-white dark:bg-zinc-950 text-center">
@@ -499,6 +570,7 @@ export default function App() {
                       setSelectedDatasetId(datasetId);
                       setCurrentView('data-manager');
                     }}
+                    onNavigateView={(view) => setCurrentView(view)}
                   />
                 ) : currentView === 'kpi-builder' ? renderReportingOrGate(
                   <KpiBuilderView 

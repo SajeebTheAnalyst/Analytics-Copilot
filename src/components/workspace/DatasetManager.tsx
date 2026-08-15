@@ -153,257 +153,263 @@ export function DatasetManager({
 
     return (
       <div className="flex-1 flex flex-col min-h-full p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-zinc-50/20 dark:bg-zinc-950/25 relative overflow-hidden">
+        <style>{`
+          @keyframes data-dash-flow {
+            to {
+              stroke-dashoffset: -100;
+            }
+          }
+          .animate-data-flow {
+            animation: data-dash-flow 10s linear infinite;
+          }
+        `}</style>
+
         {/* Subtle Workbook Canvas Grid Motif */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none z-0" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.03)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none z-0" />
         
         {/* Subtle Ambient Glowing Spheres for Deep Immersive Glow */}
         <div className="absolute top-1/4 left-1/3 w-[350px] h-[350px] rounded-full bg-blue-500/5 dark:bg-blue-500/10 blur-[80px] pointer-events-none z-0 animate-slow-rotate" style={{ transformOrigin: '40% 40%' }} />
         <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-purple-500/5 dark:bg-indigo-500/8 blur-[100px] pointer-events-none z-0 animate-slow-rotate" style={{ transformOrigin: '60% 60%', animationDirection: 'reverse', animationDuration: '45s' }} />
 
-        <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10 py-2">
-          {/* LEFT COLUMN: Hero Section & Import Zone */}
-          <div className="lg:col-span-7 space-y-6 flex flex-col">
-            {/* Redesigned Premium Hero Segment */}
-            <div className="space-y-3">
+        {/* Subtle analytics-themed animated background */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 opacity-40 dark:opacity-20">
+          <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <path 
+              d="M -100,150 Q 200,80 500,200 T 1100,100 T 1700,250" 
+              fill="none" 
+              stroke="rgba(59, 130, 246, 0.2)" 
+              strokeWidth="1.5" 
+              strokeDasharray="6, 12"
+              className="animate-data-flow"
+            />
+            <path 
+              d="M -100,350 Q 400,450 900,300 T 1900,400" 
+              fill="none" 
+              stroke="rgba(147, 51, 234, 0.15)" 
+              strokeWidth="1.5" 
+              strokeDasharray="4, 10"
+              className="animate-data-flow"
+              style={{ animationDuration: '15s', animationDirection: 'reverse' }}
+            />
+            <circle cx="20%" cy="15%" r="3" fill="rgba(59, 130, 246, 0.3)" className="animate-pulse" />
+            <circle cx="75%" cy="30%" r="4" fill="rgba(147, 51, 234, 0.2)" className="animate-pulse" style={{ animationDelay: '1.5s' }} />
+            <circle cx="45%" cy="70%" r="2" fill="rgba(16, 185, 129, 0.2)" className="animate-pulse" style={{ animationDelay: '0.7s' }} />
+          </svg>
+        </div>
+
+        <div className="max-w-7xl mx-auto w-full space-y-8 relative z-10 py-2">
+          {/* Main Welcome Area Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white/45 dark:bg-zinc-900/25 border border-zinc-200/50 dark:border-zinc-800/50 p-6 lg:p-8 rounded-2xl relative overflow-hidden z-10 shadow-sm backdrop-blur-md">
+            {/* LEFT COLUMN: Welcome Hero */}
+            <div className="lg:col-span-7 space-y-5 flex flex-col justify-center">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-blue-50 dark:bg-blue-950/85 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40 w-fit select-none">
                 <Sparkles className="w-3 h-3 text-blue-500 dark:text-blue-400 animate-pulse" />
                 <span>Enterprise Suite</span>
               </div>
-              <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight">
-                Analytics Toolkit
-              </h1>
-              <p className="text-sm font-bold text-blue-600 dark:text-blue-400 leading-snug">
-                Turn raw business data into clean, reliable insights.
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-2xl">
-                Import a CSV, Excel, JSON, or other supported file to start profiling, cleaning, analysis, KPI creation, dashboards, and MIS reporting.
-              </p>
-            </div>
-
-            {/* Premium Interactive Import Area */}
-            <div className="living-glow-card rounded-2xl p-1 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600 dark:bg-blue-500 rounded-l-2xl z-20" />
-              <div className="pl-3.5 pr-2 px-1 relative z-10">
-                <DataUploader onDatasetsImported={onImport} existingDatasets={datasets} />
+              <div className="space-y-3">
+                <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-50 leading-none">
+                  Analytics Toolkit
+                </h1>
+                <p className="text-sm font-extrabold text-blue-600 dark:text-blue-400 leading-snug">
+                  Turn raw business data into clean, reliable insights.
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-xl font-medium">
+                  Import your Excel, CSV, or supported dataset to profile, clean, analyze, build KPIs, create dashboards, and generate MIS reports.
+                </p>
               </div>
-            </div>
 
-            {/* Try Demo Dataset Fast Track Banner */}
-            <div className="living-glow-card p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md">
-              <div className="flex gap-3 items-center relative z-10">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                  <Database className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-extrabold text-zinc-950 dark:text-zinc-50">Want a fast-track tour?</h4>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">Load pre-built Sales Analytics to try all dashboards and metrics instantly.</p>
-                </div>
-              </div>
-              <Button 
-                type="button"
-                onClick={handleLoadDemo}
-                disabled={isDemoLoading}
-                className="text-[11px] font-bold tracking-wide h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-400 shrink-0 w-full sm:w-auto shadow-sm rounded-lg transition-all duration-200 hover-elevate cursor-pointer border-none relative z-10 flex items-center justify-center gap-1.5"
-              >
-                {isDemoLoading ? (
-                  <span className="flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading...</span>
-                ) : (
-                  <span className="flex items-center gap-1">Try Demo Dataset <Sparkles className="w-3 h-3 ml-0.5 text-blue-200" /></span>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN: Quick Start Actions & Workflow Pipeline */}
-          <div className="lg:col-span-5 space-y-7">
-            {/* Quick Actions Grid */}
-            <div className="space-y-3">
-              <h3 className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-500 tracking-widest uppercase">Quick Actions</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Action 1: Upload Custom File */}
-                <div 
+              {/* Core Actions */}
+              <div className="flex flex-wrap gap-3 items-center">
+                <Button 
                   onClick={() => {
                     const el = document.getElementById('quick-import-file-input');
                     if (el) (el as HTMLInputElement).click();
                   }}
-                  className="p-3.5 rounded-xl cursor-pointer group relative overflow-hidden transition-all duration-200 living-glow-card border-none"
+                  className="text-xs font-bold tracking-wide h-9.5 px-5 bg-blue-600 hover:bg-blue-700 text-white shrink-0 shadow-sm rounded-lg transition-all duration-200 hover-elevate cursor-pointer border-none flex items-center justify-center gap-1.5"
                 >
-                  <input
-                    type="file"
-                    multiple
-                    accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, application/json, text/plain"
-                    className="hidden"
-                    id="quick-import-file-input"
-                    onChange={async (e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        setIsDemoLoading(true);
-                        try {
-                          const { processDataset } = await import('@/lib/analyzer');
-                          const filesList = Array.from(e.target.files);
-                          let imported: Dataset[] = [];
-                          for (const file of filesList) {
-                            const ds = await processDataset(file);
-                            imported = imported.concat(ds);
-                          }
-                          if (imported.length > 0) {
-                            onImport(imported);
-                          }
-                        } catch (err) {
-                          console.error(err);
-                        } finally {
-                          setIsDemoLoading(false);
-                        }
-                      }
-                    }}
-                  />
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="p-1.5 bg-blue-500/10 dark:bg-blue-500/20 rounded-lg text-blue-600 dark:text-blue-400">
-                      <UploadCloud className="w-4 h-4" />
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                  <h4 className="text-xs font-bold text-zinc-950 dark:text-zinc-50 mt-2.5 relative z-10">Import CSV / Excel</h4>
-                  <p className="text-[10px] text-zinc-550 dark:text-zinc-400 mt-0.5 relative z-10">Upload local spreadsheet</p>
-                </div>
-
-                {/* Action 2: Try Demo */}
-                <div 
+                  <UploadCloud className="w-4 h-4" /> Import Data
+                </Button>
+                <Button 
                   onClick={handleLoadDemo}
-                  className="p-3.5 rounded-xl cursor-pointer group relative overflow-hidden transition-all duration-200 living-glow-card border-none"
+                  disabled={isDemoLoading}
+                  className="text-xs font-bold tracking-wide h-9.5 px-5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-100 shrink-0 shadow-sm rounded-lg transition-all duration-200 hover-elevate cursor-pointer border border-zinc-200/50 dark:border-zinc-700/50 flex items-center justify-center gap-1.5"
                 >
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="p-1.5 bg-blue-500/10 dark:bg-blue-500/20 rounded-lg text-blue-600 dark:text-blue-400">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                  <h4 className="text-xs font-bold text-zinc-950 dark:text-zinc-50 mt-2.5 relative z-10">Try Demo Dataset</h4>
-                  <p className="text-[10px] text-zinc-550 dark:text-zinc-400 mt-0.5 relative z-10">Load mock sales data</p>
-                </div>
-
-                {/* Action 3: Cleaning */}
-                <div 
-                  onClick={() => setLockedFeatureMessage("Data Cleaning")}
-                  className="p-3.5 rounded-xl cursor-pointer group relative overflow-hidden transition-all duration-200 living-glow-card border-none opacity-85 hover:opacity-100"
-                >
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg text-zinc-400 dark:text-zinc-500">
-                      <Activity className="w-4 h-4" />
-                    </div>
-                    <Lock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2.5 relative z-10">
-                    <h4 className="text-xs font-bold text-zinc-550 dark:text-zinc-400">Data Cleaning</h4>
-                    <span className="text-[9px] px-1 py-0.2 bg-zinc-100/80 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded font-bold uppercase font-mono tracking-wider">Locked</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-450 dark:text-zinc-500 mt-0.5 relative z-10">Validate and format records</p>
-                </div>
-
-                {/* Action 4: Build KPI */}
-                <div 
-                  onClick={() => setLockedFeatureMessage("KPI Builder")}
-                  className="p-3.5 rounded-xl cursor-pointer group relative overflow-hidden transition-all duration-200 living-glow-card border-none opacity-85 hover:opacity-100"
-                >
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg text-zinc-400 dark:text-zinc-500">
-                      <BarChart3 className="w-4 h-4" />
-                    </div>
-                    <Lock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2.5 relative z-10">
-                    <h4 className="text-xs font-bold text-zinc-550 dark:text-zinc-400">Build KPI</h4>
-                    <span className="text-[9px] px-1 py-0.2 bg-zinc-100/80 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded font-bold uppercase font-mono tracking-wider">Locked</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-450 dark:text-zinc-500 mt-0.5 relative z-10">Create custom aggregates</p>
-                </div>
-
-                {/* Action 5: Create Dashboard */}
-                <div 
-                  onClick={() => setLockedFeatureMessage("Executive Dashboards")}
-                  className="p-3.5 rounded-xl cursor-pointer group relative overflow-hidden transition-all duration-200 living-glow-card border-none opacity-85 hover:opacity-100"
-                >
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg text-zinc-400 dark:text-zinc-500">
-                      <LayoutGrid className="w-4 h-4" />
-                    </div>
-                    <Lock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2.5 relative z-10">
-                    <h4 className="text-xs font-bold text-zinc-550 dark:text-zinc-400">Create Dashboard</h4>
-                    <span className="text-[9px] px-1 py-0.2 bg-zinc-100/80 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded font-bold uppercase font-mono tracking-wider">Locked</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-450 dark:text-zinc-500 mt-0.5 relative z-10">Design custom BI visuals</p>
-                </div>
-
-                {/* Action 6: MIS Report */}
-                <div 
-                  onClick={() => setLockedFeatureMessage("MIS Executive Reporting")}
-                  className="p-3.5 rounded-xl cursor-pointer group relative overflow-hidden transition-all duration-200 living-glow-card border-none opacity-85 hover:opacity-100"
-                >
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg text-zinc-400 dark:text-zinc-500">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <Lock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2.5 relative z-10">
-                    <h4 className="text-xs font-bold text-zinc-550 dark:text-zinc-440">Generate MIS Report</h4>
-                    <span className="text-[9px] px-1 py-0.2 bg-zinc-100/80 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded font-bold uppercase font-mono tracking-wider">Locked</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-450 dark:text-zinc-550 mt-0.5 relative z-10">Create corporate MIS reports</p>
-                </div>
+                  {isDemoLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-zinc-500" />
+                      <span>Loading Demo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-4 h-4 text-zinc-500" />
+                      <span>Try Demo Dataset</span>
+                    </>
+                  )}
+                </Button>
               </div>
-
-              {/* Dynamic feedback banner when a locked action is clicked */}
-              {lockedFeatureMessage && (
-                <div className="p-3.5 rounded-xl bg-blue-500/10 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-900/40 text-[11px] text-blue-800 dark:text-blue-300 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <HelpCircle className="w-4 h-4 text-blue-650 dark:text-blue-400 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <span className="font-bold">Unlock {lockedFeatureMessage}</span>
-                    <p className="mt-0.5 text-zinc-650 dark:text-zinc-450">Please upload your spreadsheet or click <button onClick={handleLoadDemo} className="text-blue-650 dark:text-blue-400 font-bold underline cursor-pointer hover:text-blue-800 bg-transparent border-none p-0 inline">Try Demo Dataset</button> to unlock this analytical feature. Once a dataset is loaded, it becomes fully active.</p>
-                  </div>
-                  <button onClick={() => setLockedFeatureMessage(null)} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 font-extrabold select-none p-0.5 bg-transparent border-none cursor-pointer">×</button>
-                </div>
-              )}
             </div>
 
-            {/* Workflow Progression Pipeline */}
-            <div className="space-y-4">
-              <h3 className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-500 tracking-widest uppercase">Analytics Workflow Progress</h3>
-              <div className="relative pl-6 space-y-5">
-                {/* Vertical Connection Line */}
-                <div className="absolute left-2.5 top-1.5 bottom-1.5 w-[2px] bg-gradient-to-b from-blue-500 via-zinc-200 to-zinc-200 dark:from-blue-500 dark:via-zinc-800 dark:to-zinc-800" />
-
-                {[
-                  { step: '01', title: 'Import Raw File', desc: 'Secure local upload of CSV, XLS, XLSX spreadsheets, or JSON.', active: true },
-                  { step: '02', title: 'Inferred Schema Profiling', desc: 'Auto-discover column attributes, statistical profiles, and missing values.', active: false },
-                  { step: '03', title: 'Quality Remediation', desc: 'Directly detect and clean duplicate records, invalid formats, or outliers.', active: false },
-                  { step: '04', title: 'Business Reporting Gate', desc: 'Build advanced metrics, visual dashboards, and export management reports.', active: false },
-                ].map((pipeline, idx) => (
-                  <div key={idx} className="relative group/step">
-                    {/* Node Indicator Dot */}
-                    <div className={cn(
-                      "absolute -left-[21.5px] top-1 w-3.5 h-3.5 rounded-full border-2 bg-white dark:bg-zinc-950 flex items-center justify-center transition-all duration-300",
-                      pipeline.active 
-                        ? "border-blue-600 dark:border-blue-400 scale-110 ring-4 ring-blue-500/10" 
-                        : "border-zinc-300 dark:border-zinc-800 group-hover/step:border-blue-400"
-                    )}>
-                      {pipeline.active && <div className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-ping" />}
-                    </div>
-
-                    <div className="space-y-0.5 transition-transform duration-200 group-hover/step:translate-x-0.5">
-                      <span className={cn(
-                        "font-mono text-[9px] font-extrabold tracking-widest uppercase",
-                        pipeline.active ? "text-blue-600 dark:text-blue-400" : "text-zinc-400"
-                      )}>Step {pipeline.step}</span>
-                      <h4 className="text-xs font-bold text-zinc-950 dark:text-zinc-150 leading-tight">{pipeline.title}</h4>
-                      <p className="text-[11px] text-zinc-550 dark:text-zinc-450 leading-relaxed font-medium">{pipeline.desc}</p>
-                    </div>
-                  </div>
-                ))}
+            {/* RIGHT COLUMN: Premium Drop Zone */}
+            <div className="lg:col-span-5 relative">
+              <div className="living-glow-card rounded-2xl p-1 relative overflow-hidden group hover:shadow-lg transition-all duration-300 border-none">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600 dark:bg-blue-500 rounded-l-2xl z-20" />
+                <div className="pl-3.5 pr-2 px-1 relative z-10">
+                  <DataUploader onDatasetsImported={onImport} existingDatasets={datasets} />
+                </div>
               </div>
             </div>
           </div>
+
+          <input
+            type="file"
+            multiple
+            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, application/json, text/plain"
+            className="hidden"
+            id="quick-import-file-input"
+            onChange={async (e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                setIsDemoLoading(true);
+                try {
+                  const { processDataset } = await import('@/lib/analyzer');
+                  const filesList = Array.from(e.target.files);
+                  let imported: Dataset[] = [];
+                  for (const file of filesList) {
+                    const ds = await processDataset(file);
+                    imported = imported.concat(ds);
+                  }
+                  if (imported.length > 0) {
+                    onImport(imported);
+                  }
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setIsDemoLoading(false);
+                }
+              }
+            }}
+          />
+
+          {/* Visual Connected Workflow Section */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-500 tracking-widest uppercase text-center lg:text-left select-none">
+              Integrated Analytics Workflow
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
+              {/* Horizontal connection line on desktop */}
+              <div className="hidden md:block absolute top-[26px] left-[10%] right-[10%] h-[2px] bg-gradient-to-r from-blue-500/80 via-purple-500/50 to-indigo-500/80 z-0" />
+              
+              {[
+                { step: 'Import', icon: <UploadCloud className="w-5 h-5 text-blue-500 dark:text-blue-400" />, desc: 'Local Excel / CSV upload' },
+                { step: 'Profile', icon: <Activity className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />, desc: 'Auto schema assessment' },
+                { step: 'Clean', icon: <Sparkles className="w-5 h-5 text-amber-500 dark:text-amber-400 animate-pulse" />, desc: 'Remediate quality issues' },
+                { step: 'Analyze', icon: <BarChart3 className="w-5 h-5 text-purple-500 dark:text-purple-400" />, desc: 'Create custom metrics' },
+                { step: 'Report', icon: <FileText className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />, desc: 'Generate MIS PDFs' }
+              ].map((s, idx) => (
+                <div 
+                  key={s.step}
+                  className="relative flex flex-col items-center p-4 bg-white/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl hover:shadow-md hover:-translate-y-0.5 hover:border-blue-500/30 dark:hover:border-blue-500/40 transition-all duration-300 group z-10 text-center"
+                >
+                  <div className="w-10 h-10 rounded-full bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center border border-zinc-200/50 dark:border-zinc-800/80 shadow-inner group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 z-10">
+                    {s.icon}
+                  </div>
+                  <span className="text-xs font-bold text-zinc-950 dark:text-zinc-50 mt-3">{s.step}</span>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">{s.desc}</p>
+                  {idx < 4 && (
+                    <div className="md:hidden mt-3 text-zinc-400 dark:text-zinc-600 font-extrabold text-sm">↓</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Capability Cards Grid */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-500 tracking-widest uppercase select-none">
+              Analytical Suite Capabilities
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                {
+                  id: 'cleaning',
+                  title: 'Data Cleaning',
+                  desc: 'Clean messy Excel/CSV data, detect problems, split columns, extract values, standardize data, and prepare reliable datasets.',
+                  icon: <Activity className="w-5 h-5 text-amber-500" />
+                },
+                {
+                  id: 'kpi-builder',
+                  title: 'KPI Builder',
+                  desc: 'Build custom business KPIs from any validated dataset.',
+                  icon: <BarChart3 className="w-5 h-5 text-blue-500" />
+                },
+                {
+                  id: 'dashboards',
+                  title: 'Dashboard',
+                  desc: 'Turn KPIs and analytical data into interactive dashboards.',
+                  icon: <LayoutGrid className="w-5 h-5 text-emerald-500" />
+                },
+                {
+                  id: 'mis-report',
+                  title: 'MIS Reports',
+                  desc: 'Generate professional management reports and export them to Excel/PDF.',
+                  icon: <FileText className="w-5 h-5 text-indigo-500" />
+                }
+              ].map((card) => (
+                <div 
+                  key={card.id}
+                  onClick={() => setLockedFeatureMessage(card.title)}
+                  className="living-glow-card p-5 cursor-pointer relative overflow-hidden group select-none hover:shadow-lg transition-all duration-300 border-none"
+                >
+                  <div className="flex gap-4 items-start relative z-10">
+                    <div className="p-2.5 bg-zinc-50 dark:bg-zinc-950 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 group-hover:scale-110 transition-all duration-300">
+                      {card.icon}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-extrabold text-zinc-950 dark:text-zinc-50 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          {card.title}
+                        </h4>
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Locked</span>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
+                        {card.desc}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Dynamic feedback banner when a locked action is clicked */}
+          {lockedFeatureMessage && (
+            <div className="p-4 rounded-xl bg-blue-500/10 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-900/40 text-xs text-blue-800 dark:text-blue-300 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200 shadow-md">
+              <div className="flex items-center gap-2.5">
+                <HelpCircle className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span>
+                  <strong className="font-extrabold mr-1">Import a dataset to use this feature.</strong>
+                  (Locked: {lockedFeatureMessage})
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const el = document.getElementById('quick-import-file-input');
+                    if (el) (el as HTMLInputElement).click();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3.5 h-8 text-[11px] border-none shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" /> Import Data
+                </Button>
+                <button 
+                  onClick={() => setLockedFeatureMessage(null)} 
+                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 font-extrabold p-1 select-none cursor-pointer bg-transparent border-none text-sm"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
