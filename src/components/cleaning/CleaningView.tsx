@@ -290,6 +290,7 @@ export function CleaningView({
         onRemoveDuplicates={() => setActiveCleaningModal({ actionType: 'remove_duplicates' })}
         onRemoveEmptyRows={() => setActiveCleaningModal({ actionType: 'remove_empty_rows' })}
         onDeleteColumns={() => setActiveCleaningModal({ actionType: 'delete_columns' })}
+        onRenameColumn={() => gridRef.current?.renameColumn()}
         onSplitColumn={() => {
           setActiveCleaningModal({ actionType: 'split_column' as any });
         }}

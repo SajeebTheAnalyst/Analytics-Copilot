@@ -5,7 +5,7 @@ import {
   Save, RotateCcw, Undo2, Redo2, Search, Plus, PlusCircle, Trash2,
   Wrench, ShieldAlert, Sparkles, Scissors, CaseSensitive, Replace,
   ListTree, Sparkle, Eraser, CopyX, Columns3, SplitSquareVertical,
-  Calendar, Clock, Database, Copy, ClipboardPaste,
+  Calendar, Clock, Database, Copy, ClipboardPaste, Edit3,
   Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
   Hash, Percent, DollarSign, Layers, FileText, Printer, Download, Maximize2,
   ChevronDown
@@ -78,6 +78,7 @@ interface CleaningRibbonProps {
   onExtractDate?: () => void;
   onExtractTime?: () => void;
   onChangeDataType?: () => void;
+  onRenameColumn?: () => void;
 }
 
 export function CleaningRibbon({ 
@@ -96,6 +97,7 @@ export function CleaningRibbon({
   onDeleteRow,
   canDeleteRow = false,
   onDeleteColumns,
+  onRenameColumn,
   onToggleBold,
   onToggleItalic,
   onToggleUnderline,
@@ -522,7 +524,7 @@ export function CleaningRibbon({
 
         {activeTab === 'cleaning' && (
           <div className="flex items-center gap-3">
-            {/* Cleaning tab groups remain fully intact */}
+            {/* 1. Text Cleaning Group */}
             <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onTrimWhitespace} title="Trim Whitespace">
@@ -533,12 +535,6 @@ export function CleaningRibbon({
                   <CaseSensitive className="h-3.5 w-3.5 text-blue-600" />
                   <span>Capitalize</span>
                 </Button>
-              </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Text Cleaning</span>
-            </div>
-
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onFindReplace} title="Find & Replace">
                   <Replace className="h-3.5 w-3.5 text-indigo-500" />
                   <span>Find & Replace</span>
@@ -547,6 +543,13 @@ export function CleaningRibbon({
                   <ListTree className="h-3.5 w-3.5 text-purple-600" />
                   <span>Merge Var</span>
                 </Button>
+              </div>
+              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Text Cleaning</span>
+            </div>
+
+            {/* 2. Missing & Values Group */}
+            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
+              <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onFillMissing} title="Fill Missing Values">
                   <Sparkle className="h-3.5 w-3.5 text-amber-600" />
                   <span>Fill Missing</span>
@@ -556,9 +559,10 @@ export function CleaningRibbon({
                   <span>Clear Cells</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Value Cleaning</span>
+              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Missing & Values</span>
             </div>
 
+            {/* 3. Row Cleaning Group */}
             <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onRemoveDuplicates} title="Remove Duplicate Rows">
@@ -573,16 +577,22 @@ export function CleaningRibbon({
               <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Row Cleaning</span>
             </div>
 
+            {/* 4. Column Cleaning Group */}
             <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={onDeleteColumns} title="Delete Columns">
                   <Columns3 className="h-3.5 w-3.5" />
                   <span>Delete Cols</span>
                 </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onRenameColumn} title="Rename Column">
+                  <Edit3 className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Rename Col</span>
+                </Button>
               </div>
               <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Column Cleaning</span>
             </div>
 
+            {/* 5. Transform Group */}
             <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onSplitColumn} title="Split Column">
@@ -605,6 +615,7 @@ export function CleaningRibbon({
               <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Transform</span>
             </div>
 
+            {/* 6. Quality Group */}
             <div className="flex flex-col items-center pr-1">
               <div className="flex items-center gap-1.5">
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={onQualityAudit} title="Open Quality Audit Scanner">
@@ -616,7 +627,7 @@ export function CleaningRibbon({
                   <span>AI Copilot</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Data Quality</span>
+              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Quality</span>
             </div>
           </div>
         )}

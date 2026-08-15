@@ -84,6 +84,7 @@ export interface DataGridHandle {
   addRow: () => void;
   addColumn: () => void;
   deleteRow: () => void;
+  renameColumn: () => void;
   canUndo: boolean;
   canRedo: boolean;
   isDirty: boolean;
@@ -237,6 +238,14 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
     addColumn: () => setShowAddColumnModal(true),
     deleteRow: () => {
       if (selectedCell) setDeletingRowIndex(selectedCell.row);
+    },
+    renameColumn: () => {
+      const target = selectedCell ? visibleHeaders[selectedCell.col] : visibleHeaders[0];
+      if (target) {
+        setRenamingHeader(target);
+        setRenameValue(target);
+        setRenameError(null);
+      }
     },
     canUndo: cleaningHistory.length > 0,
     canRedo: redoStack.length > 0,
