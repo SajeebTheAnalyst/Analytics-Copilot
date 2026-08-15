@@ -8,7 +8,7 @@ import {
   Calendar, Clock, Database, Copy, ClipboardPaste, Edit3,
   Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
   Hash, Percent, DollarSign, Layers, FileText, Printer, Download, Maximize2,
-  ChevronDown
+  ChevronDown, Grid, Lock, EyeOff
 } from 'lucide-react';
 
 export type RibbonTabId = 'home' | 'cleaning' | 'data' | 'view';
@@ -60,6 +60,15 @@ interface CleaningRibbonProps {
   onPrintPreview?: () => void;
   onExportExcel?: () => void;
   onExportPdf?: () => void;
+  showGridlines?: boolean;
+  onToggleGridlines?: () => void;
+  rowDensity?: 'compact' | 'normal' | 'comfortable';
+  onChangeRowDensity?: (density: 'compact' | 'normal' | 'comfortable') => void;
+  isHeaderFrozen?: boolean;
+  onToggleFreezeHeader?: () => void;
+  hiddenColumns?: Set<string>;
+  onUnhideColumn?: (header: string) => void;
+  onUnhideAllColumns?: () => void;
   onCopy?: () => void;
   onCut?: () => void;
   onPaste?: () => void;
@@ -131,15 +140,51 @@ export function CleaningRibbon({
   onSplitColumn,
   onExtractDate,
   onExtractTime,
-  onChangeDataType
+  onChangeDataType,
+  showGridlines = true,
+  onToggleGridlines,
+  rowDensity = 'normal',
+  onChangeRowDensity,
+  isHeaderFrozen = true,
+  onToggleFreezeHeader,
+  hiddenColumns,
+  onUnhideColumn,
+  onUnhideAllColumns
 }: CleaningRibbonProps) {
-  // Dropdown states for Home ribbon
-  const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
-  const [showTextColorDropdown, setShowTextColorDropdown] = useState(false);
-  const [showBgColorDropdown, setShowBgColorDropdown] = useState(false);
-  const [showNumberFormatDropdown, setShowNumberFormatDropdown] = useState(false);
-  const [showStylesDropdown, setShowStylesDropdown] = useState(false);
-  const [showCondFormatDropdown, setShowCondFormatDropdown] = useState(false);
+  const ribbonRef = useRef<HTMLDivElement>(null);
+
+  // Unified Dropdown State
+  const [activeDropdown, setActiveDropdown] = useState<'fontSize' | 'textColor' | 'bgColor' | 'numberFormat' | 'styles' | 'condFormat' | 'hiddenColumns' | null>(null);
+
+  const toggleDropdown = (dropdownName: 'fontSize' | 'textColor' | 'bgColor' | 'numberFormat' | 'styles' | 'condFormat' | 'hiddenColumns') => {
+    setActiveDropdown(prev => prev === dropdownName ? null : dropdownName);
+  };
+
+  // Close any open dropdowns when clicking outside of any dropdown container
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const isInsideDropdown = target.closest('.dropdown-container');
+      if (!isInsideDropdown) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Close any open dropdowns when scrolling anywhere on the page
+  useEffect(() => {
+    const handleScroll = () => {
+      setActiveDropdown(null);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, []);
 
   const fontSizes = ['10px', '11px', '12px', '14px', '16px', '18px'];
   const textColors = [
@@ -184,7 +229,7 @@ export function CleaningRibbon({
   ];
 
   return (
-    <div className="w-full shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/90 dark:bg-[#0c0c0e] select-none">
+    <div ref={ribbonRef} className="w-full shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/90 dark:bg-[#0c0c0e] select-none">
       {/* Ribbon Tabs Header */}
       <div className="flex items-center px-3 pt-1 gap-1 overflow-x-auto no-scrollbar border-b border-zinc-200/60 dark:border-zinc-800/60">
         {RIBBON_TABS.map((tab) => {
@@ -211,7 +256,7 @@ export function CleaningRibbon({
       </div>
 
       {/* Ribbon Toolbar Content Area */}
-      <div className="bg-white dark:bg-zinc-950 px-3 py-1.5 flex items-center gap-4 overflow-x-auto min-h-[56px] text-xs">
+      <div className="bg-white dark:bg-zinc-950 px-3 py-1.5 flex items-center gap-4 min-h-[56px] h-[56px] text-xs relative z-40 overflow-visible">
         {activeTab === 'home' && (
           <div className="flex items-center gap-3">
             {/* 1. Clipboard Group */}
@@ -244,24 +289,24 @@ export function CleaningRibbon({
                 </Button>
 
                 {/* Font Size Dropdown */}
-                <div className="relative">
+                <div className="dropdown-container relative">
                   <button 
-                    onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)}
-                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-mono hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    onClick={() => toggleDropdown('fontSize')}
+                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-mono hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
                     title="Font Size"
                   >
                     <span>Size</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
-                  {showFontSizeDropdown && (
+                  {activeDropdown === 'fontSize' && (
                     <div className="absolute left-0 mt-1 w-24 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded shadow-xl z-50 py-1">
                       {fontSizes.map(sz => (
                         <button
                           key={sz}
-                          className="w-full text-left px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] font-mono"
+                          className="w-full text-left px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] font-mono cursor-pointer"
                           onClick={() => {
                             onSetFontSize?.(sz);
-                            setShowFontSizeDropdown(false);
+                            setActiveDropdown(null);
                           }}
                         >
                           {sz}
@@ -272,24 +317,24 @@ export function CleaningRibbon({
                 </div>
 
                 {/* Text Color Dropdown */}
-                <div className="relative">
+                <div className="dropdown-container relative">
                   <button 
-                    onClick={() => setShowTextColorDropdown(!showTextColorDropdown)}
-                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    onClick={() => toggleDropdown('textColor')}
+                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
                     title="Text Color"
                   >
                     <span>A</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
-                  {showTextColorDropdown && (
+                  {activeDropdown === 'textColor' && (
                     <div className="absolute left-0 mt-1 w-32 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded shadow-xl z-50 p-1 space-y-0.5">
                       {textColors.map(c => (
                         <button
                           key={c.value}
-                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2"
+                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer"
                           onClick={() => {
                             onSetTextColor?.(c.value);
-                            setShowTextColorDropdown(false);
+                            setActiveDropdown(null);
                           }}
                         >
                           <span className="w-3 h-3 rounded-full border border-zinc-300" style={{ backgroundColor: c.value || '#18181b' }} />
@@ -301,24 +346,24 @@ export function CleaningRibbon({
                 </div>
 
                 {/* Fill Color Dropdown */}
-                <div className="relative">
+                <div className="dropdown-container relative">
                   <button 
-                    onClick={() => setShowBgColorDropdown(!showBgColorDropdown)}
-                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-amber-600 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    onClick={() => toggleDropdown('bgColor')}
+                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-amber-600 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
                     title="Cell Background Fill"
                   >
                     <span>Fill</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
-                  {showBgColorDropdown && (
+                  {activeDropdown === 'bgColor' && (
                     <div className="absolute left-0 mt-1 w-32 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded shadow-xl z-50 p-1 space-y-0.5">
                       {bgColors.map(c => (
                         <button
                           key={c.value}
-                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2"
+                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer"
                           onClick={() => {
                             onSetBgColor?.(c.value);
-                            setShowBgColorDropdown(false);
+                            setActiveDropdown(null);
                           }}
                         >
                           <span className="w-3 h-3 rounded border border-zinc-300" style={{ backgroundColor: c.value || '#ffffff' }} />
@@ -354,25 +399,25 @@ export function CleaningRibbon({
             {/* 4. Number Group */}
             <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
               <div className="flex items-center gap-1">
-                <div className="relative">
+                <div className="dropdown-container relative">
                   <button 
-                    onClick={() => setShowNumberFormatDropdown(!showNumberFormatDropdown)}
-                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    onClick={() => toggleDropdown('numberFormat')}
+                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
                     title="Number Format"
                   >
                     <Hash className="w-3 h-3 text-blue-600" />
                     <span>Number Format</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
-                  {showNumberFormatDropdown && (
+                  {activeDropdown === 'numberFormat' && (
                     <div className="absolute left-0 mt-1 w-36 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded shadow-xl z-50 py-1">
                       {numberFormats.map(fmt => (
                         <button
                           key={fmt.value}
-                          className="w-full text-left px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px]"
+                          className="w-full text-left px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] cursor-pointer"
                           onClick={() => {
                             onSetNumberFormat?.(fmt.value);
-                            setShowNumberFormatDropdown(false);
+                            setActiveDropdown(null);
                           }}
                         >
                           {fmt.label}
@@ -389,25 +434,25 @@ export function CleaningRibbon({
             <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
               <div className="flex items-center gap-1">
                 {/* Cell Styles Dropdown */}
-                <div className="relative">
+                <div className="dropdown-container relative">
                   <button 
-                    onClick={() => setShowStylesDropdown(!showStylesDropdown)}
-                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    onClick={() => toggleDropdown('styles')}
+                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
                     title="Cell Styles & MIS Presets"
                   >
                     <Layers className="w-3 h-3 text-indigo-600" />
                     <span>Cell Styles</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
-                  {showStylesDropdown && (
+                  {activeDropdown === 'styles' && (
                     <div className="absolute left-0 mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded shadow-xl z-50 py-1">
                       {stylePresets.map(st => (
                         <button
                           key={st.value}
-                          className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] font-medium"
+                          className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] font-medium cursor-pointer"
                           onClick={() => {
                             onApplyStyle?.(st.value);
-                            setShowStylesDropdown(false);
+                            setActiveDropdown(null);
                           }}
                         >
                           {st.label}
@@ -418,25 +463,25 @@ export function CleaningRibbon({
                 </div>
 
                 {/* Conditional Formatting Dropdown */}
-                <div className="relative">
+                <div className="dropdown-container relative">
                   <button 
-                    onClick={() => setShowCondFormatDropdown(!showCondFormatDropdown)}
-                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    onClick={() => toggleDropdown('condFormat')}
+                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
                     title="Conditional Formatting"
                   >
                     <Sparkles className="w-3 h-3 text-amber-500" />
                     <span>Cond. Formatting</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
-                  {showCondFormatDropdown && (
+                  {activeDropdown === 'condFormat' && (
                     <div className="absolute left-0 mt-1 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded shadow-xl z-50 py-1">
                       {condFormattingRules.map(rule => (
                         <button
                           key={rule.value}
-                          className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px]"
+                          className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] cursor-pointer"
                           onClick={() => {
                             onApplyConditionalFormatting?.(rule.value);
-                            setShowCondFormatDropdown(false);
+                            setActiveDropdown(null);
                           }}
                         >
                           {rule.label}
@@ -639,8 +684,143 @@ export function CleaningRibbon({
         )}
 
         {activeTab === 'view' && (
-          <div className="flex items-center px-2 py-1 text-xs text-zinc-400 italic">
-            View layout and display controls will appear here.
+          <div className="flex items-center gap-3">
+            {/* 1. Window / Freeze Group */}
+            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant={isHeaderFrozen ? "secondary" : "ghost"} 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-bold" 
+                  onClick={onToggleFreezeHeader}
+                  title="Freeze / Unfreeze Header Row"
+                >
+                  <Lock className="h-3.5 w-3.5 text-blue-600" />
+                  <span>{isHeaderFrozen ? 'Header Frozen' : 'Freeze Header'}</span>
+                </Button>
+              </div>
+              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Window</span>
+            </div>
+
+            {/* 2. Show / Hide Group */}
+            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant={showGridlines ? "secondary" : "ghost"} 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-bold" 
+                  onClick={onToggleGridlines}
+                  title="Show / Hide Gridlines"
+                >
+                  <Grid className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Gridlines</span>
+                </Button>
+
+                {/* Hidden Columns Dropdown */}
+                <div className="dropdown-container relative">
+                  <button 
+                    onClick={() => toggleDropdown('hiddenColumns')}
+                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    title="Manage Hidden Columns"
+                  >
+                    <EyeOff className="w-3 h-3 text-amber-600" />
+                    <span>Columns ({hiddenColumns?.size || 0})</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'hiddenColumns' && hiddenColumns && hiddenColumns.size > 0 && (
+                    <div className="absolute left-0 mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded shadow-xl z-50 py-1 overflow-hidden">
+                      <div className="px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Hidden Columns</span>
+                        <button 
+                          onClick={() => {
+                            onUnhideAllColumns?.();
+                            setActiveDropdown(null);
+                          }}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 cursor-pointer"
+                        >
+                          Unhide All
+                        </button>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {Array.from(hiddenColumns).map(col => (
+                          <div key={col} className="px-3 py-1.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 group">
+                            <span className="text-[11px] text-zinc-700 dark:text-zinc-300 truncate pr-2">{col}</span>
+                            <button 
+                              onClick={() => onUnhideColumn?.(col)}
+                              className="text-[10px] text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity font-medium cursor-pointer"
+                            >
+                              Unhide
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Show / Hide</span>
+            </div>
+
+            {/* 3. Row Density Group */}
+            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant={rowDensity === 'compact' ? "secondary" : "ghost"} 
+                  size="sm" 
+                  className="h-7 text-[11px] px-2 font-bold" 
+                  onClick={() => onChangeRowDensity?.('compact')}
+                  title="Compact Row Density"
+                >
+                  Compact
+                </Button>
+                <Button 
+                  variant={rowDensity === 'normal' ? "secondary" : "ghost"} 
+                  size="sm" 
+                  className="h-7 text-[11px] px-2 font-bold" 
+                  onClick={() => onChangeRowDensity?.('normal')}
+                  title="Normal Row Density"
+                >
+                  Normal
+                </Button>
+                <Button 
+                  variant={rowDensity === 'comfortable' ? "secondary" : "ghost"} 
+                  size="sm" 
+                  className="h-7 text-[11px] px-2 font-bold" 
+                  onClick={() => onChangeRowDensity?.('comfortable')}
+                  title="Comfortable Row Density"
+                >
+                  Comfortable
+                </Button>
+              </div>
+              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Row Density</span>
+            </div>
+
+            {/* 4. AutoFit Group */}
+            <div className="flex flex-col items-center pr-1">
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-bold text-blue-600" 
+                  onClick={onAutoFitColumns}
+                  title="Auto Fit Column Widths"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  <span>Fit Widths</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-bold text-emerald-600" 
+                  onClick={onAutoFitRows}
+                  title="Auto Fit Row Heights"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  <span>Fit Heights</span>
+                </Button>
+              </div>
+              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">AutoFit</span>
+            </div>
           </div>
         )}
       </div>

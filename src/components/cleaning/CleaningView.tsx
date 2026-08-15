@@ -38,6 +38,9 @@ export function CleaningView({
   const [showResetModal, setShowResetModal] = useState(false);
   const [showQualityAudit, setShowQualityAudit] = useState(false);
   const [showAICopilotModal, setShowAICopilotModal] = useState(false);
+  const [showGridlines, setShowGridlines] = useState<boolean>(true);
+  const [rowDensity, setRowDensity] = useState<'compact' | 'normal' | 'comfortable'>('normal');
+  const [isHeaderFrozen, setIsHeaderFrozen] = useState<boolean>(true);
   const [activeCleaningModal, setActiveCleaningModal] = useState<{
     actionType: CleaningActionType;
     column?: string;
@@ -303,6 +306,12 @@ export function CleaningView({
         onChangeDataType={() => {
           setActiveCleaningModal({ actionType: 'change_data_type' as any });
         }}
+        showGridlines={showGridlines}
+        onToggleGridlines={() => setShowGridlines(!showGridlines)}
+        rowDensity={rowDensity}
+        onChangeRowDensity={setRowDensity}
+        isHeaderFrozen={isHeaderFrozen}
+        onToggleFreezeHeader={() => setIsHeaderFrozen(!isHeaderFrozen)}
       />
 
       {/* ================================================== */}
@@ -313,7 +322,10 @@ export function CleaningView({
           ref={gridRef}
           dataset={selectedDataset} 
           onNavigateView={onNavigateView} 
-          onUpdateDataset={onUpdateDataset} 
+          onUpdateDataset={onUpdateDataset}
+          showGridlines={showGridlines}
+          rowDensity={rowDensity}
+          isHeaderFrozen={isHeaderFrozen}
         />
       </div>
 
@@ -321,7 +333,7 @@ export function CleaningView({
       {/* RESET CONFIRMATION MODAL                           */}
       {/* ================================================== */}
       {showResetModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
               <RotateCcw className="w-5 h-5 shrink-0" />
@@ -347,7 +359,7 @@ export function CleaningView({
       {/* DATA QUALITY AUDIT MODAL OVERLAY                   */}
       {/* ================================================== */}
       {showQualityAudit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-black/50 animate-in fade-in duration-200 overflow-y-auto">
           <div className="max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar my-auto">
             <DataQualityPanel
               dataset={selectedDataset}
@@ -373,7 +385,7 @@ export function CleaningView({
       {/* AI DATA CLEANING COPILOT MODAL OVERLAY             */}
       {/* ================================================== */}
       {showAICopilotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200">
           <AICleaningCopilotPanel
             dataset={selectedDataset}
             workingData={selectedDataset.data}

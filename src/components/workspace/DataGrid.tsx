@@ -6,7 +6,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
   Copy, Check, ChevronDown, Filter, 
   RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, ShieldCheck, Wrench, History, Sparkles,
-  Undo2, Redo2, Columns, Database, Eraser, Rows, Columns3, SplitSquareVertical
+  Undo2, Redo2, Columns, Database, Eraser, Rows, Columns3, SplitSquareVertical, Lock
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
@@ -30,6 +30,9 @@ interface DataGridProps {
   dataset: Dataset;
   onNavigateView?: (view: any) => void;
   onUpdateDataset?: (dataset: Dataset) => void;
+  showGridlines?: boolean;
+  rowDensity?: 'compact' | 'normal' | 'comfortable';
+  isHeaderFrozen?: boolean;
 }
 
 interface CellCoords {
@@ -123,7 +126,14 @@ function formatDisplayValue(val: any, format?: string): string {
   return String(val);
 }
 
-export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, onNavigateView, onUpdateDataset }, ref) => {
+export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ 
+  dataset, 
+  onNavigateView, 
+  onUpdateDataset,
+  showGridlines = true,
+  rowDensity = 'normal',
+  isHeaderFrozen = true
+}, ref) => {
   // ----------------------------------------------------
   // Cell Formatting State (Phase 8P-2M)
   // ----------------------------------------------------
@@ -221,13 +231,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       copyToClipboard();
     },
     pasteClipboard: () => {
-      navigator.clipboard?.readText().then(() => {
-        setSaveFeedback('Pasted text from clipboard.');
-        setTimeout(() => setSaveFeedback(null), 3000);
-      }).catch(() => {
-        setSaveFeedback('Clipboard read requires permission.');
-        setTimeout(() => setSaveFeedback(null), 3000);
-      });
+      pasteFromClipboard();
     },
     undo: () => handleUndoLastCleaningAction(),
     redo: () => handleRedoLastCleaningAction(),
@@ -286,6 +290,10 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
   // Phase 8P-1 Formula Bar State
   const [formulaBarValue, setFormulaBarValue] = useState<string>('');
   const [isFormulaBarFocused, setIsFormulaBarFocused] = useState<boolean>(false);
+
+  // Phase 8P-2S Name Box States
+  const [nameBoxInput, setNameBoxInput] = useState<string>('A1');
+  const [isNameBoxFocused, setIsNameBoxFocused] = useState<boolean>(false);
 
   // Phase 8L Deterministic Data Readiness Evaluation
   const readinessEval = useMemo(() => {
@@ -928,17 +936,15 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
     setActiveMatchIndex(activeIdx);
   }, []);
 
-  // Handle Sort Toggle
-  const handleHeaderClick = (header: string) => {
+  // Handle Column Selection
+  const handleHeaderClick = (header: string, cIndex: number) => {
     if (editingCell) return;
-    setSortConfig(prev => {
-      if (!prev || prev.key !== header) {
-        return { key: header, direction: 'asc' };
-      }
-      if (prev.direction === 'asc') {
-        return { key: header, direction: 'desc' };
-      }
-      return null;
+    setSelectedCell({ row: 0, col: cIndex });
+    setSelectionRange({
+      startRow: 0,
+      startCol: cIndex,
+      endRow: Math.max(0, displayedRows.length - 1),
+      endCol: cIndex,
     });
   };
 
@@ -1059,11 +1065,19 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       e.stopPropagation();
       commitCellEdit(rIndex, cIndex, editValue);
 
-      // Move selection down
-      if (rIndex < displayedRows.length - 1) {
-        const nextR = rIndex + 1;
-        setSelectedCell({ row: nextR, col: cIndex });
-        setSelectionRange({ startRow: nextR, startCol: cIndex, endRow: nextR, endCol: cIndex });
+      // Move selection down (or up if Shift + Enter)
+      if (e.shiftKey) {
+        if (rIndex > 0) {
+          const prevR = rIndex - 1;
+          setSelectedCell({ row: prevR, col: cIndex });
+          setSelectionRange({ startRow: prevR, startCol: cIndex, endRow: prevR, endCol: cIndex });
+        }
+      } else {
+        if (rIndex < displayedRows.length - 1) {
+          const nextR = rIndex + 1;
+          setSelectedCell({ row: nextR, col: cIndex });
+          setSelectionRange({ startRow: nextR, startCol: cIndex, endRow: nextR, endCol: cIndex });
+        }
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -1139,6 +1153,75 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       console.error('Failed to copy text: ', err);
     });
   }, [selectionRange, displayedRows, visibleHeaders]);
+
+  // Real Excel TSV Paste Handler (Phase 8P-2R)
+  const pasteFromClipboard = useCallback(() => {
+    if (!selectedCell || displayedRows.length === 0 || visibleHeaders.length === 0) return;
+
+    navigator.clipboard?.readText().then(text => {
+      if (!text) return;
+
+      const lines = text.split(/\r?\n/);
+      if (lines.length > 1 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+
+      const { row: startRowIdx, col: startColIdx } = selectedCell;
+      const nextData = [...workingData];
+      const nextEdited = new Set(editedCells);
+      let skippedFormulaCols = false;
+      let pastedCount = 0;
+
+      lines.forEach((line, rOffset) => {
+        const targetRowIdx = startRowIdx + rOffset;
+        if (targetRowIdx >= displayedRows.length) return;
+
+        const displayedRow = displayedRows[targetRowIdx];
+        if (!displayedRow) return;
+
+        const workingRowIdx = nextData.findIndex(r => r._rowId === displayedRow._rowId);
+        if (workingRowIdx === -1) return;
+
+        const workingRow = { ...nextData[workingRowIdx] };
+        const cells = line.split('\t');
+
+        cells.forEach((cellVal, cOffset) => {
+          const targetColIdx = startColIdx + cOffset;
+          if (targetColIdx >= visibleHeaders.length) return;
+
+          const header = visibleHeaders[targetColIdx];
+          if (!header) return;
+
+          if (workingFormulas[header]) {
+            skippedFormulaCols = true;
+          } else {
+            workingRow[header] = cellVal === '' ? null : cellVal;
+            nextEdited.add(`${workingRow._rowId}:${header}`);
+            pastedCount++;
+          }
+        });
+
+        nextData[workingRowIdx] = workingRow;
+      });
+
+      if (pastedCount > 0) {
+        recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+        setIsDirty(true);
+        setEditedCells(nextEdited);
+        setSaveFeedback(`Pasted values into ${pastedCount} cell${pastedCount > 1 ? 's' : ''}`);
+        setTimeout(() => setSaveFeedback(null), 2500);
+      }
+
+      if (skippedFormulaCols) {
+        setWarningToast('Formula columns are protected and were not overwritten.');
+        setTimeout(() => setWarningToast(null), 3500);
+      }
+    }).catch(err => {
+      console.error('Failed to paste from clipboard: ', err);
+      setSaveFeedback('Clipboard read requires permission.');
+      setTimeout(() => setSaveFeedback(null), 3000);
+    });
+  }, [selectedCell, displayedRows, visibleHeaders, workingData, editedCells, workingFormulas, workingHeaders, recalculateAndSetData]);
 
   // ----------------------------------------------------
   // 5. Grid Actions (Row/Column Mutators in Working Copy)
@@ -1420,6 +1503,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       return;
     }
 
+    // Ctrl+V / Cmd+V Paste
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+      pasteFromClipboard();
+      e.preventDefault();
+      return;
+    }
+
     // Ctrl+Z Undo
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
       handleUndoLastCleaningAction();
@@ -1455,9 +1545,64 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       return;
     }
 
+    // F2 key -> Start editing cell
+    if (e.key === 'F2') {
+      startEditingCell(row, col);
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === 'Escape') {
       setContextMenu(null);
       setShowColumnsDropdown(false);
+      e.preventDefault();
+      return;
+    }
+
+    // Tab key (with or without Shift) should always navigate
+    if (e.key === 'Tab') {
+      if (e.shiftKey) {
+        if (col > 0) {
+          col--;
+        } else if (row > 0) {
+          row--;
+          col = maxC;
+        }
+      } else {
+        if (col < maxC) {
+          col++;
+        } else if (row < maxR) {
+          row++;
+          col = 0;
+        }
+      }
+      setSelectedCell({ row, col });
+      setSelectionRange({
+        startRow: row,
+        startCol: col,
+        endRow: row,
+        endCol: col,
+      });
+      e.preventDefault();
+      return;
+    }
+
+    // Enter key (with or without Shift)
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift + Enter: Move selection up
+        row = Math.max(0, row - 1);
+        setSelectedCell({ row, col });
+        setSelectionRange({
+          startRow: row,
+          startCol: col,
+          endRow: row,
+          endCol: row,
+        });
+      } else {
+        // Enter: Enter edit mode
+        startEditingCell(row, col);
+      }
       e.preventDefault();
       return;
     }
@@ -1469,15 +1614,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       return;
     }
 
-    // Enter key -> Start editing cell
-    if (e.key === 'Enter') {
-      startEditingCell(row, col);
-      e.preventDefault();
-      return;
-    }
-
+    // Shift key selection expansion
     if (e.shiftKey) {
-      // Range selection
       if (e.key === 'ArrowUp') {
         endRow = Math.max(0, endRow - 1);
         handled = true;
@@ -1490,6 +1628,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       } else if (e.key === 'ArrowRight') {
         endCol = Math.min(maxC, endCol + 1);
         handled = true;
+      } else if (e.key === 'Home') {
+        endCol = 0;
+        handled = true;
+      } else if (e.key === 'End') {
+        endCol = maxC;
+        handled = true;
       }
 
       if (handled) {
@@ -1501,7 +1645,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
         });
       }
     } else {
-      // Cell navigation
+      // Regular arrow navigation, Home, End
       if (e.key === 'ArrowUp') {
         row = Math.max(0, row - 1);
         handled = true;
@@ -1514,14 +1658,11 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       } else if (e.key === 'ArrowRight') {
         col = Math.min(maxC, col + 1);
         handled = true;
-      } else if (e.key === 'Tab') {
-        if (e.shiftKey) {
-          if (col > 0) col--;
-          else if (row > 0) { row--; col = maxC; }
-        } else {
-          if (col < maxC) col++;
-          else if (row < maxR) { row++; col = 0; }
-        }
+      } else if (e.key === 'Home') {
+        col = 0;
+        handled = true;
+      } else if (e.key === 'End') {
+        col = maxC;
         handled = true;
       }
 
@@ -1540,6 +1681,16 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       e.preventDefault();
     }
   };
+
+  // Scroll active cell into view smoothly and minimally (Phase 8P-2R)
+  useEffect(() => {
+    if (selectedCell && gridRef.current) {
+      const cellElement = document.getElementById(`cell-${selectedCell.row}-${selectedCell.col}`);
+      if (cellElement) {
+        cellElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    }
+  }, [selectedCell]);
 
   // Synchronize formula bar with selection
   useEffect(() => {
@@ -1571,6 +1722,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       setFormulaBarValue(val === null || val === undefined ? '' : String(val));
     }
   }, [selectedCell, selectionRange, displayedRows, visibleHeaders, workingFormulas, isFormulaBarFocused]);
+
+  // Synchronize Name Box with selection
+  useEffect(() => {
+    if (!isNameBoxFocused) {
+      setNameBoxInput(getNameBoxNotation());
+    }
+  }, [selectionRange, displayedRows, visibleHeaders, isNameBoxFocused]);
 
   const commitFormulaBarEdit = () => {
     if (!selectedCell || !selectionRange) return;
@@ -1631,12 +1789,141 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
     const minCol = Math.min(startCol, endCol);
     const maxCol = Math.max(startCol, endCol);
 
+    // If entire column is selected
+    if (minRow === 0 && maxRow === Math.max(0, displayedRows.length - 1) && minCol === maxCol) {
+      const header = visibleHeaders[minCol];
+      if (header && !header.startsWith('Column_') && isNaN(Number(header))) {
+        return header;
+      }
+      return `Column ${getColumnLetter(minCol)}`;
+    }
+
     const startCoord = `${getColumnLetter(minCol)}${minRow + 1}`;
     if (minRow === maxRow && minCol === maxCol) {
       return startCoord;
     }
     const endCoord = `${getColumnLetter(maxCol)}${maxRow + 1}`;
     return `${startCoord}:${endCoord}`;
+  };
+
+  const getColIndexFromLetter = (letter: string): number => {
+    let index = 0;
+    const clean = letter.toUpperCase();
+    for (let i = 0; i < clean.length; i++) {
+      const charCode = clean.charCodeAt(i) - 64;
+      if (charCode < 1 || charCode > 26) return -1;
+      index = index * 26 + charCode;
+    }
+    return index - 1;
+  };
+
+  const parseCellAddress = (input: string) => {
+    const clean = input.trim();
+    if (!clean) return null;
+
+    // 1. Direct Column Header Name (e.g. "Revenue")
+    const headerIndex = visibleHeaders.findIndex(h => h.toLowerCase() === clean.toLowerCase());
+    if (headerIndex !== -1) {
+      return {
+        type: 'column',
+        startCol: headerIndex,
+        endCol: headerIndex
+      };
+    }
+
+    // 2. "Column B" notation
+    const colMatch = clean.match(/^col(?:umn)?\s+([a-z]+)$/i);
+    if (colMatch) {
+      const colIdx = getColIndexFromLetter(colMatch[1]);
+      if (colIdx >= 0 && colIdx < visibleHeaders.length) {
+        return {
+          type: 'column',
+          startCol: colIdx,
+          endCol: colIdx
+        };
+      }
+    }
+
+    // 3. A1 or B10:F20 notation
+    const cellOrRangeMatch = clean.match(/^([A-Z]+)([0-9]+)(?::([A-Z]+)([0-9]+))?$/i);
+    if (cellOrRangeMatch) {
+      const startColLetter = cellOrRangeMatch[1];
+      const startRowNumber = parseInt(cellOrRangeMatch[2], 10);
+      const endColLetter = cellOrRangeMatch[3];
+      const endRowNumber = cellOrRangeMatch[4] ? parseInt(cellOrRangeMatch[4], 10) : undefined;
+
+      const sCol = getColIndexFromLetter(startColLetter);
+      const sRow = startRowNumber - 1;
+
+      if (sCol < 0 || sCol >= visibleHeaders.length || sRow < 0 || sRow >= displayedRows.length) {
+        return null;
+      }
+
+      if (endColLetter && endRowNumber !== undefined) {
+        const eCol = getColIndexFromLetter(endColLetter);
+        const eRow = endRowNumber - 1;
+
+        if (eCol < 0 || eCol >= visibleHeaders.length || eRow < 0 || eRow >= displayedRows.length) {
+          return null;
+        }
+
+        return {
+          type: 'range',
+          startRow: sRow,
+          startCol: sCol,
+          endRow: eRow,
+          endCol: eCol
+        };
+      } else {
+        return {
+          type: 'cell',
+          row: sRow,
+          col: sCol
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const handleNameBoxNavigation = () => {
+    const parsed = parseCellAddress(nameBoxInput);
+    if (!parsed) {
+      setWarningToast('Invalid cell or range address.');
+      setTimeout(() => setWarningToast(null), 3000);
+      // Revert name box input back to selection
+      setNameBoxInput(getNameBoxNotation());
+      return;
+    }
+
+    if (parsed.type === 'column') {
+      const { startCol } = parsed;
+      setSelectedCell({ row: 0, col: startCol });
+      setSelectionRange({
+        startRow: 0,
+        startCol,
+        endRow: displayedRows.length - 1,
+        endCol: startCol
+      });
+    } else if (parsed.type === 'range') {
+      const { startRow, startCol, endRow, endCol } = parsed;
+      setSelectedCell({ row: startRow, col: startCol });
+      setSelectionRange({
+        startRow,
+        startCol,
+        endRow,
+        endCol
+      });
+    } else if (parsed.type === 'cell') {
+      const { row, col } = parsed;
+      setSelectedCell({ row, col });
+      setSelectionRange({
+        startRow: row,
+        startCol: col,
+        endRow: row,
+        endCol: col
+      });
+    }
   };
 
   // Right-Click Context Menu Handler
@@ -1833,18 +2120,48 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
     return () => window.removeEventListener('click', handleClickOutside);
   }, [contextMenu]);
 
+  const isFormulaColumnSelected = useMemo(() => {
+    if (!selectedCell || !selectionRange) return false;
+    const header = visibleHeaders[selectedCell.col];
+    return !!(header && workingFormulas[header]);
+  }, [selectedCell, selectionRange, visibleHeaders, workingFormulas]);
+
   return (
     <div className="glass-panel glass-card rounded-xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 shadow-lg flex flex-col flex-1 h-full min-h-0 w-full">
       
       {/* Formula Bar */}
       <div className="flex items-center h-9 px-2 gap-2 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
         {/* Name Box */}
-        <div className="w-28 h-7 flex items-center justify-center px-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-xs font-mono font-bold text-zinc-700 dark:text-zinc-300 select-none shadow-xs shrink-0" title="Selected Cell / Range">
-          {getNameBoxNotation()}
-        </div>
+        <input
+          type="text"
+          className="w-28 h-7 text-center px-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-xs font-mono font-bold text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm shrink-0"
+          value={nameBoxInput}
+          onChange={(e) => setNameBoxInput(e.target.value)}
+          onFocus={() => setIsNameBoxFocused(true)}
+          onBlur={() => {
+            setTimeout(() => {
+              setIsNameBoxFocused(false);
+              setNameBoxInput(getNameBoxNotation());
+            }, 150);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleNameBoxNavigation();
+              e.currentTarget.blur();
+            } else if (e.key === 'Escape') {
+              setNameBoxInput(getNameBoxNotation());
+              e.currentTarget.blur();
+            }
+          }}
+          title="Selected Cell / Range (Type address like A1, B7:D12, or Column B, then press Enter to navigate)"
+        />
 
         {/* Formula Bar Input Area */}
-        <div className="flex-1 h-7 flex items-center px-2.5 gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded group relative">
+        <div className={`flex-1 h-7 flex items-center px-2.5 gap-2 border border-zinc-200 dark:border-zinc-800 rounded group relative shadow-sm ${
+          isFormulaColumnSelected 
+            ? 'bg-zinc-50/50 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/60' 
+            : 'bg-white dark:bg-zinc-900'
+        }`}>
           <span className="text-zinc-400 font-serif italic text-xs select-none shrink-0 font-bold">fx</span>
           <input
             type="text"
@@ -1856,11 +2173,41 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
               setTimeout(() => setIsFormulaBarFocused(false), 200);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') commitFormulaBarEdit();
-              if (e.key === 'Escape') cancelFormulaBarEdit();
+              if (e.key === 'Enter') {
+                commitFormulaBarEdit();
+                e.currentTarget.blur();
+              }
+              if (e.key === 'Escape') {
+                cancelFormulaBarEdit();
+                e.currentTarget.blur();
+              }
             }}
             placeholder="Enter value or formula starting with ="
+            readOnly={isFormulaColumnSelected}
+            title={isFormulaColumnSelected ? "Formula column cell (Protected)" : "Formula Bar"}
           />
+          {isFormulaColumnSelected && (
+            <div className="flex items-center gap-1.5 shrink-0 pl-1">
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400 px-1.5 py-0.5 rounded-sm">
+                <Lock className="w-2.5 h-2.5 text-zinc-400" />
+                <span>Formula</span>
+              </span>
+              <button
+                onClick={() => {
+                  const header = selectedCell ? visibleHeaders[selectedCell.col] : null;
+                  if (header) {
+                    setEditingFormulaCol(header);
+                    setShowFormulaModal(true);
+                  }
+                }}
+                className="h-5 px-1.5 flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-900/50 hover:bg-indigo-100 dark:hover:bg-indigo-950/80 rounded cursor-pointer transition-colors"
+                title="Edit the formula governing this entire column"
+              >
+                <Calculator className="h-2.5 w-2.5 text-indigo-500" />
+                <span>Edit Formula</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quick Search */}
@@ -1922,7 +2269,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
       >
         <table className="w-full text-left border-collapse whitespace-nowrap min-w-max font-mono text-xs">
           {/* Sticky Column Headers */}
-          <thead className="sticky top-0 z-20 shadow-xs">
+          <thead className={cn(isHeaderFrozen && "sticky top-0 z-20 shadow-xs")}>
             <tr className="bg-zinc-100/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
               {/* Corner Header: Row Numbers (#) */}
               <th className="py-2.5 px-3 border-r border-zinc-200 dark:border-zinc-800 sticky left-0 bg-zinc-100 dark:bg-zinc-900 z-30 shadow-[1px_0_0_0_#e4e4e7] dark:shadow-[1px_0_0_0_#27272a] text-center w-12 shrink-0">
@@ -1943,7 +2290,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
                       "py-2.5 px-3 border-r border-zinc-200/80 dark:border-zinc-800/80 relative group cursor-pointer transition-colors hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60",
                       isHeaderActive && "bg-blue-100/70 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 font-bold"
                     )}
-                    onClick={() => handleHeaderClick(header)}
+                    onClick={() => handleHeaderClick(header, cIndex)}
+                    onContextMenu={(e) => handleContextMenu(0, cIndex, header, e)}
                     onDoubleClick={() => {
                       setRenamingHeader(header);
                       setRenameValue(header);
@@ -1991,10 +2339,20 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
                     {/* Column Resizer Boundary Handle */}
                     <div
                       onMouseDown={(e) => handleResizeMouseDown(header, e)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        const maxLen = Math.max(
+                          header.length,
+                          ...displayedRows.map(row => String(row[header] || '').length)
+                        );
+                        const newWidth = Math.max(100, Math.min(450, maxLen * 9 + 30));
+                        setColumnWidths(prev => ({ ...prev, [header]: newWidth }));
+                      }}
                       className={cn(
                         "absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-500/80 transition-colors z-10",
                         resizingCol === header && "bg-blue-600"
                       )}
+                      title="Double-click to auto-fit column width"
                     />
                   </th>
                 );
@@ -2013,6 +2371,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
                   {/* Fixed Row Number (#) */}
                   <td
                     onClick={() => handleSelectRow(rIndex)}
+                    onContextMenu={(e) => handleContextMenu(rIndex, 0, visibleHeaders[0] || '', e)}
                     className={cn(
                       "py-2 px-2 border-r border-zinc-200/80 dark:border-zinc-800/80 sticky left-0 font-bold text-center z-10 shadow-[1px_0_0_0_#e4e4e7] dark:shadow-[1px_0_0_0_#27272a] cursor-pointer text-[10px] select-none transition-colors",
                       isRowActive 
@@ -2052,16 +2411,22 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({ dataset, on
                       highlightedMatches[activeMatchIndex]?.rIndex === rIndex && 
                       highlightedMatches[activeMatchIndex]?.cIndex === cIndex;
 
+                    const cellPadding = rowDensity === 'compact' ? 'py-1 px-2.5' : rowDensity === 'comfortable' ? 'py-3 px-3.5' : 'py-2 px-3';
+                    const gridlineClass = showGridlines ? 'border-r border-b border-zinc-200/50 dark:border-zinc-800/50' : 'border-r-0 border-b-0';
+
                     return (
                       <td
                         key={header}
+                        id={`cell-${rIndex}-${cIndex}`}
                         style={{ width: `${colW}px`, minWidth: `${colW}px`, maxWidth: `${colW}px` }}
                         onMouseDown={(e) => handleCellMouseDown(rIndex, cIndex, e)}
                         onMouseEnter={() => handleCellMouseEnter(rIndex, cIndex)}
                         onDoubleClick={() => startEditingCell(rIndex, cIndex)}
                         onContextMenu={(e) => handleContextMenu(rIndex, cIndex, header, e)}
                         className={cn(
-                          "py-2 px-3 border-r border-zinc-200/50 dark:border-zinc-800/50 truncate relative cursor-default transition-all",
+                          cellPadding,
+                          gridlineClass,
+                          "truncate relative cursor-default transition-all",
                           formula && "bg-indigo-50/30 dark:bg-indigo-950/20 font-mono",
                           isInRange && "bg-blue-500/12 dark:bg-blue-500/22",
                           isMatchCell && !isActiveMatch && "bg-amber-100/90 dark:bg-amber-950/80 ring-1 ring-amber-400/80 font-medium",
