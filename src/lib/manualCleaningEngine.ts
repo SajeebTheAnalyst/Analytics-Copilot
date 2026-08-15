@@ -45,6 +45,7 @@ export interface CleaningHistoryItem {
   timestamp: Date;
   previousDataSnapshot: Record<string, any>[];
   previousHeadersSnapshot: string[];
+  previousCellFormattingSnapshot?: any;
 }
 
 /** Helper: Title Case */

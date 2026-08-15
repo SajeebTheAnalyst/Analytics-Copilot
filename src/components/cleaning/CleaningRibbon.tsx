@@ -231,7 +231,7 @@ export function CleaningRibbon({
   return (
     <div ref={ribbonRef} className="w-full shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/90 dark:bg-[#0c0c0e] select-none">
       {/* Ribbon Tabs Header */}
-      <div className="flex items-center px-3 pt-1 gap-1 overflow-x-auto no-scrollbar border-b border-zinc-200/60 dark:border-zinc-800/60">
+      <div className="flex items-center px-3 pt-1 gap-1 overflow-x-auto no-scrollbar border-b border-zinc-200/80 dark:border-zinc-800/80">
         {RIBBON_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -242,7 +242,7 @@ export function CleaningRibbon({
               className={cn(
                 "px-3.5 py-1 text-xs font-medium rounded-t-md transition-colors relative cursor-pointer border-t border-x whitespace-nowrap",
                 isActive
-                  ? "bg-white dark:bg-zinc-950 text-blue-600 dark:text-blue-400 border-zinc-200 dark:border-zinc-800 border-b-white dark:border-b-zinc-950 -mb-[1px] z-10 shadow-2xs font-bold"
+                  ? "bg-white dark:bg-zinc-950 text-blue-600 dark:text-blue-400 border-zinc-200 dark:border-zinc-800 border-b-white dark:border-b-zinc-950 -mb-[1px] z-10 shadow-2xs font-semibold"
                   : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 border-transparent"
               )}
             >
@@ -256,43 +256,45 @@ export function CleaningRibbon({
       </div>
 
       {/* Ribbon Toolbar Content Area */}
-      <div className="bg-white dark:bg-zinc-950 px-3 py-1.5 flex items-center gap-4 min-h-[56px] h-[56px] text-xs relative z-40 overflow-visible">
+      <div className="bg-white dark:bg-zinc-950 px-2 py-1 flex items-center min-h-[62px] h-[62px] text-xs relative z-40 overflow-visible">
         {activeTab === 'home' && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center h-full">
             {/* 1. Clipboard Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-0.5">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCopy} title="Copy Selection">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onCopy} title="Copy Selection">
                   <Copy className="h-3.5 w-3.5 text-zinc-700 dark:text-zinc-300" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCut} title="Cut Selection">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onCut} title="Cut Selection">
                   <Scissors className="h-3.5 w-3.5 text-zinc-700 dark:text-zinc-300" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onPaste} title="Paste Clipboard">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onPaste} title="Paste Clipboard">
                   <ClipboardPaste className="h-3.5 w-3.5 text-zinc-700 dark:text-zinc-300" />
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Clipboard</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Clipboard</span>
             </div>
 
             {/* 2. Font Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7 font-bold" onClick={onToggleBold} title="Bold">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded font-bold" onClick={onToggleBold} title="Bold">
                   <Bold className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 italic" onClick={onToggleItalic} title="Italic">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded italic" onClick={onToggleItalic} title="Italic">
                   <Italic className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 underline" onClick={onToggleUnderline} title="Underline">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded underline" onClick={onToggleUnderline} title="Underline">
                   <Underline className="h-3.5 w-3.5" />
                 </Button>
+
+                <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 mx-0.5" />
 
                 {/* Font Size Dropdown */}
                 <div className="dropdown-container relative">
                   <button 
                     onClick={() => toggleDropdown('fontSize')}
-                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-mono hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-mono hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer"
                     title="Font Size"
                   >
                     <span>Size</span>
@@ -320,7 +322,7 @@ export function CleaningRibbon({
                 <div className="dropdown-container relative">
                   <button 
                     onClick={() => toggleDropdown('textColor')}
-                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer"
                     title="Text Color"
                   >
                     <span>A</span>
@@ -331,13 +333,13 @@ export function CleaningRibbon({
                       {textColors.map(c => (
                         <button
                           key={c.value}
-                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer"
+                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer rounded"
                           onClick={() => {
                             onSetTextColor?.(c.value);
                             setActiveDropdown(null);
                           }}
                         >
-                          <span className="w-3 h-3 rounded-full border border-zinc-300" style={{ backgroundColor: c.value || '#18181b' }} />
+                          <span className="w-3 h-3 rounded-full border border-zinc-300 shrink-0" style={{ backgroundColor: c.value || '#18181b' }} />
                           <span className="truncate">{c.label}</span>
                         </button>
                       ))}
@@ -349,7 +351,7 @@ export function CleaningRibbon({
                 <div className="dropdown-container relative">
                   <button 
                     onClick={() => toggleDropdown('bgColor')}
-                    className="h-7 px-1.5 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-amber-600 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-bold text-amber-600 hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer"
                     title="Cell Background Fill"
                   >
                     <span>Fill</span>
@@ -360,13 +362,13 @@ export function CleaningRibbon({
                       {bgColors.map(c => (
                         <button
                           key={c.value}
-                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer"
+                          className="w-full text-left px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer rounded"
                           onClick={() => {
                             onSetBgColor?.(c.value);
                             setActiveDropdown(null);
                           }}
                         >
-                          <span className="w-3 h-3 rounded border border-zinc-300" style={{ backgroundColor: c.value || '#ffffff' }} />
+                          <span className="w-3 h-3 rounded border border-zinc-300 shrink-0" style={{ backgroundColor: c.value || '#ffffff' }} />
                           <span className="truncate">{c.label}</span>
                         </button>
                       ))}
@@ -374,38 +376,38 @@ export function CleaningRibbon({
                   )}
                 </div>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Font</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Font</span>
             </div>
 
             {/* 3. Alignment Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-0.5">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onSetAlignment?.('left')} title="Align Left">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={() => onSetAlignment?.('left')} title="Align Left">
                   <AlignLeft className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onSetAlignment?.('center')} title="Center">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={() => onSetAlignment?.('center')} title="Center">
                   <AlignCenter className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onSetAlignment?.('right')} title="Align Right">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={() => onSetAlignment?.('right')} title="Align Right">
                   <AlignRight className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-1.5 font-bold" onClick={onToggleWrapText} title="Wrap Text">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2 font-medium rounded" onClick={onToggleWrapText} title="Wrap Text">
                   Wrap
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Alignment</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Alignment</span>
             </div>
 
             {/* 4. Number Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
                 <div className="dropdown-container relative">
                   <button 
                     onClick={() => toggleDropdown('numberFormat')}
-                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    className="h-7 px-2.5 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer"
                     title="Number Format"
                   >
-                    <Hash className="w-3 h-3 text-blue-600" />
+                    <Hash className="w-3.5 h-3.5 text-blue-600" />
                     <span>Number Format</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
@@ -414,7 +416,7 @@ export function CleaningRibbon({
                       {numberFormats.map(fmt => (
                         <button
                           key={fmt.value}
-                          className="w-full text-left px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] cursor-pointer"
+                          className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] cursor-pointer"
                           onClick={() => {
                             onSetNumberFormat?.(fmt.value);
                             setActiveDropdown(null);
@@ -427,20 +429,20 @@ export function CleaningRibbon({
                   )}
                 </div>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Number</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Number</span>
             </div>
 
             {/* 5. Styles Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1.5 pt-0.5">
                 {/* Cell Styles Dropdown */}
                 <div className="dropdown-container relative">
                   <button 
                     onClick={() => toggleDropdown('styles')}
-                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    className="h-7 px-2.5 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer"
                     title="Cell Styles & MIS Presets"
                   >
-                    <Layers className="w-3 h-3 text-indigo-600" />
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Cell Styles</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
@@ -466,10 +468,10 @@ export function CleaningRibbon({
                 <div className="dropdown-container relative">
                   <button 
                     onClick={() => toggleDropdown('condFormat')}
-                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    className="h-7 px-2.5 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer"
                     title="Conditional Formatting"
                   >
-                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     <span>Cond. Formatting</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
@@ -491,207 +493,207 @@ export function CleaningRibbon({
                   )}
                 </div>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Styles</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Styles</span>
             </div>
 
             {/* 6. Rows & Columns Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onAddRow} title="Add Row">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onAddRow} title="Add Row">
                   <Plus className="h-3.5 w-3.5 text-emerald-600" />
                   <span>Row</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onAddColumn} title="Add Column">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onAddColumn} title="Add Column">
                   <PlusCircle className="h-3.5 w-3.5 text-blue-600" />
                   <span>Col</span>
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-7 w-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" 
+                  className="h-7 w-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded" 
                   onClick={onDeleteRow} 
                   disabled={!canDeleteRow}
                   title="Delete Selected Row"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onAutoFitColumns} title="Auto Fit Column Width">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onAutoFitColumns} title="Auto Fit Column Width">
                   <Maximize2 className="h-3.5 w-3.5 text-zinc-600" />
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Rows & Columns</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Rows & Columns</span>
             </div>
 
             {/* 7. Editing Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onSave} disabled={!isDirty} title="Save Changes (Ctrl+S)">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onSave} disabled={!isDirty} title="Save Changes (Ctrl+S)">
                   <Save className="h-3.5 w-3.5 text-blue-600" />
                   <span>Save</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onDiscard} disabled={!isDirty} title="Discard Changes">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onDiscard} disabled={!isDirty} title="Discard Changes">
                   <RotateCcw className="h-3.5 w-3.5 text-zinc-500" />
                   <span>Discard</span>
                 </Button>
                 <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 mx-0.5" />
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-                  <Undo2 className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+                  <Undo2 className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">
-                  <Redo2 className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">
+                  <Redo2 className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onFindReplace} title="Find & Replace (Ctrl+F)">
-                  <Search className="h-4 w-4 text-indigo-500" />
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onFindReplace} title="Find & Replace (Ctrl+F)">
+                  <Search className="h-3.5 w-3.5 text-indigo-500" />
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Editing</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Editing</span>
             </div>
 
             {/* 8. Report Group */}
-            <div className="flex flex-col items-center pr-1">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold text-indigo-600" onClick={onFormatAsReport} title="Format as Professional MIS Report">
+            <div className="flex flex-col items-center justify-between h-full px-2">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-semibold text-indigo-600 dark:text-indigo-400 rounded" onClick={onFormatAsReport} title="Format as Professional MIS Report">
                   <FileText className="h-3.5 w-3.5" />
                   <span>Report</span>
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onPrintPreview} title="Print Preview">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded" onClick={onPrintPreview} title="Print Preview">
                   <Printer className="h-3.5 w-3.5 text-zinc-600" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold text-emerald-600" onClick={onExportExcel} title="Export Cleaned Excel">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-semibold text-emerald-600 dark:text-emerald-400 rounded" onClick={onExportExcel} title="Export Cleaned Excel">
                   <Download className="h-3.5 w-3.5" />
                   <span>Excel</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Report</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Report</span>
             </div>
           </div>
         )}
 
         {activeTab === 'cleaning' && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center h-full">
             {/* 1. Text Cleaning Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onTrimWhitespace} title="Trim Whitespace">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onTrimWhitespace} title="Trim Whitespace">
                   <Scissors className="h-3.5 w-3.5 text-emerald-600" />
                   <span>Trim</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onStandardizeCapitalization} title="Standardize Capitalization">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onStandardizeCapitalization} title="Standardize Capitalization">
                   <CaseSensitive className="h-3.5 w-3.5 text-blue-600" />
                   <span>Capitalize</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onFindReplace} title="Find & Replace">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onFindReplace} title="Find & Replace">
                   <Replace className="h-3.5 w-3.5 text-indigo-500" />
                   <span>Find & Replace</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onMergeVariations} title="Merge Categorical Variations">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onMergeVariations} title="Merge Categorical Variations">
                   <ListTree className="h-3.5 w-3.5 text-purple-600" />
                   <span>Merge Var</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Text Cleaning</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Text Cleaning</span>
             </div>
 
             {/* 2. Missing & Values Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onFillMissing} title="Fill Missing Values">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onFillMissing} title="Fill Missing Values">
                   <Sparkle className="h-3.5 w-3.5 text-amber-600" />
                   <span>Fill Missing</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={onClearCells} title="Clear Cell Values">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded" onClick={onClearCells} title="Clear Cell Values">
                   <Eraser className="h-3.5 w-3.5" />
                   <span>Clear Cells</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Missing & Values</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Missing & Values</span>
             </div>
 
             {/* 3. Row Cleaning Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onRemoveDuplicates} title="Remove Duplicate Rows">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onRemoveDuplicates} title="Remove Duplicate Rows">
                   <CopyX className="h-3.5 w-3.5 text-orange-600" />
                   <span>Duplicates</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onRemoveEmptyRows} title="Remove Empty Rows">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onRemoveEmptyRows} title="Remove Empty Rows">
                   <Trash2 className="h-3.5 w-3.5 text-red-600" />
                   <span>Empty Rows</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Row Cleaning</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Row Cleaning</span>
             </div>
 
             {/* 4. Column Cleaning Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={onDeleteColumns} title="Delete Columns">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded" onClick={onDeleteColumns} title="Delete Columns">
                   <Columns3 className="h-3.5 w-3.5" />
                   <span>Delete Cols</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onRenameColumn} title="Rename Column">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onRenameColumn} title="Rename Column">
                   <Edit3 className="h-3.5 w-3.5 text-blue-600" />
                   <span>Rename Col</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Column Cleaning</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Column Cleaning</span>
             </div>
 
             {/* 5. Transform Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onSplitColumn} title="Split Column">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onSplitColumn} title="Split Column">
                   <SplitSquareVertical className="h-3.5 w-3.5 text-cyan-600" />
                   <span>Split</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onExtractDate} title="Extract Date">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onExtractDate} title="Extract Date">
                   <Calendar className="h-3.5 w-3.5 text-emerald-600" />
                   <span>Date</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onExtractTime} title="Extract Time">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onExtractTime} title="Extract Time">
                   <Clock className="h-3.5 w-3.5 text-blue-600" />
                   <span>Time</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-bold" onClick={onChangeDataType} title="Change Data Type">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onChangeDataType} title="Change Data Type">
                   <Database className="h-3.5 w-3.5 text-amber-600" />
                   <span>Data Type</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Transform</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Transform</span>
             </div>
 
             {/* 6. Quality Group */}
-            <div className="flex flex-col items-center pr-1">
-              <div className="flex items-center gap-1.5">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold" onClick={onQualityAudit} title="Open Quality Audit Scanner">
-                  <ShieldAlert className="h-3.5 w-3.5 text-blue-600" />
+            <div className="flex flex-col items-center justify-between h-full px-2">
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2.5 font-semibold text-blue-600 dark:text-blue-400 rounded" onClick={onQualityAudit} title="Open Quality Audit Scanner">
+                  <ShieldAlert className="h-3.5 w-3.5" />
                   <span>Quality Audit</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2 font-bold text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20" onClick={onAICopilot} title="AI Data Cleaning Copilot">
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2.5 font-semibold text-indigo-600 bg-indigo-50/70 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded" onClick={onAICopilot} title="AI Data Cleaning Copilot">
                   <Sparkles className="h-3.5 w-3.5" />
                   <span>AI Copilot</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Quality</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Quality</span>
             </div>
           </div>
         )}
 
         {activeTab === 'data' && (
-          <div className="flex items-center px-2 py-1 text-xs text-zinc-400 italic">
-            Data tools and features will appear here.
+          <div className="flex items-center h-full px-3 text-xs text-zinc-400 italic select-none">
+            Data connection & schema management tools
           </div>
         )}
 
         {activeTab === 'view' && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center h-full">
             {/* 1. Window / Freeze Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
                 <Button 
                   variant={isHeaderFrozen ? "secondary" : "ghost"} 
                   size="sm" 
-                  className="h-7 text-[11px] gap-1 px-2 font-bold" 
+                  className="h-7 text-[11px] gap-1 px-2.5 font-medium rounded" 
                   onClick={onToggleFreezeHeader}
                   title="Freeze / Unfreeze Header Row"
                 >
@@ -699,16 +701,16 @@ export function CleaningRibbon({
                   <span>{isHeaderFrozen ? 'Header Frozen' : 'Freeze Header'}</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Window</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Window</span>
             </div>
 
             {/* 2. Show / Hide Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1.5 pt-0.5">
                 <Button 
                   variant={showGridlines ? "secondary" : "ghost"} 
                   size="sm" 
-                  className="h-7 text-[11px] gap-1 px-2 font-bold" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded" 
                   onClick={onToggleGridlines}
                   title="Show / Hide Gridlines"
                 >
@@ -720,10 +722,10 @@ export function CleaningRibbon({
                 <div className="dropdown-container relative">
                   <button 
                     onClick={() => toggleDropdown('hiddenColumns')}
-                    className="h-7 px-2 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                    className="h-7 px-2.5 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer"
                     title="Manage Hidden Columns"
                   >
-                    <EyeOff className="w-3 h-3 text-amber-600" />
+                    <EyeOff className="w-3.5 h-3.5 text-amber-600" />
                     <span>Columns ({hiddenColumns?.size || 0})</span>
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
@@ -758,16 +760,16 @@ export function CleaningRibbon({
                   )}
                 </div>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Show / Hide</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Show / Hide</span>
             </div>
 
             {/* 3. Row Density Group */}
-            <div className="flex flex-col items-center border-r border-zinc-200 dark:border-zinc-800 pr-3">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
                 <Button 
                   variant={rowDensity === 'compact' ? "secondary" : "ghost"} 
                   size="sm" 
-                  className="h-7 text-[11px] px-2 font-bold" 
+                  className="h-7 text-[11px] px-2 font-medium rounded" 
                   onClick={() => onChangeRowDensity?.('compact')}
                   title="Compact Row Density"
                 >
@@ -776,7 +778,7 @@ export function CleaningRibbon({
                 <Button 
                   variant={rowDensity === 'normal' ? "secondary" : "ghost"} 
                   size="sm" 
-                  className="h-7 text-[11px] px-2 font-bold" 
+                  className="h-7 text-[11px] px-2 font-medium rounded" 
                   onClick={() => onChangeRowDensity?.('normal')}
                   title="Normal Row Density"
                 >
@@ -785,23 +787,23 @@ export function CleaningRibbon({
                 <Button 
                   variant={rowDensity === 'comfortable' ? "secondary" : "ghost"} 
                   size="sm" 
-                  className="h-7 text-[11px] px-2 font-bold" 
+                  className="h-7 text-[11px] px-2 font-medium rounded" 
                   onClick={() => onChangeRowDensity?.('comfortable')}
                   title="Comfortable Row Density"
                 >
                   Comfortable
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">Row Density</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Row Density</span>
             </div>
 
             {/* 4. AutoFit Group */}
-            <div className="flex flex-col items-center pr-1">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col items-center justify-between h-full px-2">
+              <div className="flex items-center gap-1 pt-0.5">
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-7 text-[11px] gap-1 px-2 font-bold text-blue-600" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-blue-600 dark:text-blue-400 rounded" 
                   onClick={onAutoFitColumns}
                   title="Auto Fit Column Widths"
                 >
@@ -811,7 +813,7 @@ export function CleaningRibbon({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-7 text-[11px] gap-1 px-2 font-bold text-emerald-600" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-emerald-600 dark:text-emerald-400 rounded" 
                   onClick={onAutoFitRows}
                   title="Auto Fit Row Heights"
                 >
@@ -819,7 +821,7 @@ export function CleaningRibbon({
                   <span>Fit Heights</span>
                 </Button>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">AutoFit</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">AutoFit</span>
             </div>
           </div>
         )}

@@ -139,13 +139,15 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   // ----------------------------------------------------
   const [cellFormatting, setCellFormatting] = useState<Record<string, CellFormatStyle>>({});
 
-  const applyFormattingToSelection = (updater: (prev: CellFormatStyle) => CellFormatStyle) => {
+  const applyFormattingToSelection = (updater: (prev: CellFormatStyle) => CellFormatStyle, actionName = "Cell Formatting") => {
     if (!selectionRange) return;
     const { startRow, startCol, endRow, endCol } = selectionRange;
     const minRow = Math.min(startRow, endRow);
     const maxRow = Math.max(startRow, endRow);
     const minCol = Math.min(startCol, endCol);
     const maxCol = Math.max(startCol, endCol);
+
+    const prevFormattingSnapshot = { ...cellFormatting };
 
     setCellFormatting(prev => {
       const next = { ...prev };
@@ -160,23 +162,39 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       }
       return next;
     });
+
+    const historyItem: CleaningHistoryItem = {
+      id: `format-${Date.now()}`,
+      actionName,
+      target: `Range R${minRow + 1}C${minCol + 1}:R${maxRow + 1}C${maxCol + 1}`,
+      rowsAffected: maxRow - minRow + 1,
+      cellsAffected: (maxRow - minRow + 1) * (maxCol - minCol + 1),
+      timestamp: new Date(),
+      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousHeadersSnapshot: [...workingHeaders],
+      previousCellFormattingSnapshot: prevFormattingSnapshot,
+    };
+
+    setCleaningHistory(prev => [...prev, historyItem]);
+    setRedoStack([]);
     setIsDirty(true);
   };
 
   useImperativeHandle(ref, () => ({
-    toggleBold: () => applyFormattingToSelection(curr => ({ ...curr, bold: !curr.bold })),
-    toggleItalic: () => applyFormattingToSelection(curr => ({ ...curr, italic: !curr.italic })),
-    toggleUnderline: () => applyFormattingToSelection(curr => ({ ...curr, underline: !curr.underline })),
-    setFontSize: (size) => applyFormattingToSelection(curr => ({ ...curr, fontSize: size })),
-    setTextColor: (color) => applyFormattingToSelection(curr => ({ ...curr, color })),
-    setBgColor: (color) => applyFormattingToSelection(curr => ({ ...curr, bgColor: color })),
-    setAlignment: (align) => applyFormattingToSelection(curr => ({ ...curr, align })),
-    toggleWrapText: () => applyFormattingToSelection(curr => ({ ...curr, wrap: !curr.wrap })),
-    setNumberFormat: (format) => applyFormattingToSelection(curr => ({ ...curr, numberFormat: format })),
-    applyStyle: (styleName) => applyFormattingToSelection(curr => ({ ...curr, stylePreset: styleName as any })),
+    toggleBold: () => applyFormattingToSelection(curr => ({ ...curr, bold: !curr.bold }), "Toggle Bold"),
+    toggleItalic: () => applyFormattingToSelection(curr => ({ ...curr, italic: !curr.italic }), "Toggle Italic"),
+    toggleUnderline: () => applyFormattingToSelection(curr => ({ ...curr, underline: !curr.underline }), "Toggle Underline"),
+    setFontSize: (size) => applyFormattingToSelection(curr => ({ ...curr, fontSize: size }), `Set Font Size (${size})`),
+    setTextColor: (color) => applyFormattingToSelection(curr => ({ ...curr, color }), "Set Text Color"),
+    setBgColor: (color) => applyFormattingToSelection(curr => ({ ...curr, bgColor: color }), "Set Fill Color"),
+    setAlignment: (align) => applyFormattingToSelection(curr => ({ ...curr, align }), `Align ${align}`),
+    toggleWrapText: () => applyFormattingToSelection(curr => ({ ...curr, wrap: !curr.wrap }), "Toggle Wrap Text"),
+    setNumberFormat: (format) => applyFormattingToSelection(curr => ({ ...curr, numberFormat: format }), `Format as ${format}`),
+    applyStyle: (styleName) => applyFormattingToSelection(curr => ({ ...curr, stylePreset: styleName as any }), `Apply Cell Style (${styleName})`),
     applyConditionalFormatting: (rule) => {
       if (!selectionRange) return;
       const { startRow, startCol, endRow, endCol } = selectionRange;
+      const prevFormattingSnapshot = { ...cellFormatting };
       setCellFormatting(prev => {
         const next = { ...prev };
         for (let r = Math.min(startRow, endRow); r <= Math.max(startRow, endRow); r++) {
@@ -195,6 +213,20 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         }
         return next;
       });
+
+      const historyItem: CleaningHistoryItem = {
+        id: `condformat-${Date.now()}`,
+        actionName: `Conditional Formatting (${rule})`,
+        target: `Range R${Math.min(startRow, endRow) + 1}C${Math.min(startCol, endCol) + 1}:R${Math.max(startRow, endRow) + 1}C${Math.max(startCol, endCol) + 1}`,
+        rowsAffected: Math.abs(endRow - startRow) + 1,
+        cellsAffected: (Math.abs(endRow - startRow) + 1) * (Math.abs(endCol - startCol) + 1),
+        timestamp: new Date(),
+        previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+        previousHeadersSnapshot: [...workingHeaders],
+        previousCellFormattingSnapshot: prevFormattingSnapshot,
+      };
+      setCleaningHistory(prev => [...prev, historyItem]);
+      setRedoStack([]);
       setIsDirty(true);
     },
     autoFitColumns: () => {
@@ -486,6 +518,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       ...lastItem,
       previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
       previousHeadersSnapshot: [...workingHeaders],
+      previousCellFormattingSnapshot: { ...cellFormatting },
     };
 
     let restoredRows = JSON.parse(JSON.stringify(lastItem.previousDataSnapshot));
@@ -496,13 +529,16 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
 
     setWorkingData(restoredRows);
     setWorkingHeaders([...lastItem.previousHeadersSnapshot]);
+    if (lastItem.previousCellFormattingSnapshot) {
+      setCellFormatting(lastItem.previousCellFormattingSnapshot);
+    }
     setCleaningHistory(prev => prev.slice(0, -1));
     setRedoStack(prev => [...prev, redoItem]);
     setIsDirty(true);
 
     setSaveFeedback(`Undid: ${lastItem.actionName}`);
     setTimeout(() => setSaveFeedback(null), 3500);
-  }, [cleaningHistory, workingData, workingHeaders, workingFormulas]);
+  }, [cleaningHistory, workingData, workingHeaders, workingFormulas, cellFormatting]);
 
   const handleRedoLastCleaningAction = useCallback(() => {
     if (redoStack.length === 0) return;
@@ -514,6 +550,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       ...redoItem,
       previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
       previousHeadersSnapshot: [...workingHeaders],
+      previousCellFormattingSnapshot: { ...cellFormatting },
     };
 
     let restoredRows = JSON.parse(JSON.stringify(redoItem.previousDataSnapshot));
@@ -524,13 +561,16 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
 
     setWorkingData(restoredRows);
     setWorkingHeaders([...redoItem.previousHeadersSnapshot]);
+    if (redoItem.previousCellFormattingSnapshot) {
+      setCellFormatting(redoItem.previousCellFormattingSnapshot);
+    }
     setRedoStack(prev => prev.slice(0, -1));
     setCleaningHistory(prev => [...prev, undoItem]);
     setIsDirty(true);
 
     setSaveFeedback(`Redid: ${redoItem.actionName}`);
     setTimeout(() => setSaveFeedback(null), 3500);
-  }, [redoStack, workingData, workingHeaders, workingFormulas]);
+  }, [redoStack, workingData, workingHeaders, workingFormulas, cellFormatting]);
 
   // Apply or update a calculated column formula
   const handleApplyFormula = (colName: string, formulaStr: string) => {
@@ -949,9 +989,16 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   };
 
   // Format cell display value helper
-  const formatCellValue = (val: any, header?: string) => {
+  const formatCellValue = (val: any, rIndex?: number, header?: string) => {
     if (val === null || val === undefined || val === '') {
       return null;
+    }
+    if (rIndex !== undefined && header) {
+      const cellKey = `${rIndex}:${header}`;
+      const cellFormat = cellFormatting[cellKey];
+      if (cellFormat && cellFormat.numberFormat) {
+        return formatDisplayValue(val, cellFormat.numberFormat);
+      }
     }
     const colType = header ? (workingColumnTypes[header] || 'text') : 'text';
     const fmtConfig = header ? workingColumnFormats[header] : undefined;
@@ -1958,6 +2005,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
 
   // Context Menu Actions
   const handleSelectRow = (rIndex: number) => {
+    setSelectedCell({ row: rIndex, col: 0 });
     setSelectionRange({
       startRow: rIndex,
       startCol: 0,
@@ -1968,6 +2016,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   };
 
   const handleSelectColumn = (cIndex: number) => {
+    setSelectedCell({ row: 0, col: cIndex });
     setSelectionRange({
       startRow: 0,
       startCol: cIndex,
@@ -2391,7 +2440,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                   {/* Grid Data Cells */}
                   {visibleHeaders.map((header, cIndex) => {
                     const rawVal = row[header];
-                    const formattedVal = formatCellValue(rawVal, header);
+                    const formattedVal = formatCellValue(rawVal, rIndex, header);
                     const isNull = formattedVal === null;
 
                     const isInRange = rangeBounds && 
@@ -2414,20 +2463,61 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                     const cellPadding = rowDensity === 'compact' ? 'py-1 px-2.5' : rowDensity === 'comfortable' ? 'py-3 px-3.5' : 'py-2 px-3';
                     const gridlineClass = showGridlines ? 'border-r border-b border-zinc-200/50 dark:border-zinc-800/50' : 'border-r-0 border-b-0';
 
+                    const cellKey = `${rIndex}:${header}`;
+                    const cellFormat = cellFormatting[cellKey];
+
+                    const customStyles: React.CSSProperties = {
+                      width: `${colW}px`,
+                      minWidth: `${colW}px`,
+                      maxWidth: `${colW}px`,
+                    };
+
+                    if (cellFormat) {
+                      if (cellFormat.fontSize) {
+                        customStyles.fontSize = cellFormat.fontSize;
+                      }
+                      if (cellFormat.color) {
+                        customStyles.color = cellFormat.color;
+                      }
+                      if (cellFormat.bgColor) {
+                        customStyles.backgroundColor = cellFormat.bgColor;
+                      }
+                      if (cellFormat.align) {
+                        customStyles.textAlign = cellFormat.align;
+                      }
+                    }
+
+                    const isWrap = cellFormat?.wrap;
+                    const formatClasses = cn(
+                      cellPadding,
+                      gridlineClass,
+                      "relative cursor-default transition-all",
+                      isWrap ? "whitespace-normal break-words" : "truncate",
+                      cellFormat?.bold && "font-bold",
+                      cellFormat?.italic && "italic",
+                      cellFormat?.underline && "underline",
+                      
+                      // Style Presets
+                      cellFormat?.stylePreset === 'header' && "font-bold text-center bg-zinc-100 dark:bg-zinc-800 border-b-2 border-zinc-300 dark:border-zinc-700 text-zinc-950 dark:text-zinc-50",
+                      cellFormat?.stylePreset === 'subheader' && "font-semibold italic bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200",
+                      cellFormat?.stylePreset === 'total' && "font-bold border-t border-zinc-400 dark:border-zinc-600 border-b-4 border-double border-b-zinc-400 dark:border-b-zinc-600 text-zinc-950 dark:text-zinc-50",
+                      cellFormat?.stylePreset === 'highlight' && "bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-medium",
+                      cellFormat?.stylePreset === 'warning' && "bg-red-100 dark:bg-red-950/40 text-red-900 dark:text-red-200 font-medium",
+                      cellFormat?.stylePreset === 'good' && "bg-green-100 dark:bg-green-950/40 text-green-900 dark:text-green-200 font-medium"
+                    );
+
                     return (
                       <td
                         key={header}
                         id={`cell-${rIndex}-${cIndex}`}
-                        style={{ width: `${colW}px`, minWidth: `${colW}px`, maxWidth: `${colW}px` }}
+                        style={customStyles}
                         onMouseDown={(e) => handleCellMouseDown(rIndex, cIndex, e)}
                         onMouseEnter={() => handleCellMouseEnter(rIndex, cIndex)}
                         onDoubleClick={() => startEditingCell(rIndex, cIndex)}
                         onContextMenu={(e) => handleContextMenu(rIndex, cIndex, header, e)}
                         className={cn(
-                          cellPadding,
-                          gridlineClass,
-                          "truncate relative cursor-default transition-all",
-                          formula && "bg-indigo-50/30 dark:bg-indigo-950/20 font-mono",
+                          formatClasses,
+                          formula && !cellFormat?.bgColor && "bg-indigo-50/30 dark:bg-indigo-950/20 font-mono",
                           isInRange && "bg-blue-500/12 dark:bg-blue-500/22",
                           isMatchCell && !isActiveMatch && "bg-amber-100/90 dark:bg-amber-950/80 ring-1 ring-amber-400/80 font-medium",
                           isActiveMatch && "bg-amber-300 dark:bg-amber-600 font-bold ring-2 ring-amber-600 text-black dark:text-white z-20 shadow-xs",
@@ -2453,11 +2543,11 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                         ) : isNull ? (
                           <span className="text-zinc-300 dark:text-zinc-700 italic text-[10px] select-none">null</span>
                         ) : formula ? (
-                          <span className="text-indigo-700 dark:text-indigo-300 font-semibold">
+                          <span className="text-indigo-700 dark:text-indigo-300 font-semibold" style={{ color: cellFormat?.color }}>
                             {formattedVal}
                           </span>
                         ) : (
-                          <span className="text-zinc-800 dark:text-zinc-200">
+                          <span className="text-zinc-800 dark:text-zinc-200" style={{ color: cellFormat?.color }}>
                             {formattedVal}
                           </span>
                         )}
