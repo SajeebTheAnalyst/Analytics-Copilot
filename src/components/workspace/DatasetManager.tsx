@@ -136,7 +136,7 @@ export function DatasetManager({
   // If no datasets exist in workspace
   if (!activeDataset || datasets.length === 0) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-transparent">
+      <div className="flex-1 flex flex-col min-h-full p-6 lg:p-8 overflow-y-auto custom-scrollbar bg-transparent justify-center">
         <div className="max-w-4xl mx-auto w-full space-y-8 py-8">
           {/* Header */}
           <div className="text-center space-y-2.5">
@@ -192,10 +192,10 @@ export function DatasetManager({
   const isCleaned = activeDataset.cleaningStatus === 'cleaned';
 
   return (
-    <div className="min-w-0 bg-transparent p-6 lg:p-8 pb-24 lg:pb-32 space-y-6">
+    <div className="flex-1 flex flex-col min-h-full min-w-0 bg-transparent p-6 lg:p-8 space-y-6">
       
       {/* Page Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800 pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800 pb-5 shrink-0">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-bold text-zinc-950 dark:text-zinc-50">Data Import & Profile</h1>
@@ -415,20 +415,25 @@ export function DatasetManager({
       </div>
 
       {/* 4. Column Profiling Table */}
-      <div className="glass-panel glass-card rounded-xl mb-6">
-        <div className="p-4.5 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-black/20 flex items-center justify-between backdrop-blur-md rounded-t-xl">
+      <div className="glass-panel glass-card rounded-xl flex-1 flex flex-col min-h-[340px] overflow-hidden shadow-sm">
+        <div className="p-4.5 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-black/20 flex items-center justify-between backdrop-blur-md rounded-t-xl shrink-0">
           <div>
             <h3 className="font-bold text-xs lg:text-sm text-zinc-950 dark:text-zinc-50">Column Schema & Profiling</h3>
             <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
               Detailed statistics, data types, missingness, and range distributions for all {activeDataset.headers.length} attributes.
             </p>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-bold text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-md border border-zinc-200/60 dark:border-zinc-700/60">
+              {activeDataset.headers.length} Columns Profiled
+            </span>
+          </div>
         </div>
 
-        <div className="overflow-x-auto pb-2">
+        <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-white/40 dark:bg-white/5 border-b border-zinc-200/80 dark:border-zinc-800/80 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest select-none backdrop-blur-md">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-zinc-50/95 dark:bg-zinc-900/95 border-b border-zinc-200/80 dark:border-zinc-800/80 text-[10px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest select-none backdrop-blur-md">
                 <th className="py-3 px-4 font-sans">Column Name</th>
                 <th className="py-3 px-4 font-sans">Inferred Type</th>
                 <th className="py-3 px-4 font-sans">Completeness</th>
@@ -494,6 +499,17 @@ export function DatasetManager({
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Card Footer Summary */}
+        <div className="p-3 border-t border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/30 flex items-center justify-between text-[11px] text-zinc-500 shrink-0 font-medium select-none">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>Schema profiled and validated for active dataset</span>
+          </div>
+          <span className="font-mono text-[10px] text-zinc-400">
+            {activeDataset.rowCount.toLocaleString()} rows • {activeDataset.headers.length} attributes
+          </span>
         </div>
       </div>
 

@@ -283,6 +283,8 @@ export function CleaningView({
         onQualityAudit={() => setShowQualityAudit(true)}
         onAICopilot={() => setShowAICopilotModal(true)}
         onTrimWhitespace={() => setActiveCleaningModal({ actionType: 'trim_whitespace' })}
+        onCleanCharacters={() => setActiveCleaningModal({ actionType: 'clean_characters' })}
+        onCapitalizeCase={() => setActiveCleaningModal({ actionType: 'text_capitalization' })}
         onStandardizeCapitalization={() => setActiveCleaningModal({ actionType: 'text_capitalization' })}
         onFindReplace={() => {
           setActiveCleaningModal({ actionType: 'find_replace' });
@@ -292,20 +294,82 @@ export function CleaningView({
         onClearCells={() => setActiveCleaningModal({ actionType: 'clear_cells' })}
         onRemoveDuplicates={() => setActiveCleaningModal({ actionType: 'remove_duplicates' })}
         onRemoveEmptyRows={() => setActiveCleaningModal({ actionType: 'remove_empty_rows' })}
+        onRemoveBlankColumns={() => setActiveCleaningModal({ actionType: 'remove_empty_columns' })}
         onDeleteColumns={() => setActiveCleaningModal({ actionType: 'delete_columns' })}
         onRenameColumn={() => gridRef.current?.renameColumn()}
         onSplitColumn={() => {
-          setActiveCleaningModal({ actionType: 'split_column' as any });
+          setActiveCleaningModal({ actionType: 'split_column' });
+        }}
+        onExtractBeforeDelimiter={() => {
+          setActiveCleaningModal({ actionType: 'extract_before_delimiter' });
+        }}
+        onExtractAfterDelimiter={() => {
+          setActiveCleaningModal({ actionType: 'extract_after_delimiter' });
+        }}
+        onExtractBetweenDelimiters={() => {
+          setActiveCleaningModal({ actionType: 'extract_between_delimiters' });
         }}
         onExtractDate={() => {
-          setActiveCleaningModal({ actionType: 'extract_date' as any });
+          setActiveCleaningModal({ actionType: 'extract_date' });
         }}
         onExtractTime={() => {
-          setActiveCleaningModal({ actionType: 'extract_time' as any });
+          setActiveCleaningModal({ actionType: 'extract_time' });
+        }}
+        onFlashFill={() => {
+          setActiveCleaningModal({ actionType: 'flash_fill' });
+        }}
+        onFillUp={() => {
+          setActiveCleaningModal({ actionType: 'fill_up' });
+        }}
+        onFillSeries={() => {
+          setActiveCleaningModal({ actionType: 'fill_series' });
         }}
         onChangeDataType={() => {
-          setActiveCleaningModal({ actionType: 'change_data_type' as any });
+          gridRef.current?.changeDataType();
         }}
+        // Phase 8P-2Y Transform & Formula Ribbon Actions
+        onReplaceValues={() => {
+          setActiveCleaningModal({ actionType: 'find_replace' });
+        }}
+        onMergeCategories={() => {
+          setActiveCleaningModal({ actionType: 'merge_categorical' });
+        }}
+        onStandardizeValuesMode={() => {
+          setActiveCleaningModal({ actionType: 'standardize_values' });
+        }}
+        onChangeDataTypeOption={() => {
+          gridRef.current?.changeDataType();
+        }}
+        onFormulaColumnPreset={() => {
+          gridRef.current?.openFormulaBuilder();
+        }}
+        onCustomFormula={() => {
+          gridRef.current?.openFormulaBuilder();
+        }}
+        onCalculateColumn={() => {
+          setActiveCleaningModal({ actionType: 'calculate_column' });
+        }}
+        onConditionalTransform={() => {
+          setActiveCleaningModal({ actionType: 'conditional_transform' });
+        }}
+        // Phase 8P-2W Data Ribbon Actions
+        onSortAsc={() => gridRef.current?.sortAscending()}
+        onSortDesc={() => gridRef.current?.sortDescending()}
+        onToggleFilter={() => gridRef.current?.toggleFilter()}
+        isFilterActive={gridRef.current?.isFilterActive}
+        onClearFilter={() => gridRef.current?.clearFilter()}
+        onTextToColumns={() => setActiveCleaningModal({ actionType: 'split_column' })}
+        onFillDown={() => setActiveCleaningModal({ actionType: 'fill_down' })}
+        onFillRight={() => gridRef.current?.fillRight()}
+        onFindErrors={() => gridRef.current?.findErrors()}
+        onStandardizeValues={() => gridRef.current?.standardizeValues()}
+        onValidateData={() => gridRef.current?.validateData()}
+        onDetectInvalidValues={() => gridRef.current?.detectInvalidValues()}
+        onDetectMixedTypes={() => gridRef.current?.detectMixedDataTypes()}
+        onGroupRows={() => gridRef.current?.groupRows()}
+        onUngroupRows={() => gridRef.current?.ungroupRows()}
+        onToggleOutlineDetails={() => gridRef.current?.toggleOutlineDetails()}
+        isOutlineExpanded={gridRef.current?.isOutlineExpanded}
         showGridlines={showGridlines}
         onToggleGridlines={() => setShowGridlines(!showGridlines)}
         rowDensity={rowDensity}

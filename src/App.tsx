@@ -393,7 +393,7 @@ export default function App() {
           />
 
           {/* Main View Router Container */}
-          <main className={cn("flex-1 min-w-0 bg-transparent relative", currentView === 'cleaning' ? "overflow-hidden flex flex-col" : "overflow-y-auto custom-scrollbar")}>
+          <main className={cn("flex-1 min-w-0 bg-transparent relative flex flex-col", currentView === 'cleaning' ? "overflow-hidden" : "overflow-y-auto custom-scrollbar")}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentView}
@@ -401,7 +401,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className={cn("min-h-full flex flex-col", currentView === 'cleaning' && "h-full flex-1 min-h-0")}
+                className={cn("flex-1 min-h-full flex flex-col", currentView === 'cleaning' && "h-full min-h-0 overflow-hidden")}
               >
                 {currentView === 'data-manager' ? (
                   <DatasetManager 

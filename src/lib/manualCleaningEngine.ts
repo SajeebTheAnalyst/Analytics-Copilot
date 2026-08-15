@@ -1,19 +1,32 @@
-import { isBlankValue } from './typeStandardizer';
+import { isBlankValue, parseFlexibleNumeric, parseFlexibleDateTime } from './typeStandardizer';
 
 export type CleaningActionType =
   | 'trim_whitespace'
+  | 'clean_characters'
   | 'text_capitalization'
   | 'find_replace'
   | 'merge_categorical'
   | 'remove_duplicates'
   | 'remove_empty_rows'
+  | 'remove_empty_columns'
   | 'fill_missing'
   | 'clear_cells'
   | 'delete_columns'
   | 'split_column'
+  | 'extract_before_delimiter'
+  | 'extract_after_delimiter'
+  | 'extract_between_delimiters'
   | 'extract_date'
   | 'extract_time'
-  | 'change_data_type';
+  | 'change_data_type'
+  | 'flash_fill'
+  | 'fill_series'
+  | 'fill_up'
+  | 'fill_down'
+  | 'standardize_values'
+  | 'calculate_column'
+  | 'conditional_transform'
+  | 'formula_column';
 
 export interface CleaningDiffCell {
   rowIdx: number;
@@ -962,3 +975,913 @@ export function previewChangeDataType(
     updatedHeaders: [...headers],
   };
 }
+
+/**
+ * 10. CLEAN CHARACTERS (Remove non-printable ASCII, invisible zero-width chars, control codes)
+ */
+export function previewCleanCharacters(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol?: string,
+  mode: 'all_non_printable' | 'control_chars' | 'strip_symbols' = 'all_non_printable'
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  const colsToProcess = targetCol && targetCol !== 'All' ? [targetCol] : headers;
+
+  const warningFormulaColumns: string[] = [];
+  const validCols: string[] = [];
+
+  colsToProcess.forEach(col => {
+    if (formulaCols.includes(col)) {
+      warningFormulaColumns.push(col);
+    } else {
+      validCols.push(col);
+    }
+  });
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRowIndices = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const rowId = row._rowId || `r-${rowIdx}`;
+
+    validCols.forEach(col => {
+      const val = newRow[col];
+      if (val === null || val === undefined) return;
+      const strVal = String(val);
+
+      let cleaned = strVal;
+      if (mode === 'all_non_printable') {
+        // Strip non-printable ASCII 0-31, 127-159, zero-width chars \u200B-\u200D\uFEFF, replace non-breaking spaces \u00A0
+        cleaned = strVal
+          .replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, '')
+          .replace(/\u00A0/g, ' ');
+      } else if (mode === 'control_chars') {
+        cleaned = strVal.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      } else if (mode === 'strip_symbols') {
+        // Keep only alphanumeric and standard spaces/punctuation
+        cleaned = strVal.replace(/[^\w\s.,!?:;'"\-()[\]{}]/gi, '');
+      }
+
+      if (cleaned !== strVal) {
+        diffCells.push({
+          rowIdx,
+          rowId,
+          header: col,
+          originalValue: strVal,
+          newValue: cleaned,
+        });
+        affectedRowIndices.add(rowIdx);
+        newRow[col] = cleaned;
+      }
+    });
+
+    return newRow;
+  });
+
+  const targetDesc = targetCol && targetCol !== 'All' ? `Column "${targetCol}"` : 'All columns';
+
+  return {
+    actionType: 'clean_characters',
+    actionTitle: 'Clean Characters',
+    targetDescription: `${targetDesc} (${mode.replace(/_/g, ' ')})`,
+    rowsAffectedCount: affectedRowIndices.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: diffCells.length > 0
+      ? `Cleaned non-printable characters in ${diffCells.length} cells across ${affectedRowIndices.size} rows.`
+      : 'No non-printable or corrupt characters detected in target columns.',
+    warningFormulaColumns,
+    updatedData,
+    updatedHeaders: [...headers],
+  };
+}
+
+/**
+ * 11. EXTRACT BEFORE DELIMITER
+ */
+export function previewExtractBeforeDelimiter(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  delimiter: string = '@'
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'extract_before_delimiter',
+      actionTitle: 'Extract Before Delimiter',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column and cannot be extracted from directly.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const safeDelimName = delimiter === ' ' ? 'Space' : delimiter.replace(/[^a-zA-Z0-9]/g, '');
+  const newCol = `${targetCol}_Before_${safeDelimName || 'delim'}`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(newCol)) updatedHeaders.push(newCol);
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = String(newRow[targetCol] ?? '');
+    let extracted = '';
+    const idx = val.indexOf(delimiter);
+    if (idx !== -1) {
+      extracted = val.substring(0, idx).trim();
+    } else {
+      extracted = val.trim();
+    }
+
+    newRow[newCol] = extracted;
+    if (val) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: `${newCol}: "${extracted}"`,
+      });
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'extract_before_delimiter',
+    actionTitle: 'Extract Before Delimiter',
+    targetDescription: `Column "${targetCol}" before "${delimiter}"`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Extracted text before "${delimiter}" into new column "${newCol}" for ${affectedRows.size} rows. Original column retained.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+/**
+ * 12. EXTRACT AFTER DELIMITER
+ */
+export function previewExtractAfterDelimiter(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  delimiter: string = '@'
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'extract_after_delimiter',
+      actionTitle: 'Extract After Delimiter',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column and cannot be extracted from directly.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const safeDelimName = delimiter === ' ' ? 'Space' : delimiter.replace(/[^a-zA-Z0-9]/g, '');
+  const newCol = `${targetCol}_After_${safeDelimName || 'delim'}`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(newCol)) updatedHeaders.push(newCol);
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = String(newRow[targetCol] ?? '');
+    let extracted = '';
+    const idx = val.indexOf(delimiter);
+    if (idx !== -1) {
+      extracted = val.substring(idx + delimiter.length).trim();
+    } else {
+      extracted = '';
+    }
+
+    newRow[newCol] = extracted;
+    if (val) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: `${newCol}: "${extracted}"`,
+      });
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'extract_after_delimiter',
+    actionTitle: 'Extract After Delimiter',
+    targetDescription: `Column "${targetCol}" after "${delimiter}"`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Extracted text after "${delimiter}" into new column "${newCol}" for ${affectedRows.size} rows. Original column retained.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+/**
+ * 13. EXTRACT BETWEEN DELIMITERS
+ */
+export function previewExtractBetweenDelimiters(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  startDelim: string = '(',
+  endDelim: string = ')'
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'extract_between_delimiters',
+      actionTitle: 'Extract Between Delimiters',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const newCol = `${targetCol}_Extracted`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(newCol)) updatedHeaders.push(newCol);
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = String(newRow[targetCol] ?? '');
+    let extracted = '';
+    const startIdx = val.indexOf(startDelim);
+    if (startIdx !== -1) {
+      const endIdx = val.indexOf(endDelim, startIdx + startDelim.length);
+      if (endIdx !== -1) {
+        extracted = val.substring(startIdx + startDelim.length, endIdx).trim();
+      } else {
+        extracted = val.substring(startIdx + startDelim.length).trim();
+      }
+    }
+
+    newRow[newCol] = extracted;
+    if (val) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: `${newCol}: "${extracted}"`,
+      });
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'extract_between_delimiters',
+    actionTitle: 'Extract Between Delimiters',
+    targetDescription: `Column "${targetCol}" between "${startDelim}" and "${endDelim}"`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Extracted text between "${startDelim}" and "${endDelim}" into "${newCol}" for ${affectedRows.size} rows. Original column retained.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+/**
+ * 14. REMOVE EMPTY COLUMNS
+ */
+export function previewRemoveEmptyColumns(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {}
+): CleaningPreviewResult {
+  const blankCols: string[] = [];
+
+  headers.forEach(header => {
+    if (formulas[header]) return;
+    const isAllBlank = data.every(row => {
+      const val = row[header];
+      return val === null || val === undefined || String(val).trim() === '';
+    });
+    if (isAllBlank) {
+      blankCols.push(header);
+    }
+  });
+
+  if (blankCols.length === 0) {
+    return {
+      actionType: 'remove_empty_columns',
+      actionTitle: 'Remove Empty Columns',
+      targetDescription: 'All columns',
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: 'No completely blank columns found in dataset.',
+      warningFormulaColumns: [],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const newHeaders = headers.filter(h => !blankCols.includes(h));
+  const updatedData = data.map(r => {
+    const copy = { ...r };
+    blankCols.forEach(h => delete copy[h]);
+    return copy;
+  });
+
+  return {
+    actionType: 'remove_empty_columns',
+    actionTitle: 'Remove Empty Columns',
+    targetDescription: blankCols.join(', '),
+    rowsAffectedCount: data.length,
+    cellsAffectedCount: blankCols.length * data.length,
+    diffCells: [
+      {
+        rowIdx: 0,
+        rowId: 'header-removal',
+        header: blankCols.join(', '),
+        originalValue: `Empty Column(s): ${blankCols.join(', ')}`,
+        newValue: '[REMOVED COLUMN(S)]',
+      }
+    ],
+    summaryText: `Found and removed ${blankCols.length} completely empty column(s): ${blankCols.join(', ')}.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders: newHeaders,
+  };
+}
+
+/**
+ * 15. FLASH FILL (Smart Pattern Extraction / Completion)
+ */
+export function previewFlashFill(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  patternMode: 'extract_first_word' | 'extract_last_word' | 'extract_initials' | 'extract_numbers' | 'uppercase_first' = 'extract_first_word'
+): CleaningPreviewResult {
+  const newCol = `${targetCol}_Filled`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(newCol)) updatedHeaders.push(newCol);
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const val = String(newRow[targetCol] ?? '').trim();
+    let filledVal = '';
+
+    if (patternMode === 'extract_first_word') {
+      filledVal = val.split(/\s+/)[0] || '';
+    } else if (patternMode === 'extract_last_word') {
+      const parts = val.split(/\s+/);
+      filledVal = parts[parts.length - 1] || '';
+    } else if (patternMode === 'extract_initials') {
+      filledVal = val.split(/\s+/).map(w => w.charAt(0).toUpperCase()).join('.');
+    } else if (patternMode === 'extract_numbers') {
+      const match = val.match(/\d+/g);
+      filledVal = match ? match.join('') : '';
+    } else if (patternMode === 'uppercase_first') {
+      filledVal = val.charAt(0).toUpperCase() + val.slice(1);
+    }
+
+    newRow[newCol] = filledVal;
+    if (val) {
+      affectedRows.add(rowIdx);
+      diffCells.push({
+        rowIdx,
+        rowId: row._rowId || `r-${rowIdx}`,
+        header: targetCol,
+        originalValue: val,
+        newValue: `${newCol}: "${filledVal}"`,
+      });
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'flash_fill',
+    actionTitle: 'Flash Fill',
+    targetDescription: `Column "${targetCol}" (${patternMode.replace(/_/g, ' ')})`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Generated Flash Fill pattern in new column "${newCol}" for ${affectedRows.size} rows. Original column retained.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+/**
+ * 16. FILL SERIES (Sequential Numbers or Dates)
+ */
+export function previewFillSeries(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  startVal: number = 1,
+  stepVal: number = 1
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'fill_series',
+      actionTitle: 'Fill Series',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const rowId = row._rowId || `r-${rowIdx}`;
+    const originalVal = newRow[targetCol];
+    const seriesVal = startVal + rowIdx * stepVal;
+
+    diffCells.push({
+      rowIdx,
+      rowId,
+      header: targetCol,
+      originalValue: originalVal,
+      newValue: seriesVal,
+    });
+    affectedRows.add(rowIdx);
+    newRow[targetCol] = seriesVal;
+    return newRow;
+  });
+
+  return {
+    actionType: 'fill_series',
+    actionTitle: 'Fill Series',
+    targetDescription: `Column "${targetCol}" (Start: ${startVal}, Step: ${stepVal})`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Generated series ${startVal}, ${startVal + stepVal}, ${startVal + 2 * stepVal}... in column "${targetCol}" across ${data.length} rows.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders: [...headers],
+  };
+}
+
+/**
+ * 17. FILL UP (Replicate bottom value upwards)
+ */
+export function previewFillUp(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  startRow: number = 0,
+  endRow: number = data.length - 1
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'fill_up',
+      actionTitle: 'Fill Up',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const sourceVal = data[endRow]?.[targetCol];
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    if (rowIdx >= startRow && rowIdx < endRow) {
+      const originalVal = newRow[targetCol];
+      if (originalVal !== sourceVal) {
+        diffCells.push({
+          rowIdx,
+          rowId: row._rowId || `r-${rowIdx}`,
+          header: targetCol,
+          originalValue: originalVal,
+          newValue: sourceVal,
+        });
+        affectedRows.add(rowIdx);
+        newRow[targetCol] = sourceVal;
+      }
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'fill_up',
+    actionTitle: 'Fill Up',
+    targetDescription: `Column "${targetCol}" (Rows ${startRow + 1} to ${endRow + 1})`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Filled upward value "${sourceVal}" into ${diffCells.length} cells in "${targetCol}".`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders: [...headers],
+  };
+}
+
+/**
+ * 18. FILL DOWN (Replicate top value downwards)
+ */
+export function previewFillDown(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  startRow: number = 0,
+  endRow: number = data.length - 1
+): CleaningPreviewResult {
+  const formulaCols = Object.keys(formulas);
+  if (formulaCols.includes(targetCol)) {
+    return {
+      actionType: 'fill_down',
+      actionTitle: 'Fill Down',
+      targetDescription: `Column "${targetCol}"`,
+      rowsAffectedCount: 0,
+      cellsAffectedCount: 0,
+      diffCells: [],
+      summaryText: `Column "${targetCol}" is a formula column.`,
+      warningFormulaColumns: [targetCol],
+      updatedData: [...data],
+      updatedHeaders: [...headers],
+    };
+  }
+
+  const sourceVal = data[startRow]?.[targetCol];
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    if (rowIdx > startRow && rowIdx <= endRow) {
+      const originalVal = newRow[targetCol];
+      if (originalVal !== sourceVal) {
+        diffCells.push({
+          rowIdx,
+          rowId: row._rowId || `r-${rowIdx}`,
+          header: targetCol,
+          originalValue: originalVal,
+          newValue: sourceVal,
+        });
+        affectedRows.add(rowIdx);
+        newRow[targetCol] = sourceVal;
+      }
+    }
+    return newRow;
+  });
+
+  return {
+    actionType: 'fill_down',
+    actionTitle: 'Fill Down',
+    targetDescription: `Column "${targetCol}" (Rows ${startRow + 1} to ${endRow + 1})`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Filled downward value "${sourceVal}" into ${diffCells.length} cells in "${targetCol}".`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders: [...headers],
+  };
+}
+
+/**
+ * 19. STANDARDIZE VALUES (Text, Dates, Numbers, Booleans)
+ */
+export function previewStandardizeValues(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol?: string,
+  mode: 'all' | 'text' | 'dates' | 'numbers' | 'booleans' = 'all'
+): CleaningPreviewResult {
+  const targetCols = targetCol ? [targetCol] : headers;
+  const formulaCols = Object.keys(formulas);
+  const warnedFormulaCols = targetCols.filter(col => formulaCols.includes(col));
+  const validTargetCols = targetCols.filter(col => !formulaCols.includes(col));
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const rowId = row._rowId || `r-${rowIdx}`;
+
+    validTargetCols.forEach(col => {
+      const originalVal = newRow[col];
+      if (originalVal === null || originalVal === undefined || originalVal === '') return;
+
+      let standardizedVal = originalVal;
+      const str = String(originalVal).trim();
+
+      // Text standardization (collapse multiple whitespaces, trim)
+      if (mode === 'all' || mode === 'text') {
+        if (typeof originalVal === 'string') {
+          standardizedVal = str.replace(/\s+/g, ' ');
+        }
+      }
+
+      // Boolean standardization
+      if (mode === 'all' || mode === 'booleans') {
+        const lower = str.toLowerCase();
+        if (['true', 'yes', 'y', '1', 't'].includes(lower)) {
+          standardizedVal = true;
+        } else if (['false', 'no', 'n', '0', 'f'].includes(lower)) {
+          standardizedVal = false;
+        }
+      }
+
+      // Date standardization (ISO format YYYY-MM-DD)
+      if (mode === 'all' || mode === 'dates') {
+        const parsedDate = parseFlexibleDateTime(originalVal);
+        if (parsedDate.date && !isNaN(parsedDate.date.getTime())) {
+          standardizedVal = parsedDate.date.toISOString().split('T')[0];
+        }
+      }
+
+      // Number standardization
+      if (mode === 'all' || mode === 'numbers') {
+        const parsedNum = parseFlexibleNumeric(originalVal);
+        if (parsedNum.numeric !== null && !isNaN(parsedNum.numeric) && typeof originalVal === 'string' && (originalVal.includes('$') || originalVal.includes(',') || originalVal.includes('%'))) {
+          standardizedVal = parsedNum.numeric;
+        }
+      }
+
+      if (standardizedVal !== originalVal) {
+        diffCells.push({
+          rowIdx,
+          rowId,
+          header: col,
+          originalValue: originalVal,
+          newValue: standardizedVal,
+        });
+        affectedRows.add(rowIdx);
+        newRow[col] = standardizedVal;
+      }
+    });
+
+    return newRow;
+  });
+
+  return {
+    actionType: 'standardize_values',
+    actionTitle: 'Standardize Values',
+    targetDescription: targetCol ? `Column "${targetCol}" (${mode})` : `All Columns (${mode})`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Standardized ${diffCells.length} values across ${affectedRows.size} rows (${mode} mode).`,
+    warningFormulaColumns: warnedFormulaCols,
+    updatedData,
+    updatedHeaders: [...headers],
+  };
+}
+
+/**
+ * 20. CALCULATE COLUMN (Quick Math / Statistical Transformations)
+ */
+export function previewCalculateColumn(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  calcType: 'percent_of_total' | 'running_total' | 'multiply_factor' | 'add_constant' | 'diff_prev_row' | 'z_score' = 'percent_of_total',
+  factor: number = 1.1,
+  createNewColumn: boolean = true
+): CleaningPreviewResult {
+  const colName = createNewColumn ? `${targetCol}_${calcType.replace(/_/g, '_')}` : targetCol;
+  const updatedHeaders = [...headers];
+  if (createNewColumn && !updatedHeaders.includes(colName)) {
+    updatedHeaders.push(colName);
+  }
+
+  // Precompute column sum, mean, stddev if needed
+  let totalSum = 0;
+  let numericCount = 0;
+  const numValues: number[] = [];
+
+  data.forEach(r => {
+    const parsed = parseFlexibleNumeric(r[targetCol]);
+    if (parsed.numeric !== null && !isNaN(parsed.numeric)) {
+      totalSum += parsed.numeric;
+      numericCount++;
+      numValues.push(parsed.numeric);
+    }
+  });
+
+  const mean = numericCount > 0 ? totalSum / numericCount : 0;
+  const variance = numericCount > 0
+    ? numValues.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / numericCount
+    : 0;
+  const stdDev = Math.sqrt(variance);
+
+  let runningSum = 0;
+  let prevVal: number | null = null;
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const rowId = row._rowId || `r-${rowIdx}`;
+    const parsed = parseFlexibleNumeric(newRow[targetCol]);
+    const originalNum = parsed.numeric;
+    let computedVal: any = null;
+
+    if (originalNum !== null && !isNaN(originalNum)) {
+      switch (calcType) {
+        case 'percent_of_total':
+          computedVal = totalSum !== 0 ? Number(((originalNum / totalSum) * 100).toFixed(2)) : 0;
+          break;
+        case 'running_total':
+          runningSum += originalNum;
+          computedVal = Number(runningSum.toFixed(2));
+          break;
+        case 'multiply_factor':
+          computedVal = Number((originalNum * factor).toFixed(4));
+          break;
+        case 'add_constant':
+          computedVal = Number((originalNum + factor).toFixed(4));
+          break;
+        case 'diff_prev_row':
+          if (prevVal === null) {
+            computedVal = 0;
+          } else {
+            computedVal = Number((originalNum - prevVal).toFixed(2));
+          }
+          prevVal = originalNum;
+          break;
+        case 'z_score':
+          computedVal = stdDev > 0 ? Number(((originalNum - mean) / stdDev).toFixed(3)) : 0;
+          break;
+        default:
+          computedVal = originalNum;
+      }
+    }
+
+    diffCells.push({
+      rowIdx,
+      rowId,
+      header: colName,
+      originalValue: newRow[targetCol],
+      newValue: computedVal,
+    });
+    affectedRows.add(rowIdx);
+    newRow[colName] = computedVal;
+    return newRow;
+  });
+
+  return {
+    actionType: 'calculate_column',
+    actionTitle: 'Calculate Column',
+    targetDescription: `Column "${targetCol}" → "${colName}" (${calcType})`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Calculated "${calcType.replace(/_/g, ' ')}" into "${colName}" across ${affectedRows.size} rows.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+/**
+ * 21. CONDITIONAL TRANSFORM (IF - THEN - ELSE Transformation Rules)
+ */
+export function previewConditionalTransform(
+  data: Record<string, any>[],
+  headers: string[],
+  formulas: Record<string, string> = {},
+  targetCol: string,
+  condition: 'greater_than' | 'less_than' | 'equals' | 'contains' | 'is_blank' | 'is_not_blank' = 'greater_than',
+  conditionValue: string = '100',
+  thenValue: string = 'High',
+  elseValue: string = 'Normal',
+  newColName?: string
+): CleaningPreviewResult {
+  const resultCol = newColName && newColName.trim() ? newColName.trim() : `${targetCol}_flag`;
+  const updatedHeaders = [...headers];
+  if (!updatedHeaders.includes(resultCol)) {
+    updatedHeaders.push(resultCol);
+  }
+
+  const diffCells: CleaningDiffCell[] = [];
+  const affectedRows = new Set<number>();
+  const numCondition = Number(conditionValue);
+  const isNumericCondition = !isNaN(numCondition) && conditionValue.trim() !== '';
+
+  const updatedData = data.map((row, rowIdx) => {
+    const newRow = { ...row };
+    const rowId = row._rowId || `r-${rowIdx}`;
+    const rawVal = newRow[targetCol];
+    const strVal = rawVal !== null && rawVal !== undefined ? String(rawVal).trim() : '';
+    const numVal = typeof rawVal === 'number' ? rawVal : Number(strVal);
+    const isNum = !isNaN(numVal) && strVal !== '';
+
+    let match = false;
+
+    switch (condition) {
+      case 'greater_than':
+        if (isNum && isNumericCondition) match = numVal > numCondition;
+        break;
+      case 'less_than':
+        if (isNum && isNumericCondition) match = numVal < numCondition;
+        break;
+      case 'equals':
+        match = isNum && isNumericCondition ? numVal === numCondition : strVal.toLowerCase() === conditionValue.trim().toLowerCase();
+        break;
+      case 'contains':
+        match = strVal.toLowerCase().includes(conditionValue.trim().toLowerCase());
+        break;
+      case 'is_blank':
+        match = isBlankValue(rawVal);
+        break;
+      case 'is_not_blank':
+        match = !isBlankValue(rawVal);
+        break;
+    }
+
+    const assignedVal = match ? thenValue : elseValue;
+
+    diffCells.push({
+      rowIdx,
+      rowId,
+      header: resultCol,
+      originalValue: rawVal,
+      newValue: assignedVal,
+    });
+    affectedRows.add(rowIdx);
+    newRow[resultCol] = assignedVal;
+    return newRow;
+  });
+
+  return {
+    actionType: 'conditional_transform',
+    actionTitle: 'Conditional Transform',
+    targetDescription: `IF [${targetCol}] ${condition.replace(/_/g, ' ')} "${conditionValue}" THEN "${thenValue}" ELSE "${elseValue}"`,
+    rowsAffectedCount: affectedRows.size,
+    cellsAffectedCount: diffCells.length,
+    diffCells,
+    summaryText: `Applied conditional rule to create "${resultCol}" for ${data.length} rows.`,
+    warningFormulaColumns: [],
+    updatedData,
+    updatedHeaders,
+  };
+}
+
+

@@ -8,7 +8,10 @@ import {
   Calendar, Clock, Database, Copy, ClipboardPaste, Edit3,
   Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
   Hash, Percent, DollarSign, Layers, FileText, Printer, Download, Maximize2,
-  ChevronDown, Grid, Lock, EyeOff
+  ChevronDown, Grid, Lock, EyeOff, Wand2, ListOrdered, ArrowUp,
+  ArrowDownAZ, ArrowUpAZ, Filter, FilterX, ArrowDown, ArrowRight,
+  ShieldCheck, AlertTriangle, FolderPlus, FolderMinus, Eye, Columns,
+  Calculator, Sigma, Sliders, Tag, GitMerge, CheckCircle2, Binary, Variable
 } from 'lucide-react';
 
 export type RibbonTabId = 'home' | 'cleaning' | 'data' | 'view';
@@ -72,22 +75,58 @@ interface CleaningRibbonProps {
   onCopy?: () => void;
   onCut?: () => void;
   onPaste?: () => void;
-  // Cleaning actions
+  // Cleaning actions (Phase 8P-2X)
   onCleanData?: () => void;
   onQualityAudit?: () => void;
   onAICopilot?: () => void;
   onTrimWhitespace?: () => void;
+  onCleanCharacters?: (mode?: 'all_non_printable' | 'control_chars' | 'strip_symbols') => void;
+  onCapitalizeCase?: (style?: 'title' | 'upper' | 'lower' | 'sentence') => void;
   onStandardizeCapitalization?: () => void;
   onMergeVariations?: () => void;
+  onExtractBeforeDelimiter?: () => void;
+  onExtractAfterDelimiter?: () => void;
+  onExtractBetweenDelimiters?: () => void;
+  onExtractDate?: () => void;
+  onExtractTime?: () => void;
+  onFlashFill?: () => void;
+  onFillUp?: () => void;
+  onFillSeries?: () => void;
   onFillMissing?: () => void;
   onClearCells?: () => void;
   onRemoveDuplicates?: () => void;
   onRemoveEmptyRows?: () => void;
+  onRemoveBlankColumns?: () => void;
   onSplitColumn?: () => void;
-  onExtractDate?: () => void;
-  onExtractTime?: () => void;
   onChangeDataType?: () => void;
   onRenameColumn?: () => void;
+  // Phase 8P-2Y Transform & Formula Ribbon Actions
+  onReplaceValues?: () => void;
+  onMergeCategories?: () => void;
+  onStandardizeValuesMode?: (mode?: 'all' | 'text' | 'dates' | 'numbers' | 'booleans') => void;
+  onChangeDataTypeOption?: (type?: string) => void;
+  onFormulaColumnPreset?: (presetName?: string) => void;
+  onCustomFormula?: () => void;
+  onCalculateColumn?: (calcType?: 'percent_of_total' | 'running_total' | 'multiply_factor' | 'add_constant' | 'diff_prev_row' | 'z_score') => void;
+  onConditionalTransform?: (condType?: string) => void;
+  // Data Ribbon actions (Phase 8P-2W)
+  onSortAsc?: () => void;
+  onSortDesc?: () => void;
+  onToggleFilter?: () => void;
+  isFilterActive?: boolean;
+  onClearFilter?: () => void;
+  onTextToColumns?: () => void;
+  onFillDown?: () => void;
+  onFillRight?: () => void;
+  onFindErrors?: () => void;
+  onStandardizeValues?: () => void;
+  onValidateData?: () => void;
+  onDetectInvalidValues?: () => void;
+  onDetectMixedTypes?: () => void;
+  onGroupRows?: () => void;
+  onUngroupRows?: () => void;
+  onToggleOutlineDetails?: () => void;
+  isOutlineExpanded?: boolean;
 }
 
 export function CleaningRibbon({ 
@@ -131,16 +170,50 @@ export function CleaningRibbon({
   onQualityAudit,
   onAICopilot,
   onTrimWhitespace,
+  onCleanCharacters,
+  onCapitalizeCase,
   onStandardizeCapitalization,
   onMergeVariations,
+  onExtractBeforeDelimiter,
+  onExtractAfterDelimiter,
+  onExtractBetweenDelimiters,
+  onExtractDate,
+  onExtractTime,
+  onFlashFill,
+  onFillUp,
+  onFillSeries,
   onFillMissing,
   onClearCells,
   onRemoveDuplicates,
   onRemoveEmptyRows,
+  onRemoveBlankColumns,
   onSplitColumn,
-  onExtractDate,
-  onExtractTime,
   onChangeDataType,
+  onReplaceValues,
+  onMergeCategories,
+  onStandardizeValuesMode,
+  onChangeDataTypeOption,
+  onFormulaColumnPreset,
+  onCustomFormula,
+  onCalculateColumn,
+  onConditionalTransform,
+  onSortAsc,
+  onSortDesc,
+  onToggleFilter,
+  isFilterActive = false,
+  onClearFilter,
+  onTextToColumns,
+  onFillDown,
+  onFillRight,
+  onFindErrors,
+  onStandardizeValues,
+  onValidateData,
+  onDetectInvalidValues,
+  onDetectMixedTypes,
+  onGroupRows,
+  onUngroupRows,
+  onToggleOutlineDetails,
+  isOutlineExpanded = true,
   showGridlines = true,
   onToggleGridlines,
   rowDensity = 'normal',
@@ -154,9 +227,45 @@ export function CleaningRibbon({
   const ribbonRef = useRef<HTMLDivElement>(null);
 
   // Unified Dropdown State
-  const [activeDropdown, setActiveDropdown] = useState<'fontSize' | 'textColor' | 'bgColor' | 'numberFormat' | 'styles' | 'condFormat' | 'hiddenColumns' | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<
+    | 'fontSize' 
+    | 'textColor' 
+    | 'bgColor' 
+    | 'numberFormat' 
+    | 'styles' 
+    | 'condFormat' 
+    | 'hiddenColumns'
+    | 'cleanCase'
+    | 'cleanChars'
+    | 'extractMenu'
+    | 'removeEmptyMenu'
+    | 'dataTypeMenu'
+    | 'standardizeMenu'
+    | 'formulaColumnMenu'
+    | 'calculateColumnMenu'
+    | 'conditionalTransformMenu'
+    | null
+  >(null);
 
-  const toggleDropdown = (dropdownName: 'fontSize' | 'textColor' | 'bgColor' | 'numberFormat' | 'styles' | 'condFormat' | 'hiddenColumns') => {
+  const toggleDropdown = (
+    dropdownName: 
+      | 'fontSize' 
+      | 'textColor' 
+      | 'bgColor' 
+      | 'numberFormat' 
+      | 'styles' 
+      | 'condFormat' 
+      | 'hiddenColumns'
+      | 'cleanCase'
+      | 'cleanChars'
+      | 'extractMenu'
+      | 'removeEmptyMenu'
+      | 'dataTypeMenu'
+      | 'standardizeMenu'
+      | 'formulaColumnMenu'
+      | 'calculateColumnMenu'
+      | 'conditionalTransformMenu'
+  ) => {
     setActiveDropdown(prev => prev === dropdownName ? null : dropdownName);
   };
 
@@ -574,114 +683,964 @@ export function CleaningRibbon({
             {/* 1. Text Cleaning Group */}
             <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
               <div className="flex items-center gap-1 pt-0.5">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onTrimWhitespace} title="Trim Whitespace">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onTrimWhitespace} 
+                  title="Trim Leading, Trailing, and Excess Spaces"
+                >
                   <Scissors className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Trim</span>
+                  <span>Trim Spaces</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onStandardizeCapitalization} title="Standardize Capitalization">
-                  <CaseSensitive className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Capitalize</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onFindReplace} title="Find & Replace">
+
+                {/* Clean Characters Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('cleanChars')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                    title="Clean Non-Printable Characters & Hidden Symbols"
+                  >
+                    <Wand2 className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Clean Chars</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'cleanChars' && (
+                    <div className="absolute left-0 mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCleanCharacters?.('all_non_printable');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Wand2 className="w-3.5 h-3.5 text-amber-500" />
+                        <span>All Non-Printable Characters</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCleanCharacters?.('control_chars');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Hash className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Control Characters (\x00-\x1F)</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCleanCharacters?.('strip_symbols');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Scissors className="w-3.5 h-3.5 text-red-500" />
+                        <span>Strip Special Symbols</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Capitalize / UPPERCASE / lowercase Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('cleanCase')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                    title="Change Letter Case & Capitalization"
+                  >
+                    <CaseSensitive className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Case</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'cleanCase' && (
+                    <div className="absolute left-0 mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center justify-between cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCapitalizeCase?.('title');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <span>Capitalize Each Word</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">Title Case</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center justify-between cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCapitalizeCase?.('upper');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <span>UPPERCASE</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">ALL CAPS</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center justify-between cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCapitalizeCase?.('lower');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <span>lowercase</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">small letters</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center justify-between cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCapitalizeCase?.('sentence');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <span>Sentence case</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">First letter</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onFindReplace} 
+                  title="Find & Replace"
+                >
                   <Replace className="h-3.5 w-3.5 text-indigo-500" />
                   <span>Find & Replace</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onMergeVariations} title="Merge Categorical Variations">
-                  <ListTree className="h-3.5 w-3.5 text-purple-600" />
-                  <span>Merge Var</span>
                 </Button>
               </div>
               <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Text Cleaning</span>
             </div>
 
-            {/* 2. Missing & Values Group */}
+            {/* 2. Split & Extract Group */}
             <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
               <div className="flex items-center gap-1 pt-0.5">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onFillMissing} title="Fill Missing Values">
-                  <Sparkle className="h-3.5 w-3.5 text-amber-600" />
-                  <span>Fill Missing</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded" onClick={onClearCells} title="Clear Cell Values">
-                  <Eraser className="h-3.5 w-3.5" />
-                  <span>Clear Cells</span>
-                </Button>
-              </div>
-              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Missing & Values</span>
-            </div>
-
-            {/* 3. Row Cleaning Group */}
-            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
-              <div className="flex items-center gap-1 pt-0.5">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onRemoveDuplicates} title="Remove Duplicate Rows">
-                  <CopyX className="h-3.5 w-3.5 text-orange-600" />
-                  <span>Duplicates</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onRemoveEmptyRows} title="Remove Empty Rows">
-                  <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                  <span>Empty Rows</span>
-                </Button>
-              </div>
-              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Row Cleaning</span>
-            </div>
-
-            {/* 4. Column Cleaning Group */}
-            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
-              <div className="flex items-center gap-1 pt-0.5">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded" onClick={onDeleteColumns} title="Delete Columns">
-                  <Columns3 className="h-3.5 w-3.5" />
-                  <span>Delete Cols</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onRenameColumn} title="Rename Column">
-                  <Edit3 className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Rename Col</span>
-                </Button>
-              </div>
-              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Column Cleaning</span>
-            </div>
-
-            {/* 5. Transform Group */}
-            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
-              <div className="flex items-center gap-1 pt-0.5">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onSplitColumn} title="Split Column">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onTextToColumns || onSplitColumn} 
+                  title="Text to Columns: Split delimited text into separate columns"
+                >
                   <SplitSquareVertical className="h-3.5 w-3.5 text-cyan-600" />
-                  <span>Split</span>
+                  <span>Text to Cols</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onExtractDate} title="Extract Date">
-                  <Calendar className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Date</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onSplitColumn} 
+                  title="Split Column by Delimiter (Comma, Space, Custom)"
+                >
+                  <Columns3 className="h-3.5 w-3.5 text-teal-600" />
+                  <span>Split Delim</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onExtractTime} title="Extract Time">
-                  <Clock className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Time</span>
+
+                {/* Extract Dropdown Menu */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('extractMenu')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                    title="Extract Substrings, Dates, and Times"
+                  >
+                    <ListTree className="h-3.5 w-3.5 text-purple-600" />
+                    <span>Extract</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'extractMenu' && (
+                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onExtractBeforeDelimiter?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Scissors className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Extract Before Delimiter...</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onExtractAfterDelimiter?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Scissors className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Extract After Delimiter...</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onExtractBetweenDelimiters?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Columns3 className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Extract Between Delimiters...</span>
+                      </button>
+                      <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onExtractDate?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Extract Date (YYYY-MM-DD)</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onExtractTime?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Clock className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Extract Time (HH:MM:SS)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Split & Extract</span>
+            </div>
+
+            {/* 3. Transform Group (Phase 8P-2Y) */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                {/* Change Data Type Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('dataTypeMenu')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                    title="Change Data Type of Selected Column"
+                  >
+                    <Binary className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Data Type</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'dataTypeMenu' && (
+                    <div className="absolute left-0 mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onChangeDataType?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Binary className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="font-semibold">Type Conversion Wizard...</span>
+                      </button>
+                      <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+                      {[
+                        { label: 'Numeric / Number', type: 'number', icon: Hash, color: 'text-emerald-600' },
+                        { label: 'Text / String', type: 'text', icon: CaseSensitive, color: 'text-zinc-600' },
+                        { label: 'Date (YYYY-MM-DD)', type: 'date', icon: Calendar, color: 'text-blue-600' },
+                        { label: 'Boolean (TRUE/FALSE)', type: 'boolean', icon: CheckCircle2, color: 'text-indigo-600' },
+                        { label: 'Currency ($)', type: 'currency', icon: DollarSign, color: 'text-emerald-600' },
+                        { label: 'Percentage (%)', type: 'percentage', icon: Percent, color: 'text-purple-600' },
+                      ].map((t) => (
+                        <button
+                          key={t.type}
+                          className="w-full text-left px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                          onClick={() => {
+                            onChangeDataTypeOption?.(t.type);
+                            setActiveDropdown(null);
+                          }}
+                        >
+                          <t.icon className={cn("w-3.5 h-3.5", t.color)} />
+                          <span>Convert to {t.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onReplaceValues} 
+                  title="Find and Replace Values in Column or Selection"
+                >
+                  <Replace className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Replace Values</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 px-2 font-medium rounded" onClick={onChangeDataType} title="Change Data Type">
-                  <Database className="h-3.5 w-3.5 text-amber-600" />
-                  <span>Data Type</span>
+
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onMergeCategories} 
+                  title="Merge Categorical Variations & Misspellings"
+                >
+                  <GitMerge className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Merge Categories</span>
                 </Button>
+
+                {/* Standardize Values Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('standardizeMenu')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-emerald-700 dark:text-emerald-400"
+                    title="Standardize and Normalize Formats across Column"
+                  >
+                    <Wand2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Standardize</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'standardizeMenu' && (
+                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300 font-semibold"
+                        onClick={() => {
+                          onStandardizeValuesMode?.('all');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Wand2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Standardize All Formats</span>
+                      </button>
+                      <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onStandardizeValuesMode?.('text');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <CaseSensitive className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Text & Extra Whitespaces</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onStandardizeValuesMode?.('dates');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Dates to ISO (YYYY-MM-DD)</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onStandardizeValuesMode?.('numbers');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Hash className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Clean Numeric Values</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onStandardizeValuesMode?.('booleans');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Boolean Flags (TRUE/FALSE)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Transform</span>
             </div>
 
-            {/* 6. Quality Group */}
+            {/* 4. Formula & Advanced Group (Phase 8P-2Y) */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                {/* Formula Column Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('formulaColumnMenu')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-indigo-700 dark:text-indigo-400"
+                    title="Insert or Manage Formula Column"
+                  >
+                    <Calculator className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>Formula Column</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'formulaColumnMenu' && (
+                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300 font-semibold"
+                        onClick={() => {
+                          onCustomFormula?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Calculator className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Create / Edit Formula Column...</span>
+                      </button>
+                      <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onFormulaColumnPreset?.('profit');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Profit = Revenue - Cost</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onFormulaColumnPreset?.('margin');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Percent className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Margin % = (Profit / Revenue) * 100</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onFormulaColumnPreset?.('total');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Sigma className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Total = Column_A + Column_B</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onCustomFormula} 
+                  title="Open Interactive Custom Formula Builder"
+                >
+                  <Variable className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Custom Formula</span>
+                </Button>
+
+                {/* Calculate Column Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('calculateColumnMenu')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-blue-700 dark:text-blue-400"
+                    title="Calculate Derived Statistical / Math Columns"
+                  >
+                    <Sigma className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Calculate</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'calculateColumnMenu' && (
+                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCalculateColumn?.('percent_of_total');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Percent className="w-3.5 h-3.5 text-purple-600" />
+                        <span>% of Column Total</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCalculateColumn?.('running_total');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Sigma className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Cumulative Running Total</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCalculateColumn?.('multiply_factor');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Hash className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Multiply by Factor (e.g. 1.1x)</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCalculateColumn?.('diff_prev_row');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <ArrowDown className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Difference vs Prev Row</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onCalculateColumn?.('z_score');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Z-Score Normalization</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Conditional Transform Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('conditionalTransformMenu')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-purple-700 dark:text-purple-400"
+                    title="Conditional If-Then and Categorization Rules"
+                  >
+                    <Sliders className="h-3.5 w-3.5 text-purple-600" />
+                    <span>Conditional</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'conditionalTransformMenu' && (
+                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onConditionalTransform?.('if_then');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-purple-600" />
+                        <span>IF - THEN - ELSE Rule...</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onConditionalTransform?.('bins');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Tag className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Category Bins (High / Low)</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
+                        onClick={() => {
+                          onConditionalTransform?.('outliers');
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Flag Outliers / Anomalies</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Formula & Advanced</span>
+            </div>
+
+            {/* 5. Smart Fill Group */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30" 
+                  onClick={onFlashFill} 
+                  title="Flash Fill: Automatically extract or combine patterns across rows"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Flash Fill</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onFillDown} 
+                  title="Fill Down: Copy top value down through empty cells (Ctrl+D)"
+                >
+                  <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Fill Down</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onFillUp} 
+                  title="Fill Up: Copy bottom value up through empty cells"
+                >
+                  <ArrowUp className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Fill Up</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onFillSeries} 
+                  title="Fill Series: Generate numeric sequences (1, 2, 3...)"
+                >
+                  <ListOrdered className="h-3.5 w-3.5 text-teal-600" />
+                  <span>Fill Series</span>
+                </Button>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Smart Fill</span>
+            </div>
+
+            {/* 4. Missing & Duplicates Group */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" 
+                  onClick={onFillMissing} 
+                  title="Fill Missing Values with Custom Text, Mean, Median, or Mode"
+                >
+                  <Sparkle className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Fill Missing</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded" 
+                  onClick={onClearCells} 
+                  title="Clear Selected Cells (Del)"
+                >
+                  <Eraser className="h-3.5 w-3.5" />
+                  <span>Clear Cells</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30" 
+                  onClick={onRemoveDuplicates} 
+                  title="Remove Duplicate Rows"
+                >
+                  <CopyX className="h-3.5 w-3.5 text-orange-600" />
+                  <span>Duplicates</span>
+                </Button>
+
+                {/* Remove Empty Dropdown */}
+                <div className="dropdown-container relative">
+                  <button
+                    onClick={() => toggleDropdown('removeEmptyMenu')}
+                    className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-red-600 dark:text-red-400"
+                    title="Remove Blank / Empty Rows or Columns"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                    <span>Remove Empty</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-400" />
+                  </button>
+                  {activeDropdown === 'removeEmptyMenu' && (
+                    <div className="absolute left-0 mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-red-600 dark:text-red-400"
+                        onClick={() => {
+                          onRemoveEmptyRows?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove Empty Rows</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-red-600 dark:text-red-400"
+                        onClick={() => {
+                          onRemoveBlankColumns?.();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Columns className="w-3.5 h-3.5" />
+                        <span>Remove Empty Columns</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Missing & Duplicates</span>
+            </div>
+
+            {/* 5. Quality & AI Copilot Group */}
             <div className="flex flex-col items-center justify-between h-full px-2">
               <div className="flex items-center gap-1.5 pt-0.5">
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2.5 font-semibold text-blue-600 dark:text-blue-400 rounded" onClick={onQualityAudit} title="Open Quality Audit Scanner">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1.5 px-2.5 font-semibold text-blue-600 dark:text-blue-400 rounded" 
+                  onClick={onQualityAudit} 
+                  title="Open Quality Audit Scanner"
+                >
                   <ShieldAlert className="h-3.5 w-3.5" />
                   <span>Quality Audit</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1.5 px-2.5 font-semibold text-indigo-600 bg-indigo-50/70 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded" onClick={onAICopilot} title="AI Data Cleaning Copilot">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1.5 px-2.5 font-semibold text-indigo-600 bg-indigo-50/70 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded" 
+                  onClick={onAICopilot} 
+                  title="AI Data Cleaning Copilot"
+                >
                   <Sparkles className="h-3.5 w-3.5" />
                   <span>AI Copilot</span>
                 </Button>
               </div>
-              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Quality</span>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Quality & AI</span>
             </div>
           </div>
         )}
 
         {activeTab === 'data' && (
-          <div className="flex items-center h-full px-3 text-xs text-zinc-400 italic select-none">
-            Data connection & schema management tools
+          <div className="flex items-center h-full">
+            {/* 1. Sort & Filter Group */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onSortAsc} 
+                  title="Sort Ascending (A to Z / Lowest to Highest)"
+                >
+                  <ArrowDownAZ className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>A → Z</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onSortDesc} 
+                  title="Sort Descending (Z to A / Highest to Lowest)"
+                >
+                  <ArrowUpAZ className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Z → A</span>
+                </Button>
+                <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 mx-0.5" />
+                <Button 
+                  variant={isFilterActive ? "secondary" : "ghost"} 
+                  size="sm" 
+                  className={cn(
+                    "h-7 text-[11px] gap-1 px-2 font-medium rounded",
+                    isFilterActive && "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold"
+                  )} 
+                  onClick={onToggleFilter} 
+                  title="Toggle AutoFilter on Headers"
+                >
+                  <Filter className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Filter</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" 
+                  onClick={onClearFilter} 
+                  title="Clear All Filters and Sorting"
+                >
+                  <FilterX className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Clear Filter</span>
+                </Button>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Sort & Filter</span>
+            </div>
+
+            {/* 2. Data Tools Group */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30" 
+                  onClick={onRemoveDuplicates} 
+                  title="Remove Duplicate Rows"
+                >
+                  <CopyX className="h-3.5 w-3.5 text-orange-600" />
+                  <span>Duplicates</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onTextToColumns || onSplitColumn} 
+                  title="Text to Columns: Split delimited text into separate columns"
+                >
+                  <SplitSquareVertical className="h-3.5 w-3.5 text-cyan-600" />
+                  <span>Text to Cols</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onSplitColumn} 
+                  title="Split Column by Delimiter or Position"
+                >
+                  <Columns3 className="h-3.5 w-3.5 text-teal-600" />
+                  <span>Split Col</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onChangeDataType} 
+                  title="Change Column Data Type"
+                >
+                  <Database className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Data Type</span>
+                </Button>
+                <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 mx-0.5" />
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onFillDown} 
+                  title="Fill Down: Copy top cell value down through selected rows (Ctrl+D)"
+                >
+                  <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Fill Down</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onFillRight} 
+                  title="Fill Right: Copy leftmost cell value across selected columns (Ctrl+R)"
+                >
+                  <ArrowRight className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Fill Right</span>
+                </Button>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Data Tools</span>
+            </div>
+
+            {/* 3. Data Cleaning Group */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onTrimWhitespace} 
+                  title="Trim Leading, Trailing, and Excess Spaces"
+                >
+                  <Scissors className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Trim Spaces</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onRemoveEmptyRows} 
+                  title="Remove Empty / Blank Rows"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                  <span>Blank Rows</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onRemoveBlankColumns} 
+                  title="Remove Blank / Empty Columns"
+                >
+                  <Columns className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Blank Cols</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onFindErrors} 
+                  title="Find & Highlight Errors or Missing Data in Dataset"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Find Errors</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+                  onClick={onStandardizeValues || onStandardizeCapitalization} 
+                  title="Standardize Values & Capitalization"
+                >
+                  <CaseSensitive className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Standardize</span>
+                </Button>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Data Cleaning</span>
+            </div>
+
+            {/* 4. Data Validation Group */}
+            <div className="flex flex-col items-center justify-between h-full px-2 border-r border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded" 
+                  onClick={onValidateData} 
+                  title="Validate Data Integrity & Type Conformance"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Validate Data</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded" 
+                  onClick={onDetectInvalidValues} 
+                  title="Detect & Jump to Invalid Values"
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <span>Invalid Values</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded" 
+                  onClick={onDetectMixedTypes} 
+                  title="Detect Columns with Mixed Data Types"
+                >
+                  <Layers className="h-3.5 w-3.5 text-purple-600" />
+                  <span>Mixed Types</span>
+                </Button>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Data Validation</span>
+            </div>
+
+            {/* 5. Outline Group */}
+            <div className="flex flex-col items-center justify-between h-full px-2">
+              <div className="flex items-center gap-1 pt-0.5">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded" 
+                  onClick={onGroupRows} 
+                  title="Group Selected Rows into an Outline"
+                >
+                  <FolderPlus className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Group Rows</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded" 
+                  onClick={onUngroupRows} 
+                  title="Ungroup Rows"
+                >
+                  <FolderMinus className="h-3.5 w-3.5 text-zinc-500" />
+                  <span>Ungroup Rows</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[11px] gap-1 px-2 font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded" 
+                  onClick={onToggleOutlineDetails} 
+                  title="Show / Hide Group Details"
+                >
+                  <Eye className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>{isOutlineExpanded ? 'Hide Details' : 'Show Details'}</span>
+                </Button>
+              </div>
+              <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">Outline</span>
+            </div>
           </div>
         )}
 

@@ -93,6 +93,32 @@ export interface DataGridHandle {
   canRedo: boolean;
   isDirty: boolean;
   canDeleteRow: boolean;
+
+  // Phase 8P-2W Data Ribbon Handlers
+  sortAscending: () => void;
+  sortDescending: () => void;
+  toggleFilter: () => void;
+  clearFilter: () => void;
+  isFilterActive: boolean;
+  removeDuplicates: () => void;
+  textToColumns: () => void;
+  splitColumn: () => void;
+  changeDataType: () => void;
+  fillDown: () => void;
+  fillRight: () => void;
+  trimSpaces: () => void;
+  removeBlankRows: () => void;
+  removeBlankColumns: () => void;
+  findErrors: () => void;
+  standardizeValues: () => void;
+  validateData: () => void;
+  detectInvalidValues: () => void;
+  detectMixedDataTypes: () => void;
+  groupRows: () => void;
+  ungroupRows: () => void;
+  toggleOutlineDetails: () => void;
+  isOutlineExpanded: boolean;
+  openFormulaBuilder: (colName?: string) => void;
 }
 
 function formatDisplayValue(val: any, format?: string): string {
@@ -288,6 +314,55 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     canRedo: redoStack.length > 0,
     isDirty: isDirty,
     canDeleteRow: selectedCell !== null,
+
+    // Phase 8P-2W Data Ribbon Handlers
+    sortAscending: () => handleSortAsc(),
+    sortDescending: () => handleSortDesc(),
+    toggleFilter: () => handleToggleFilter(),
+    clearFilter: () => handleClearFilter(),
+    isFilterActive: isFilterActive,
+    removeDuplicates: () => {
+      setActiveCleaningModal({ actionType: 'remove_duplicates' });
+    },
+    textToColumns: () => {
+      const header = selectedCell ? visibleHeaders[selectedCell.col] : visibleHeaders[0];
+      setActiveCleaningModal({ actionType: 'split_column' as any, column: header });
+    },
+    splitColumn: () => {
+      const header = selectedCell ? visibleHeaders[selectedCell.col] : visibleHeaders[0];
+      setActiveCleaningModal({ actionType: 'split_column' as any, column: header });
+    },
+    changeDataType: () => {
+      const header = selectedCell ? visibleHeaders[selectedCell.col] : visibleHeaders[0];
+      if (header) setTypeModalCol(header);
+    },
+    fillDown: () => handleFillDown(),
+    fillRight: () => handleFillRight(),
+    trimSpaces: () => {
+      const header = selectedCell ? visibleHeaders[selectedCell.col] : undefined;
+      setActiveCleaningModal({ actionType: 'trim_whitespace', column: header });
+    },
+    removeBlankRows: () => {
+      setActiveCleaningModal({ actionType: 'remove_empty_rows' });
+    },
+    removeBlankColumns: () => handleRemoveBlankColumns(),
+    findErrors: () => handleFindErrors(),
+    standardizeValues: () => {
+      const header = selectedCell ? visibleHeaders[selectedCell.col] : undefined;
+      setActiveCleaningModal({ actionType: 'text_capitalization', column: header });
+    },
+    validateData: () => handleValidateData(),
+    detectInvalidValues: () => handleDetectInvalidValues(),
+    detectMixedDataTypes: () => handleDetectMixedDataTypes(),
+    groupRows: () => handleGroupRows(),
+    ungroupRows: () => handleUngroupRows(),
+    toggleOutlineDetails: () => handleToggleOutlineDetails(),
+    isOutlineExpanded: isOutlineExpanded,
+    openFormulaBuilder: (colName?: string) => {
+      const target = colName || (selectedCell ? visibleHeaders[selectedCell.col] : null);
+      setEditingFormulaCol(target && workingFormulas[target] ? target : null);
+      setShowFormulaModal(true);
+    },
   }));
   const [workingData, setWorkingData] = useState<Record<string, any>[]>([]);
   const [workingHeaders, setWorkingHeaders] = useState<string[]>([]);
@@ -397,6 +472,15 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
 
   // Column Visibility Popover
   const [showColumnsDropdown, setShowColumnsDropdown] = useState<boolean>(false);
+
+  // Data Ribbon State (Phase 8P-2W)
+  const [isFilterActive, setIsFilterActive] = useState<boolean>(false);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
+  const [filterPopoverCol, setFilterPopoverCol] = useState<string | null>(null);
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
+  const [filterSearchTerm, setFilterSearchTerm] = useState<string>('');
+  const [rowGroups, setRowGroups] = useState<Array<{ id: string; startRow: number; endRow: number; collapsed: boolean }>>([]);
+  const [isOutlineExpanded, setIsOutlineExpanded] = useState<boolean>(true);
 
   // Feedback Toasts
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -661,6 +745,17 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       );
     }
 
+    // AutoFilter column specific filters
+    if (isFilterActive && Object.keys(columnFilters).length > 0) {
+      result = result.filter(row => {
+        return Object.entries(columnFilters).every(([col, allowedValues]) => {
+          if (!allowedValues || allowedValues.length === 0) return true;
+          const cellVal = String(row[col] ?? '');
+          return allowedValues.includes(cellVal);
+        });
+      });
+    }
+
     // Column sorting
     if (sortConfig && sortConfig.key) {
       const { key, direction } = sortConfig;
@@ -705,7 +800,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     }
 
     return result;
-  }, [workingData, visibleHeaders, searchQuery, sortConfig]);
+  }, [workingData, visibleHeaders, searchQuery, sortConfig, isFilterActive, columnFilters]);
 
   // Displayed rows (continuous worksheet)
   const displayedRows = processedRows;
@@ -2451,6 +2546,351 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     return `Range ${startCellStr}:${endCellStr} (${totalCells} cells selected)`;
   }, [selectionRange, rangeBounds, visibleHeaders, displayedRows]);
 
+  // ----------------------------------------------------
+  // Phase 8P-2W Data Ribbon Action Handlers
+  // ----------------------------------------------------
+  const handleSortAsc = useCallback(() => {
+    const header = selectedCell ? visibleHeaders[selectedCell.col] : visibleHeaders[0];
+    if (!header) return;
+    setSortConfig({ key: header, direction: 'asc' });
+    setSaveFeedback(`Sorted by "${header}" (A → Z)`);
+    setTimeout(() => setSaveFeedback(null), 2500);
+  }, [selectedCell, visibleHeaders]);
+
+  const handleSortDesc = useCallback(() => {
+    const header = selectedCell ? visibleHeaders[selectedCell.col] : visibleHeaders[0];
+    if (!header) return;
+    setSortConfig({ key: header, direction: 'desc' });
+    setSaveFeedback(`Sorted by "${header}" (Z → A)`);
+    setTimeout(() => setSaveFeedback(null), 2500);
+  }, [selectedCell, visibleHeaders]);
+
+  const handleToggleFilter = useCallback(() => {
+    setIsFilterActive(prev => {
+      const next = !prev;
+      if (!next) {
+        setColumnFilters({});
+        setFilterPopoverCol(null);
+      }
+      setSaveFeedback(next ? 'AutoFilter enabled (Click filter icon in headers)' : 'AutoFilter disabled');
+      setTimeout(() => setSaveFeedback(null), 2500);
+      return next;
+    });
+  }, []);
+
+  const handleClearFilter = useCallback(() => {
+    setColumnFilters({});
+    setFilterPopoverCol(null);
+    setSearchQuery('');
+    setSortConfig(null);
+    setSaveFeedback('Filters and sortings cleared');
+    setTimeout(() => setSaveFeedback(null), 2500);
+  }, []);
+
+  const handleFillDown = useCallback(() => {
+    if (!rangeBounds || rangeBounds.maxRow <= rangeBounds.minRow) {
+      setWarningToast('Select a range with at least 2 rows to Fill Down.');
+      setTimeout(() => setWarningToast(null), 3000);
+      return;
+    }
+    const { minRow, maxRow, minCol, maxCol } = rangeBounds;
+    const nextData = workingData.map(r => ({ ...r }));
+    const nextEdited = new Set(editedCells);
+    let filledCount = 0;
+
+    for (let c = minCol; c <= maxCol; c++) {
+      const header = visibleHeaders[c];
+      if (!header || workingFormulas[header]) continue;
+      const sourceVal = workingData[minRow]?.[header];
+
+      for (let r = minRow + 1; r <= maxRow; r++) {
+        const rowObj = nextData[r];
+        if (rowObj) {
+          rowObj[header] = sourceVal;
+          nextEdited.add(`${rowObj._rowId || r}:${header}`);
+          filledCount++;
+        }
+      }
+    }
+
+    if (filledCount > 0) {
+      const historyItem: CleaningHistoryItem = {
+        id: `fill-down-${Date.now()}`,
+        actionName: `Fill Down (Rows ${minRow + 1} to ${maxRow + 1})`,
+        target: `Range R${minRow + 1}C${minCol + 1}:R${maxRow + 1}C${maxCol + 1}`,
+        rowsAffected: maxRow - minRow,
+        cellsAffected: filledCount,
+        timestamp: new Date(),
+        previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+        previousHeadersSnapshot: [...workingHeaders],
+        previousCellFormattingSnapshot: { ...cellFormatting },
+      };
+      setCleaningHistory(prev => [...prev, historyItem]);
+      setRedoStack([]);
+      recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+      setEditedCells(nextEdited);
+      setIsDirty(true);
+      setSaveFeedback(`Filled down ${filledCount} cell${filledCount > 1 ? 's' : ''}`);
+      setTimeout(() => setSaveFeedback(null), 2500);
+    }
+  }, [rangeBounds, workingData, visibleHeaders, workingFormulas, editedCells, cellFormatting, workingHeaders, recalculateAndSetData]);
+
+  const handleFillRight = useCallback(() => {
+    if (!rangeBounds || rangeBounds.maxCol <= rangeBounds.minCol) {
+      setWarningToast('Select a range with at least 2 columns to Fill Right.');
+      setTimeout(() => setWarningToast(null), 3000);
+      return;
+    }
+    const { minRow, maxRow, minCol, maxCol } = rangeBounds;
+    const nextData = workingData.map(r => ({ ...r }));
+    const nextEdited = new Set(editedCells);
+    let filledCount = 0;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      const sourceHeader = visibleHeaders[minCol];
+      if (!sourceHeader) continue;
+      const sourceVal = workingData[r]?.[sourceHeader];
+      const rowObj = nextData[r];
+      if (!rowObj) continue;
+
+      for (let c = minCol + 1; c <= maxCol; c++) {
+        const targetHeader = visibleHeaders[c];
+        if (!targetHeader || workingFormulas[targetHeader]) continue;
+        rowObj[targetHeader] = sourceVal;
+        nextEdited.add(`${rowObj._rowId || r}:${targetHeader}`);
+        filledCount++;
+      }
+    }
+
+    if (filledCount > 0) {
+      const historyItem: CleaningHistoryItem = {
+        id: `fill-right-${Date.now()}`,
+        actionName: `Fill Right (Cols ${minCol + 1} to ${maxCol + 1})`,
+        target: `Range R${minRow + 1}C${minCol + 1}:R${maxRow + 1}C${maxCol + 1}`,
+        rowsAffected: maxRow - minRow + 1,
+        cellsAffected: filledCount,
+        timestamp: new Date(),
+        previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+        previousHeadersSnapshot: [...workingHeaders],
+        previousCellFormattingSnapshot: { ...cellFormatting },
+      };
+      setCleaningHistory(prev => [...prev, historyItem]);
+      setRedoStack([]);
+      recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+      setEditedCells(nextEdited);
+      setIsDirty(true);
+      setSaveFeedback(`Filled right ${filledCount} cell${filledCount > 1 ? 's' : ''}`);
+      setTimeout(() => setSaveFeedback(null), 2500);
+    }
+  }, [rangeBounds, workingData, visibleHeaders, workingFormulas, editedCells, cellFormatting, workingHeaders, recalculateAndSetData]);
+
+  const handleRemoveBlankColumns = useCallback(() => {
+    const blankCols: string[] = [];
+    workingHeaders.forEach(header => {
+      if (workingFormulas[header]) return;
+      const isAllBlank = workingData.every(row => {
+        const val = row[header];
+        return val === null || val === undefined || String(val).trim() === '';
+      });
+      if (isAllBlank) {
+        blankCols.push(header);
+      }
+    });
+
+    if (blankCols.length === 0) {
+      setSaveFeedback('No blank columns found in dataset.');
+      setTimeout(() => setSaveFeedback(null), 3000);
+      return;
+    }
+
+    if (blankCols.length >= workingHeaders.length) {
+      setWarningToast('Cannot remove all columns from the dataset.');
+      setTimeout(() => setWarningToast(null), 3500);
+      return;
+    }
+
+    const nextHeaders = workingHeaders.filter(h => !blankCols.includes(h));
+    const nextTypes = { ...workingColumnTypes };
+    const nextFormats = { ...workingColumnFormats };
+    blankCols.forEach(h => {
+      delete nextTypes[h];
+      delete nextFormats[h];
+    });
+
+    const nextData = workingData.map(r => {
+      const copy = { ...r };
+      blankCols.forEach(h => delete copy[h]);
+      return copy;
+    });
+
+    const historyItem: CleaningHistoryItem = {
+      id: `remove-blank-cols-${Date.now()}`,
+      actionName: `Remove Blank Columns (${blankCols.join(', ')})`,
+      target: `Columns: ${blankCols.join(', ')}`,
+      rowsAffected: workingData.length,
+      cellsAffected: blankCols.length * workingData.length,
+      timestamp: new Date(),
+      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousHeadersSnapshot: [...workingHeaders],
+      previousCellFormattingSnapshot: { ...cellFormatting },
+    };
+    setCleaningHistory(prev => [...prev, historyItem]);
+    setRedoStack([]);
+    recalculateAndSetData(nextData, nextHeaders, workingFormulas);
+    setWorkingHeaders(nextHeaders);
+    setWorkingColumnTypes(nextTypes);
+    setWorkingColumnFormats(nextFormats);
+    setIsDirty(true);
+    setSaveFeedback(`Removed ${blankCols.length} blank column(s): ${blankCols.join(', ')}`);
+    setTimeout(() => setSaveFeedback(null), 3500);
+  }, [workingHeaders, workingFormulas, workingData, workingColumnTypes, workingColumnFormats, cellFormatting, recalculateAndSetData]);
+
+  const handleFindErrors = useCallback(() => {
+    const errors: Array<{ row: number; col: number; header: string; reason: string }> = [];
+    const formulaErrorKeywords = ['#DIV/0!', '#REF!', '#VALUE!', '#NAME?', '#N/A', 'NaN', 'Error'];
+
+    workingData.forEach((row, rIdx) => {
+      visibleHeaders.forEach((header, cIdx) => {
+        const val = row[header];
+        const strVal = String(val ?? '').trim();
+        if (formulaErrorKeywords.some(kw => strVal.toUpperCase().includes(kw))) {
+          errors.push({ row: rIdx, col: cIdx, header, reason: `Formula Error (${strVal})` });
+        } else if (val === null || val === undefined || strVal === '') {
+          errors.push({ row: rIdx, col: cIdx, header, reason: 'Empty/Missing Value' });
+        }
+      });
+    });
+
+    if (errors.length === 0) {
+      setSaveFeedback('✓ No formula or data errors found in dataset!');
+      setTimeout(() => setSaveFeedback(null), 3000);
+      return;
+    }
+
+    const first = errors[0];
+    setSelectedCell({ row: first.row, col: first.col });
+    setSelectionRange({ startRow: first.row, startCol: first.col, endRow: first.row, endCol: first.col });
+    setSaveFeedback(`Found ${errors.length} error/missing cell(s). Selected ${getColumnLetter(first.col)}${first.row + 1} (${first.header}): ${first.reason}`);
+    setTimeout(() => setSaveFeedback(null), 4000);
+  }, [workingData, visibleHeaders]);
+
+  const handleValidateData = useCallback(() => {
+    setShowReadinessModal(true);
+  }, []);
+
+  const handleDetectInvalidValues = useCallback(() => {
+    const invalids: Array<{ row: number; col: number; header: string; reason: string }> = [];
+    workingData.forEach((row, rIdx) => {
+      visibleHeaders.forEach((header, cIdx) => {
+        const val = row[header];
+        if (val === null || val === undefined || String(val).trim() === '') return;
+        const colType = String(workingColumnTypes[header] || 'text');
+        if (colType === 'numeric' || colType === 'number' || colType === 'integer' || colType === 'decimal') {
+          if (isNaN(Number(val))) {
+            invalids.push({ row: rIdx, col: cIdx, header, reason: `Non-numeric value "${val}" in ${colType} column` });
+          }
+        } else if (colType === 'date' || colType === 'datetime' || colType === 'time') {
+          const parsed = Date.parse(String(val));
+          if (isNaN(parsed)) {
+            invalids.push({ row: rIdx, col: cIdx, header, reason: `Invalid date string "${val}"` });
+          }
+        }
+      });
+    });
+
+    if (invalids.length === 0) {
+      setSaveFeedback('✓ All values strictly match declared column types and validation rules!');
+      setTimeout(() => setSaveFeedback(null), 3500);
+      return;
+    }
+
+    const first = invalids[0];
+    setSelectedCell({ row: first.row, col: first.col });
+    setSelectionRange({ startRow: first.row, startCol: first.col, endRow: first.row, endCol: first.col });
+    setSaveFeedback(`Detected ${invalids.length} invalid value(s). Selected ${getColumnLetter(first.col)}${first.row + 1} (${first.header}): ${first.reason}`);
+    setTimeout(() => setSaveFeedback(null), 4500);
+  }, [workingData, visibleHeaders, workingColumnTypes]);
+
+  const handleDetectMixedDataTypes = useCallback(() => {
+    const mixedCols: string[] = [];
+    visibleHeaders.forEach(header => {
+      let hasNum = false;
+      let hasStr = false;
+      let hasDate = false;
+      workingData.forEach(row => {
+        const val = row[header];
+        if (val === null || val === undefined || String(val).trim() === '') return;
+        const num = Number(val);
+        if (!isNaN(num) && typeof val === 'number') {
+          hasNum = true;
+        } else if (!isNaN(Date.parse(String(val))) && isNaN(Number(val)) && String(val).includes('-')) {
+          hasDate = true;
+        } else {
+          hasStr = true;
+        }
+      });
+      if ((hasNum && hasStr) || (hasDate && hasStr) || (hasNum && hasDate)) {
+        mixedCols.push(header);
+      }
+    });
+
+    if (mixedCols.length === 0) {
+      setSaveFeedback('✓ No mixed data types detected in any column.');
+      setTimeout(() => setSaveFeedback(null), 3500);
+      return;
+    }
+
+    const firstColName = mixedCols[0];
+    const colIdx = visibleHeaders.indexOf(firstColName);
+    if (colIdx >= 0) {
+      setSelectedCell({ row: 0, col: colIdx });
+      setSelectionRange({ startRow: 0, startCol: colIdx, endRow: workingData.length - 1, endCol: colIdx });
+    }
+    setSaveFeedback(`Detected mixed data types in ${mixedCols.length} column(s): ${mixedCols.join(', ')}`);
+    setTimeout(() => setSaveFeedback(null), 4500);
+  }, [visibleHeaders, workingData]);
+
+  const handleGroupRows = useCallback(() => {
+    if (!rangeBounds || rangeBounds.maxRow <= rangeBounds.minRow) {
+      setWarningToast('Select at least 2 rows to create an Outline Row Group.');
+      setTimeout(() => setWarningToast(null), 3000);
+      return;
+    }
+    const { minRow, maxRow } = rangeBounds;
+    const newGroup = {
+      id: `group-${Date.now()}`,
+      startRow: minRow,
+      endRow: maxRow,
+      collapsed: false,
+    };
+    setRowGroups(prev => [...prev.filter(g => !(g.startRow === minRow && g.endRow === maxRow)), newGroup]);
+    setSaveFeedback(`Grouped Rows ${minRow + 1} to ${maxRow + 1} in Outline.`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+  }, [rangeBounds]);
+
+  const handleUngroupRows = useCallback(() => {
+    if (!rangeBounds) {
+      setRowGroups([]);
+      setSaveFeedback('Cleared all outline groups.');
+      setTimeout(() => setSaveFeedback(null), 2500);
+      return;
+    }
+    const { minRow, maxRow } = rangeBounds;
+    setRowGroups(prev => prev.filter(g => !(g.startRow >= minRow && g.endRow <= maxRow)));
+    setSaveFeedback(`Ungrouped rows in selected range.`);
+    setTimeout(() => setSaveFeedback(null), 2500);
+  }, [rangeBounds]);
+
+  const handleToggleOutlineDetails = useCallback(() => {
+    setIsOutlineExpanded(prev => {
+      const next = !prev;
+      setRowGroups(groups => groups.map(g => ({ ...g, collapsed: !next })));
+      setSaveFeedback(next ? 'Expanded all outline groups' : 'Collapsed all outline groups');
+      setTimeout(() => setSaveFeedback(null), 2000);
+      return next;
+    });
+  }, []);
+
   // Close context menu & dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -2462,6 +2902,9 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       }
       if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(e.target as Node)) {
         setShowColumnsDropdown(false);
+      }
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target as Node)) {
+        setFilterPopoverCol(null);
       }
     };
     window.addEventListener('mousedown', handleClickOutside);
@@ -2675,18 +3118,38 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                         </div>
                       </div>
 
-                      {/* Sort Indicator */}
-                      <span className="shrink-0 text-zinc-400">
-                        {isSorted ? (
-                          sortConfig.direction === 'asc' ? (
-                            <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold" />
-                          ) : (
-                            <ArrowDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold" />
-                          )
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400" />
+                      {/* Sort & Filter Indicators */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isFilterActive && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFilterPopoverCol(prev => prev === header ? null : header);
+                            }}
+                            className={cn(
+                              "p-0.5 rounded hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors cursor-pointer",
+                              (columnFilters[header] && columnFilters[header].length > 0)
+                                ? "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/60 font-bold"
+                                : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                            )}
+                            title={`Filter "${header}"`}
+                          >
+                            <Filter className="w-3 h-3" />
+                          </button>
                         )}
-                      </span>
+                        <span className="shrink-0 text-zinc-400">
+                          {isSorted ? (
+                            sortConfig.direction === 'asc' ? (
+                              <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold" />
+                            ) : (
+                              <ArrowDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400" />
+                          )}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Column Resizer Boundary Handle */}
@@ -2734,6 +3197,22 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                     title="Click to select entire row"
                   >
                     <div className="flex items-center justify-center gap-1">
+                      {/* Outline Group Toggle */}
+                      {rowGroups.find(g => g.startRow === rIndex) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRowGroups(groups =>
+                              groups.map(g => g.startRow === rIndex ? { ...g, collapsed: !g.collapsed } : g)
+                            );
+                          }}
+                          className="w-3.5 h-3.5 flex items-center justify-center rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-blue-200 text-zinc-700 dark:text-zinc-300 font-mono text-[9px] font-bold cursor-pointer"
+                          title="Toggle Outline Group"
+                        >
+                          {rowGroups.find(g => g.startRow === rIndex)?.collapsed ? '+' : '−'}
+                        </button>
+                      )}
                       {isNewRow && (
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Newly added row" />
                       )}
@@ -3925,6 +4404,124 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
             onUndoLastAction={handleUndoLastCleaningAction}
             onClose={() => setShowHistoryModal(false)}
           />
+        </div>
+      )}
+
+      {/* Phase 8P-2W Floating AutoFilter Popover */}
+      {filterPopoverCol && (
+        <div
+          ref={filterPopoverRef}
+          className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-3 w-64 text-xs font-sans animate-in fade-in zoom-in-95 duration-100"
+          style={{
+            top: '180px',
+            left: '280px',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-2">
+            <span className="font-bold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              Filter: {filterPopoverCol}
+            </span>
+            <button
+              onClick={() => setFilterPopoverCol(null)}
+              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Search values */}
+          <div className="relative mb-2">
+            <Search className="w-3 h-3 text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search values..."
+              value={filterSearchTerm}
+              onChange={(e) => setFilterSearchTerm(e.target.value)}
+              className="w-full pl-6 pr-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100"
+            />
+          </div>
+
+          {/* Select all / clear buttons */}
+          <div className="flex items-center justify-between text-[11px] text-blue-600 dark:text-blue-400 mb-2 px-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                const distinct = Array.from(new Set(workingData.map(r => String(r[filterPopoverCol] ?? ''))));
+                setColumnFilters(prev => ({ ...prev, [filterPopoverCol]: distinct }));
+              }}
+              className="hover:underline font-semibold cursor-pointer"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setColumnFilters(prev => ({ ...prev, [filterPopoverCol]: [] }));
+              }}
+              className="hover:underline font-semibold cursor-pointer"
+            >
+              Clear All
+            </button>
+          </div>
+
+          {/* Value List */}
+          <div className="max-h-40 overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded-md p-1 space-y-1 custom-scrollbar">
+            {Array.from(new Set(workingData.map(r => String(r[filterPopoverCol] ?? ''))))
+              .filter(val => val.toLowerCase().includes(filterSearchTerm.toLowerCase()))
+              .map(val => {
+                const allDistinct = Array.from(new Set(workingData.map(r => String(r[filterPopoverCol] ?? ''))));
+                const currentSelected = columnFilters[filterPopoverCol] ?? allDistinct;
+                const isChecked = currentSelected.includes(val);
+                return (
+                  <label key={val} className="flex items-center gap-2 px-1.5 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded cursor-pointer text-zinc-700 dark:text-zinc-300 select-none">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        const current = columnFilters[filterPopoverCol] || allDistinct;
+                        let next: string[];
+                        if (e.target.checked) {
+                          next = [...current, val];
+                        } else {
+                          next = current.filter(v => v !== val);
+                        }
+                        setColumnFilters(prev => ({ ...prev, [filterPopoverCol]: next }));
+                      }}
+                      className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                    />
+                    <span className="truncate">{val === '' ? '(Blanks)' : val}</span>
+                  </label>
+                );
+              })}
+          </div>
+
+          <div className="flex items-center justify-between mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setColumnFilters(prev => {
+                  const next = { ...prev };
+                  delete next[filterPopoverCol];
+                  return next;
+                });
+                setFilterPopoverCol(null);
+              }}
+              className="text-xs h-7 px-2 text-zinc-600 dark:text-zinc-400"
+            >
+              Reset
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setFilterPopoverCol(null)}
+              className="text-xs h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+            >
+              Apply Filter
+            </Button>
+          </div>
         </div>
       )}
 

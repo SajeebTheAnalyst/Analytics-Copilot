@@ -9,18 +9,30 @@ import {
   CleaningActionType, 
   CleaningPreviewResult,
   previewTrimWhitespace,
+  previewCleanCharacters,
   previewCapitalization,
   previewFindReplace,
   previewMergeCategorical,
   previewRemoveDuplicates,
   previewRemoveEmptyRows,
+  previewRemoveEmptyColumns,
   previewFillMissing,
   previewClearCells,
   previewDeleteColumns,
   previewSplitColumn,
+  previewExtractBeforeDelimiter,
+  previewExtractAfterDelimiter,
+  previewExtractBetweenDelimiters,
   previewExtractDate,
   previewExtractTime,
-  previewChangeDataType
+  previewChangeDataType,
+  previewFlashFill,
+  previewFillSeries,
+  previewFillUp,
+  previewFillDown,
+  previewStandardizeValues,
+  previewCalculateColumn,
+  previewConditionalTransform
 } from '@/lib/manualCleaningEngine';
 
 interface CleaningPreviewModalProps {
@@ -81,11 +93,44 @@ export function CleaningPreviewModal({
   // Change Data Type state
   const [targetDataType, setTargetDataType] = useState<string>('Numeric');
 
+  // Clean Characters state
+  const [cleanCharMode, setCleanCharMode] = useState<'all_non_printable' | 'control_chars' | 'strip_symbols'>('all_non_printable');
+
+  // Extraction Delimiters
+  const [extractDelimiter, setExtractDelimiter] = useState<string>('@');
+  const [startDelim, setStartDelim] = useState<string>('(');
+  const [endDelim, setEndDelim] = useState<string>(')');
+
+  // Flash Fill state
+  const [flashPattern, setFlashPattern] = useState<'extract_first_word' | 'extract_last_word' | 'extract_initials' | 'extract_numbers' | 'uppercase_first'>('extract_first_word');
+
+  // Fill Series state
+  const [seriesStart, setSeriesStart] = useState<number>(1);
+  const [seriesStep, setSeriesStep] = useState<number>(1);
+
+  // Standardize Values state
+  const [standardizeMode, setStandardizeMode] = useState<'all' | 'text' | 'dates' | 'numbers' | 'booleans'>('all');
+
+  // Calculate Column state
+  const [calcType, setCalcType] = useState<'percent_of_total' | 'running_total' | 'multiply_factor' | 'add_constant' | 'diff_prev_row' | 'z_score'>('percent_of_total');
+  const [calcFactor, setCalcFactor] = useState<number>(1.1);
+  const [calcNewCol, setCalcNewCol] = useState<boolean>(true);
+
+  // Conditional Transform state
+  const [condType, setCondType] = useState<'greater_than' | 'less_than' | 'equals' | 'contains' | 'is_blank' | 'is_not_blank'>('greater_than');
+  const [condVal, setCondVal] = useState<string>('100');
+  const [thenVal, setThenVal] = useState<string>('High');
+  const [elseVal, setElseVal] = useState<string>('Normal');
+  const [condNewColName, setCondNewColName] = useState<string>('');
+
   // Calculate live Preview Result
   const previewResult: CleaningPreviewResult = useMemo(() => {
     switch (actionType) {
       case 'trim_whitespace':
         return previewTrimWhitespace(data, headers, formulas, selectedColumn);
+
+      case 'clean_characters':
+        return previewCleanCharacters(data, headers, formulas, selectedColumn, cleanCharMode);
 
       case 'text_capitalization':
         return previewCapitalization(data, headers, formulas, selectedColumn, casingStyle);
@@ -118,6 +163,9 @@ export function CleaningPreviewModal({
       case 'remove_empty_rows':
         return previewRemoveEmptyRows(data, headers);
 
+      case 'remove_empty_columns':
+        return previewRemoveEmptyColumns(data, headers, formulas);
+
       case 'fill_missing':
         return previewFillMissing(data, headers, formulas, selectedColumn, fillStrategy, customFillVal);
 
@@ -130,6 +178,15 @@ export function CleaningPreviewModal({
       case 'split_column':
         return previewSplitColumn(data, headers, formulas, selectedColumn, splitDelimiter);
 
+      case 'extract_before_delimiter':
+        return previewExtractBeforeDelimiter(data, headers, formulas, selectedColumn, extractDelimiter);
+
+      case 'extract_after_delimiter':
+        return previewExtractAfterDelimiter(data, headers, formulas, selectedColumn, extractDelimiter);
+
+      case 'extract_between_delimiters':
+        return previewExtractBetweenDelimiters(data, headers, formulas, selectedColumn, startDelim, endDelim);
+
       case 'extract_date':
         return previewExtractDate(data, headers, formulas, selectedColumn);
 
@@ -139,13 +196,37 @@ export function CleaningPreviewModal({
       case 'change_data_type':
         return previewChangeDataType(data, headers, formulas, selectedColumn, targetDataType);
 
+      case 'flash_fill':
+        return previewFlashFill(data, headers, formulas, selectedColumn, flashPattern);
+
+      case 'fill_series':
+        return previewFillSeries(data, headers, formulas, selectedColumn, seriesStart, seriesStep);
+
+      case 'fill_up':
+        return previewFillUp(data, headers, formulas, selectedColumn);
+
+      case 'fill_down':
+        return previewFillDown(data, headers, formulas, selectedColumn);
+
+      case 'standardize_values':
+        return previewStandardizeValues(data, headers, formulas, selectedColumn, standardizeMode);
+
+      case 'calculate_column':
+        return previewCalculateColumn(data, headers, formulas, selectedColumn, calcType, calcFactor, calcNewCol);
+
+      case 'conditional_transform':
+        return previewConditionalTransform(data, headers, formulas, selectedColumn, condType, condVal, thenVal, elseVal, condNewColName);
+
       default:
         return previewTrimWhitespace(data, headers, formulas, selectedColumn);
     }
   }, [
     actionType, selectedColumn, casingStyle, searchVal, replaceVal, 
     matchExact, caseSensitive, selectedVariations, targetCategoricalVal, 
-    fillStrategy, customFillVal, colsToDelete, splitDelimiter, targetDataType, data, headers, formulas
+    fillStrategy, customFillVal, colsToDelete, splitDelimiter, targetDataType,
+    cleanCharMode, extractDelimiter, startDelim, endDelim, flashPattern,
+    seriesStart, seriesStep, standardizeMode, calcType, calcFactor, calcNewCol,
+    condType, condVal, thenVal, elseVal, condNewColName, data, headers, formulas
   ]);
 
   const handleApply = () => {
@@ -198,7 +279,7 @@ export function CleaningPreviewModal({
               </span>
 
               {/* Column Selector for column-level actions */}
-              {['trim_whitespace', 'text_capitalization', 'find_replace', 'merge_categorical', 'fill_missing', 'clear_cells', 'split_column', 'extract_date', 'extract_time', 'change_data_type'].includes(actionType) && (
+              {['trim_whitespace', 'clean_characters', 'text_capitalization', 'find_replace', 'merge_categorical', 'fill_missing', 'clear_cells', 'split_column', 'extract_before_delimiter', 'extract_after_delimiter', 'extract_between_delimiters', 'extract_date', 'extract_time', 'change_data_type', 'flash_fill', 'fill_series', 'fill_up', 'fill_down'].includes(actionType) && (
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Target Column:</label>
                   <select
@@ -206,7 +287,7 @@ export function CleaningPreviewModal({
                     onChange={(e) => setSelectedColumn(e.target.value)}
                     className="h-8 px-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg font-medium text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    {actionType === 'trim_whitespace' && <option value="All">All Columns</option>}
+                    {(actionType === 'trim_whitespace' || actionType === 'clean_characters') && <option value="All">All Columns</option>}
                     {headers.map(h => (
                       <option key={h} value={h}>
                         {h} {formulas[h] ? '(Formula)' : ''}
@@ -219,7 +300,40 @@ export function CleaningPreviewModal({
 
             {/* Custom parameters by Action Type */}
 
-            {/* 1. Capitalization Controls */}
+            {/* 1. Clean Characters Controls */}
+            {actionType === 'clean_characters' && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1.5">
+                  Clean Mode:
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { label: 'All Non-Printable & Zero-Width', val: 'all_non_printable' },
+                    { label: 'Control Chars Only (ASCII 0-31)', val: 'control_chars' },
+                    { label: 'Strip Special Symbols', val: 'strip_symbols' },
+                  ].map((m) => (
+                    <button
+                      key={m.val}
+                      type="button"
+                      onClick={() => setCleanCharMode(m.val as any)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        cleanCharMode === m.val
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                      )}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Removes unprintable ASCII characters, zero-width spaces, and control codes from text cells.
+                </p>
+              </div>
+            )}
+
+            {/* 2. Capitalization Controls */}
             {actionType === 'text_capitalization' && (
               <div className="flex items-center gap-2">
                 <span className="font-bold text-zinc-700 dark:text-zinc-300">Format Case:</span>
@@ -242,7 +356,7 @@ export function CleaningPreviewModal({
               </div>
             )}
 
-            {/* 2. Find & Replace Controls */}
+            {/* 3. Find & Replace Controls */}
             {actionType === 'find_replace' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -292,7 +406,7 @@ export function CleaningPreviewModal({
               </div>
             )}
 
-            {/* 3. Categorical Variations Merge Controls */}
+            {/* 4. Categorical Variations Merge Controls */}
             {actionType === 'merge_categorical' && (
               <div className="space-y-3">
                 <div>
@@ -339,7 +453,7 @@ export function CleaningPreviewModal({
               </div>
             )}
 
-            {/* 4. Fill Missing Value Controls */}
+            {/* 5. Fill Missing Value Controls */}
             {actionType === 'fill_missing' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -418,7 +532,115 @@ export function CleaningPreviewModal({
               </div>
             )}
 
-            {/* 7. Extract Date Controls */}
+            {/* 7. Extract Before Delimiter */}
+            {actionType === 'extract_before_delimiter' && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                  Extract Before Delimiter:
+                </label>
+                <div className="flex items-center gap-2">
+                  {[
+                    { label: 'At (@)', val: '@' },
+                    { label: 'Space ( )', val: ' ' },
+                    { label: 'Comma (,)', val: ',' },
+                    { label: 'Dash (-)', val: '-' },
+                    { label: 'Dot (.)', val: '.' },
+                  ].map((d) => (
+                    <button
+                      key={d.val}
+                      type="button"
+                      onClick={() => setExtractDelimiter(d.val)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        extractDelimiter === d.val
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                      )}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                  <input
+                    type="text"
+                    value={extractDelimiter}
+                    onChange={(e) => setExtractDelimiter(e.target.value)}
+                    placeholder="Custom"
+                    className="w-20 h-8 px-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 8. Extract After Delimiter */}
+            {actionType === 'extract_after_delimiter' && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                  Extract After Delimiter:
+                </label>
+                <div className="flex items-center gap-2">
+                  {[
+                    { label: 'At (@)', val: '@' },
+                    { label: 'Space ( )', val: ' ' },
+                    { label: 'Comma (,)', val: ',' },
+                    { label: 'Dash (-)', val: '-' },
+                    { label: 'Dot (.)', val: '.' },
+                  ].map((d) => (
+                    <button
+                      key={d.val}
+                      type="button"
+                      onClick={() => setExtractDelimiter(d.val)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        extractDelimiter === d.val
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                      )}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                  <input
+                    type="text"
+                    value={extractDelimiter}
+                    onChange={(e) => setExtractDelimiter(e.target.value)}
+                    placeholder="Custom"
+                    className="w-20 h-8 px-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 9. Extract Between Delimiters */}
+            {actionType === 'extract_between_delimiters' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Start Delimiter:
+                  </label>
+                  <input
+                    type="text"
+                    value={startDelim}
+                    onChange={(e) => setStartDelim(e.target.value)}
+                    placeholder="e.g. ("
+                    className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                    End Delimiter:
+                  </label>
+                  <input
+                    type="text"
+                    value={endDelim}
+                    onChange={(e) => setEndDelim(e.target.value)}
+                    placeholder="e.g. )"
+                    className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 10. Extract Date Controls */}
             {actionType === 'extract_date' && (
               <div className="text-xs text-zinc-600 dark:text-zinc-400">
                 <p>Extracts date component (e.g., <span className="font-mono font-bold">2020-12-12</span>) from column <span className="font-bold">{selectedColumn}</span>.</p>
@@ -426,7 +648,7 @@ export function CleaningPreviewModal({
               </div>
             )}
 
-            {/* 8. Extract Time Controls */}
+            {/* 11. Extract Time Controls */}
             {actionType === 'extract_time' && (
               <div className="text-xs text-zinc-600 dark:text-zinc-400">
                 <p>Extracts time component (e.g., <span className="font-mono font-bold">14:30:00</span>) from column <span className="font-bold">{selectedColumn}</span>.</p>
@@ -434,7 +656,88 @@ export function CleaningPreviewModal({
               </div>
             )}
 
-            {/* 9. Change Data Type Controls */}
+            {/* 12. Flash Fill Controls */}
+            {actionType === 'flash_fill' && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1.5">
+                  Flash Fill Pattern:
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { label: 'First Word / Name', val: 'extract_first_word' },
+                    { label: 'Last Word / Surname', val: 'extract_last_word' },
+                    { label: 'Initials (e.g. J.D.)', val: 'extract_initials' },
+                    { label: 'Extract Numbers Only', val: 'extract_numbers' },
+                    { label: 'Capitalize First Letter', val: 'uppercase_first' },
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() => setFlashPattern(p.val as any)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        flashPattern === p.val
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Intelligently infers and extracts patterns across all rows into a new column.
+                </p>
+              </div>
+            )}
+
+            {/* 13. Fill Series Controls */}
+            {actionType === 'fill_series' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Start Value:
+                  </label>
+                  <input
+                    type="number"
+                    value={seriesStart}
+                    onChange={(e) => setSeriesStart(Number(e.target.value) || 1)}
+                    className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Step Value (Increment):
+                  </label>
+                  <input
+                    type="number"
+                    value={seriesStep}
+                    onChange={(e) => setSeriesStep(Number(e.target.value) || 1)}
+                    className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 14. Fill Down / Fill Up info */}
+            {(actionType === 'fill_down' || actionType === 'fill_up') && (
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                <p>
+                  {actionType === 'fill_down' 
+                    ? `Replicates the top value downwards to fill all subsequent rows in column "${selectedColumn}".` 
+                    : `Replicates the bottom value upwards across column "${selectedColumn}".`}
+                </p>
+              </div>
+            )}
+
+            {/* 15. Remove Empty Columns info */}
+            {actionType === 'remove_empty_columns' && (
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                <p>Scans the entire dataset and removes columns that contain only empty or whitespace values.</p>
+              </div>
+            )}
+
+            {/* 16. Change Data Type Controls */}
             {actionType === 'change_data_type' && (
               <div>
                 <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
@@ -456,6 +759,172 @@ export function CleaningPreviewModal({
                       {t}
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* 17. Standardize Values Controls */}
+            {actionType === 'standardize_values' && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1.5">
+                  Standardization Scope & Mode:
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { label: 'Standardize All Formats', val: 'all' },
+                    { label: 'Text & Extra Spaces', val: 'text' },
+                    { label: 'Dates to ISO (YYYY-MM-DD)', val: 'dates' },
+                    { label: 'Numeric Formats', val: 'numbers' },
+                    { label: 'Booleans (TRUE/FALSE)', val: 'booleans' },
+                  ].map((m) => (
+                    <button
+                      key={m.val}
+                      type="button"
+                      onClick={() => setStandardizeMode(m.val as any)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        standardizeMode === m.val
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                      )}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1.5">
+                  Normalizes inconsistent text spacing, date encodings, boolean flags, and clean numeric values.
+                </p>
+              </div>
+            )}
+
+            {/* 18. Calculate Column Controls */}
+            {actionType === 'calculate_column' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1.5">
+                    Calculation Type:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { label: '% of Column Total', val: 'percent_of_total' },
+                      { label: 'Cumulative / Running Total', val: 'running_total' },
+                      { label: 'Multiply by Factor', val: 'multiply_factor' },
+                      { label: 'Add Constant', val: 'add_constant' },
+                      { label: 'Difference vs Prev Row', val: 'diff_prev_row' },
+                      { label: 'Z-Score Normalization', val: 'z_score' },
+                    ].map((c) => (
+                      <button
+                        key={c.val}
+                        type="button"
+                        onClick={() => setCalcType(c.val as any)}
+                        className={cn(
+                          "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all text-left truncate cursor-pointer",
+                          calcType === c.val
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                        )}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {(calcType === 'multiply_factor' || calcType === 'add_constant') && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                      {calcType === 'multiply_factor' ? 'Multiplication Factor:' : 'Constant Value to Add:'}
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={calcFactor}
+                      onChange={(e) => setCalcFactor(parseFloat(e.target.value) || 1)}
+                      className="w-48 h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 19. Conditional Transform Controls */}
+            {actionType === 'conditional_transform' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                      Condition Rule:
+                    </label>
+                    <select
+                      value={condType}
+                      onChange={(e) => setCondType(e.target.value as any)}
+                      className="w-full h-8 px-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                    >
+                      <option value="greater_than">Is Greater Than (&gt;)</option>
+                      <option value="less_than">Is Less Than (&lt;)</option>
+                      <option value="equals">Equals (==)</option>
+                      <option value="contains">Text Contains</option>
+                      <option value="is_blank">Is Blank / Empty</option>
+                      <option value="is_not_blank">Is Not Blank</option>
+                    </select>
+                  </div>
+
+                  {condType !== 'is_blank' && condType !== 'is_not_blank' && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                        Compare Value:
+                      </label>
+                      <input
+                        type="text"
+                        value={condVal}
+                        onChange={(e) => setCondVal(e.target.value)}
+                        placeholder="e.g. 100 or Active"
+                        className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                      New Column Name:
+                    </label>
+                    <input
+                      type="text"
+                      value={condNewColName}
+                      onChange={(e) => setCondNewColName(e.target.value)}
+                      placeholder={`${selectedColumn}_flag`}
+                      className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-emerald-700 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      THEN Assign (Match):
+                    </label>
+                    <input
+                      type="text"
+                      value={thenVal}
+                      onChange={(e) => setThenVal(e.target.value)}
+                      placeholder="e.g. High or Yes"
+                      className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-700 dark:text-emerald-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                      ELSE Assign (No Match):
+                    </label>
+                    <input
+                      type="text"
+                      value={elseVal}
+                      onChange={(e) => setElseVal(e.target.value)}
+                      placeholder="e.g. Normal or No"
+                      className="w-full h-8 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
             )}
