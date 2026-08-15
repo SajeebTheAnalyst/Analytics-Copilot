@@ -6,7 +6,8 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, 
   Copy, Check, ChevronDown, Filter, 
   RotateCcw, Table as TableIcon, Layers, Plus, Trash2, Edit3, Save, X, AlertCircle, PlusCircle, AlertTriangle, Calculator, Search, ShieldAlert, ShieldCheck, Wrench, History, Sparkles,
-  Undo2, Redo2, Columns, Database, Eraser, Rows, Columns3, SplitSquareVertical, Lock
+  Undo2, Redo2, Columns, Database, Eraser, Rows, Columns3, SplitSquareVertical, Lock,
+  Scissors, ArrowLeftRight, Percent, DollarSign, AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
@@ -372,10 +373,27 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     row: number;
     col: number;
     header: string;
+    targetType?: 'cell' | 'row' | 'column';
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [isDraggingContextMenu, setIsDraggingContextMenu] = useState<boolean>(false);
   const menuDragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Dedicated Column Header Context Menu state (Phase 8P-2W)
+  const [columnContextMenu, setColumnContextMenu] = useState<{
+    x: number;
+    y: number;
+    col: number;
+    header: string;
+  } | null>(null);
+  const columnContextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Column Width Modal state
+  const [columnWidthModal, setColumnWidthModal] = useState<{
+    header: string;
+    currentWidth: number;
+  } | null>(null);
+  const [customColumnWidthInput, setCustomColumnWidthInput] = useState<string>('150');
 
   // Column Visibility Popover
   const [showColumnsDropdown, setShowColumnsDropdown] = useState<boolean>(false);
@@ -1974,32 +1992,137 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   };
 
   // Right-Click Context Menu Handler
-  const handleContextMenu = (rIndex: number, cIndex: number, header: string, e: React.MouseEvent) => {
+  const handleContextMenu = (
+    rIndex: number, 
+    cIndex: number, 
+    header: string, 
+    e: React.MouseEvent,
+    targetType: 'cell' | 'row' | 'column' = 'cell'
+  ) => {
     e.preventDefault();
+    e.stopPropagation();
     if (editingCell) return;
 
-    if (
-      !rangeBounds || 
-      rIndex < rangeBounds.minRow || 
-      rIndex > rangeBounds.maxRow || 
-      cIndex < rangeBounds.minCol || 
-      cIndex > rangeBounds.maxCol
-    ) {
-      setSelectedCell({ row: rIndex, col: cIndex });
-      setSelectionRange({
-        startRow: rIndex,
-        startCol: cIndex,
-        endRow: rIndex,
-        endCol: cIndex,
-      });
+    if (targetType === 'row') {
+      if (!rangeBounds || rIndex < rangeBounds.minRow || rIndex > rangeBounds.maxRow) {
+        setSelectedCell({ row: rIndex, col: 0 });
+        setSelectionRange({
+          startRow: rIndex,
+          startCol: 0,
+          endRow: rIndex,
+          endCol: Math.max(0, visibleHeaders.length - 1),
+        });
+      }
+    } else if (targetType === 'column') {
+      if (!rangeBounds || cIndex < rangeBounds.minCol || cIndex > rangeBounds.maxCol) {
+        setSelectedCell({ row: 0, col: cIndex });
+        setSelectionRange({
+          startRow: 0,
+          startCol: cIndex,
+          endRow: Math.max(0, displayedRows.length - 1),
+          endCol: cIndex,
+        });
+      }
+    } else {
+      if (
+        !rangeBounds || 
+        rIndex < rangeBounds.minRow || 
+        rIndex > rangeBounds.maxRow || 
+        cIndex < rangeBounds.minCol || 
+        cIndex > rangeBounds.maxCol
+      ) {
+        setSelectedCell({ row: rIndex, col: cIndex });
+        setSelectionRange({
+          startRow: rIndex,
+          startCol: cIndex,
+          endRow: rIndex,
+          endCol: cIndex,
+        });
+      }
+    }
+
+    const targetEl = e.currentTarget as HTMLElement | null;
+    const rect = targetEl?.getBoundingClientRect ? targetEl.getBoundingClientRect() : null;
+
+    const MENU_WIDTH = 256;
+    const MENU_HEIGHT = 380;
+    const PADDING = 8;
+    const GAP = 3;
+
+    const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+
+    let x = e.clientX;
+    let y = e.clientY;
+
+    if (rect) {
+      if (targetType === 'column') {
+        // Open below the column header
+        y = rect.bottom + GAP;
+        if (y + MENU_HEIGHT > vh - PADDING) {
+          if (rect.top - MENU_HEIGHT - GAP >= PADDING) {
+            y = rect.top - MENU_HEIGHT - GAP;
+          } else {
+            y = Math.max(PADDING, vh - MENU_HEIGHT - PADDING);
+          }
+        }
+        x = rect.left;
+        if (x + MENU_WIDTH > vw - PADDING) {
+          x = Math.max(PADDING, rect.right - MENU_WIDTH);
+        }
+        x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, x));
+      } else if (targetType === 'row') {
+        // Open to the right of the row number cell
+        x = rect.right + GAP;
+        if (x + MENU_WIDTH > vw - PADDING) {
+          x = Math.max(PADDING, rect.left - MENU_WIDTH - GAP);
+        }
+        x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, x));
+        
+        y = rect.top;
+        if (y + MENU_HEIGHT > vh - PADDING) {
+          y = Math.max(PADDING, rect.bottom - MENU_HEIGHT);
+        }
+        y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, y));
+      } else {
+        // Normal Cell: Try opening to the RIGHT of the clicked cell
+        const spaceRight = vw - (rect.right + GAP);
+        const spaceLeft = rect.left - GAP;
+        
+        if (spaceRight >= MENU_WIDTH + PADDING) {
+          x = rect.right + GAP;
+        } else if (spaceLeft >= MENU_WIDTH + PADDING) {
+          // If not enough space on the right, open to the left
+          x = rect.left - MENU_WIDTH - GAP;
+        } else {
+          // If both sides are constrained, choose position with most available space
+          if (spaceRight >= spaceLeft) {
+            x = Math.max(PADDING, vw - MENU_WIDTH - PADDING);
+          } else {
+            x = PADDING;
+          }
+        }
+
+        // Vertical positioning: start aligned with top of cell
+        y = rect.top;
+        if (y + MENU_HEIGHT > vh - PADDING) {
+          // If not enough space below, open above or align bottom
+          y = Math.max(PADDING, rect.bottom - MENU_HEIGHT);
+        }
+        y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, y));
+      }
+    } else {
+      x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, e.clientX + GAP));
+      y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, e.clientY));
     }
 
     setContextMenu({
-      x: Math.max(10, Math.min(e.clientX, window.innerWidth - 280)),
-      y: Math.max(10, Math.min(e.clientY, window.innerHeight - 380)),
+      x,
+      y,
       row: rIndex,
       col: cIndex,
       header,
+      targetType,
     });
   };
 
@@ -2051,6 +2174,177 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   const handleShowAllColumns = () => {
     setHiddenColumns(new Set());
     setShowColumnsDropdown(false);
+  };
+
+  // ----------------------------------------------------
+  // Phase 8P-2W: Excel-Style Column Header Context Menu Logic
+  // ----------------------------------------------------
+  const handleColumnHeaderContextMenu = (
+    header: string,
+    cIndex: number,
+    e: React.MouseEvent
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (editingCell) return;
+
+    // 1. Select the entire column
+    setSelectedCell({ row: 0, col: cIndex });
+    setSelectionRange({
+      startRow: 0,
+      startCol: cIndex,
+      endRow: Math.max(0, displayedRows.length - 1),
+      endCol: cIndex,
+    });
+
+    // 2. Dismiss any generic cell context menu
+    setContextMenu(null);
+
+    // 3. Anchor Excel-style context menu right below/beside the clicked column header
+    const targetEl = e.currentTarget as HTMLElement | null;
+    const rect = targetEl?.getBoundingClientRect ? targetEl.getBoundingClientRect() : null;
+
+    const MENU_WIDTH = 250;
+    const MENU_HEIGHT = 480;
+    const PADDING = 8;
+    const GAP = 2;
+
+    const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+
+    let x = e.clientX;
+    let y = e.clientY;
+
+    if (rect) {
+      // Excel-style anchoring: aligned directly below the clicked column header
+      y = rect.bottom + GAP;
+      x = Math.max(rect.left, Math.min(e.clientX - 10, rect.right - MENU_WIDTH));
+
+      // Viewport overflow bounds check
+      if (y + MENU_HEIGHT > vh - PADDING) {
+        if (rect.top - MENU_HEIGHT - GAP >= PADDING) {
+          y = rect.top - MENU_HEIGHT - GAP;
+        } else {
+          y = Math.max(PADDING, vh - MENU_HEIGHT - PADDING);
+        }
+      }
+
+      if (x + MENU_WIDTH > vw - PADDING) {
+        x = Math.max(PADDING, vw - MENU_WIDTH - PADDING);
+      }
+      x = Math.max(PADDING, x);
+    } else {
+      x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, e.clientX));
+      y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, e.clientY));
+    }
+
+    setColumnContextMenu({
+      x,
+      y,
+      col: cIndex,
+      header,
+    });
+  };
+
+  // Column Context Menu Actions
+  const handleColumnCut = (header: string) => {
+    copyToClipboard();
+    setSaveFeedback(`Cut column "${header}" (Copied to clipboard)`);
+    setTimeout(() => setSaveFeedback(null), 2500);
+    setColumnContextMenu(null);
+  };
+
+  const handleColumnCopy = () => {
+    copyToClipboard();
+    setColumnContextMenu(null);
+  };
+
+  const handleInsertColumnAt = (targetIndex: number) => {
+    let baseName = 'New_Column';
+    let counter = 1;
+    let candidate = baseName;
+    while (workingHeaders.some(h => h.toLowerCase() === candidate.toLowerCase())) {
+      counter++;
+      candidate = `${baseName}_${counter}`;
+    }
+
+    const nextHeaders = [...workingHeaders];
+    nextHeaders.splice(targetIndex, 0, candidate);
+
+    setWorkingHeaders(nextHeaders);
+    setWorkingColumnTypes(prev => ({ ...prev, [candidate]: 'text' }));
+    setWorkingData(prev => prev.map(r => ({ ...r, [candidate]: null })));
+    setAddedColumns(prev => new Set(prev).add(candidate));
+    setIsDirty(true);
+    setSaveFeedback(`Inserted column "${candidate}"`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+    setColumnContextMenu(null);
+  };
+
+  const handleDeleteColumn = (header: string) => {
+    if (workingHeaders.length <= 1) {
+      setWarningToast('Cannot delete the only remaining column.');
+      setTimeout(() => setWarningToast(null), 3500);
+      setColumnContextMenu(null);
+      return;
+    }
+
+    if (workingFormulas[header]) {
+      handleDeleteFormulaColumn(header);
+      setColumnContextMenu(null);
+      return;
+    }
+
+    const nextHeaders = workingHeaders.filter(h => h !== header);
+    const nextTypes = { ...workingColumnTypes };
+    delete nextTypes[header];
+    const nextFormats = { ...workingColumnFormats };
+    delete nextFormats[header];
+
+    const nextData = workingData.map(r => {
+      const { [header]: _, ...rest } = r;
+      return rest;
+    });
+
+    recalculateAndSetData(nextData, nextHeaders, workingFormulas);
+    setWorkingHeaders(nextHeaders);
+    setWorkingColumnTypes(nextTypes);
+    setWorkingColumnFormats(nextFormats);
+    setIsDirty(true);
+    setSaveFeedback(`Deleted column "${header}"`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+    setColumnContextMenu(null);
+  };
+
+  const handleClearColumnContents = (header: string) => {
+    if (workingFormulas[header]) {
+      setWarningToast(`Column "${header}" is calculated by formula and cannot be manually cleared.`);
+      setTimeout(() => setWarningToast(null), 3500);
+      setColumnContextMenu(null);
+      return;
+    }
+
+    const nextData = workingData.map(r => ({
+      ...r,
+      [header]: null,
+    }));
+    recalculateAndSetData(nextData, workingHeaders, workingFormulas);
+    setIsDirty(true);
+    setSaveFeedback(`Cleared contents of column "${header}"`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+    setColumnContextMenu(null);
+  };
+
+  const handleAutoFitSingleColumn = (header: string) => {
+    const maxLen = Math.max(
+      header.length,
+      ...displayedRows.map(row => String(row[header] || '').length)
+    );
+    const newWidth = Math.max(90, Math.min(500, maxLen * 9 + 36));
+    setColumnWidths(prev => ({ ...prev, [header]: newWidth }));
+    setSaveFeedback(`Auto-fitted column "${header}" (${newWidth}px)`);
+    setTimeout(() => setSaveFeedback(null), 2500);
+    setColumnContextMenu(null);
   };
 
   // Data type badge formatter
@@ -2160,14 +2454,19 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   // Close context menu & dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenu) setContextMenu(null);
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+      if (columnContextMenuRef.current && !columnContextMenuRef.current.contains(e.target as Node)) {
+        setColumnContextMenu(null);
+      }
       if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(e.target as Node)) {
         setShowColumnsDropdown(false);
       }
     };
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
-  }, [contextMenu]);
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [contextMenu, columnContextMenu]);
 
   const isFormulaColumnSelected = useMemo(() => {
     if (!selectedCell || !selectionRange) return false;
@@ -2314,6 +2613,10 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         ref={gridRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        onScroll={() => {
+          if (contextMenu) setContextMenu(null);
+          if (columnContextMenu) setColumnContextMenu(null);
+        }}
         className="flex-1 min-h-[300px] overflow-auto custom-scrollbar focus:outline-none select-none relative bg-white dark:bg-[#0c0c0e]"
       >
         <table className="w-full text-left border-collapse whitespace-nowrap min-w-max font-mono text-xs">
@@ -2340,7 +2643,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                       isHeaderActive && "bg-blue-100/70 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 font-bold"
                     )}
                     onClick={() => handleHeaderClick(header, cIndex)}
-                    onContextMenu={(e) => handleContextMenu(0, cIndex, header, e)}
+                    onContextMenu={(e) => handleColumnHeaderContextMenu(header, cIndex, e)}
                     onDoubleClick={() => {
                       setRenamingHeader(header);
                       setRenameValue(header);
@@ -2350,6 +2653,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                     <div className="flex items-center justify-between gap-2 overflow-hidden">
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-zinc-400 font-mono font-bold mr-0.5">{getColumnLetter(cIndex)}</span>
                           <span className="truncate text-xs font-bold text-zinc-900 dark:text-zinc-100 font-sans" title={`Double-click to rename "${header}"`}>
                             {header}
                           </span>
@@ -2420,7 +2724,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                   {/* Fixed Row Number (#) */}
                   <td
                     onClick={() => handleSelectRow(rIndex)}
-                    onContextMenu={(e) => handleContextMenu(rIndex, 0, visibleHeaders[0] || '', e)}
+                    onContextMenu={(e) => handleContextMenu(rIndex, 0, visibleHeaders[0] || '', e, 'row')}
                     className={cn(
                       "py-2 px-2 border-r border-zinc-200/80 dark:border-zinc-800/80 sticky left-0 font-bold text-center z-10 shadow-[1px_0_0_0_#e4e4e7] dark:shadow-[1px_0_0_0_#27272a] cursor-pointer text-[10px] select-none transition-colors",
                       isRowActive 
@@ -2514,7 +2818,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                         onMouseDown={(e) => handleCellMouseDown(rIndex, cIndex, e)}
                         onMouseEnter={() => handleCellMouseEnter(rIndex, cIndex)}
                         onDoubleClick={() => startEditingCell(rIndex, cIndex)}
-                        onContextMenu={(e) => handleContextMenu(rIndex, cIndex, header, e)}
+                        onContextMenu={(e) => handleContextMenu(rIndex, cIndex, header, e, 'cell')}
                         className={cn(
                           formatClasses,
                           formula && !cellFormat?.bgColor && "bg-indigo-50/30 dark:bg-indigo-950/20 font-mono",
@@ -2608,12 +2912,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         <div
           ref={contextMenuRef}
           style={{ top: contextMenu.y, left: contextMenu.x }}
-          className="fixed z-50 w-64 bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-0.5 text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-50 w-64 max-h-[calc(100vh-20px)] overflow-y-auto custom-scrollbar bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-0.5 text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Draggable Header / Title Bar */}
           <div 
-            className="px-2.5 py-1.5 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between cursor-move text-[10px] font-bold text-zinc-500 dark:text-zinc-400"
+            className="px-2.5 py-1.5 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between cursor-move text-[10px] font-bold text-zinc-500 dark:text-zinc-400 select-none"
             onMouseDown={(e) => {
               setIsDraggingContextMenu(true);
               menuDragOffset.current = {
@@ -2623,8 +2927,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               const handleMouseMove = (mv: MouseEvent) => {
                 setContextMenu(prev => prev ? {
                   ...prev,
-                  x: Math.max(10, Math.min(window.innerWidth - 260, mv.clientX - menuDragOffset.current.x)),
-                  y: Math.max(10, Math.min(window.innerHeight - 350, mv.clientY - menuDragOffset.current.y)),
+                  x: Math.max(8, Math.min(window.innerWidth - 264, mv.clientX - menuDragOffset.current.x)),
+                  y: Math.max(8, Math.min(window.innerHeight - 120, mv.clientY - menuDragOffset.current.y)),
                 } : null);
               };
               const handleMouseUp = () => {
@@ -2636,8 +2940,15 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               window.addEventListener('mouseup', handleMouseUp);
             }}
           >
-            <span>Cell: {getColumnLetter(contextMenu.col)}{contextMenu.row + 1} ({contextMenu.header})</span>
-            <span className="text-[9px] uppercase tracking-wider text-zinc-400">Context Menu</span>
+            <span className="truncate max-w-[170px]">
+              {contextMenu.targetType === 'row' 
+                ? `Row: #${contextMenu.row + 1}`
+                : contextMenu.targetType === 'column'
+                ? `Column: ${contextMenu.header} (${getColumnLetter(contextMenu.col)})`
+                : `Cell: ${getColumnLetter(contextMenu.col)}${contextMenu.row + 1} (${contextMenu.header})`
+              }
+            </span>
+            <span className="text-[9px] uppercase tracking-wider text-zinc-400 shrink-0">Menu</span>
           </div>
 
           {/* Cell & Edit Actions */}
@@ -2868,6 +3179,295 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       )}
 
       {/* ---------------------------------------------------- */}
+      {/* 4b. Dedicated Column Header Context Menu (Phase 8P-2W) */}
+      {/* ---------------------------------------------------- */}
+      {columnContextMenu && (
+        <div
+          ref={columnContextMenuRef}
+          style={{ top: columnContextMenu.y, left: columnContextMenu.x }}
+          className="fixed z-50 w-60 max-h-[calc(100vh-20px)] overflow-y-auto custom-scrollbar bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-0.5 text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header Title Bar */}
+          <div className="px-2.5 py-1 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
+            <span className="truncate max-w-[150px]">
+              Column: {columnContextMenu.header} ({getColumnLetter(columnContextMenu.col)})
+            </span>
+            <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-mono font-black">Column</span>
+          </div>
+
+          {/* Mini Formatting Toolbar (Excel Style) */}
+          <div className="p-1 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg border border-zinc-200/60 dark:border-zinc-700/60 mb-1">
+            <div className="flex items-center justify-between gap-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, bold: !curr.bold }), "Toggle Bold")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold transition-colors cursor-pointer"
+                title="Bold"
+              >
+                <Bold className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, italic: !curr.italic }), "Toggle Italic")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 italic transition-colors cursor-pointer"
+                title="Italic"
+              >
+                <Italic className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, underline: !curr.underline }), "Toggle Underline")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 underline transition-colors cursor-pointer"
+                title="Underline"
+              >
+                <Underline className="w-3.5 h-3.5" />
+              </button>
+              <div className="w-px h-3.5 bg-zinc-300 dark:bg-zinc-700 my-auto" />
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, align: 'left' }), "Align Left")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
+                title="Align Left"
+              >
+                <AlignLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, align: 'center' }), "Align Center")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
+                title="Align Center"
+              >
+                <AlignCenter className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, align: 'right' }), "Align Right")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
+                title="Align Right"
+              >
+                <AlignRight className="w-3.5 h-3.5" />
+              </button>
+              <div className="w-px h-3.5 bg-zinc-300 dark:bg-zinc-700 my-auto" />
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, numberFormat: 'currency' }), "Format Currency")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold transition-colors cursor-pointer"
+                title="Currency ($)"
+              >
+                <DollarSign className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormattingToSelection(curr => ({ ...curr, numberFormat: 'percent' }), "Format Percent")}
+                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold transition-colors cursor-pointer"
+                title="Percent (%)"
+              >
+                <Percent className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* 1. Cut */}
+          <button
+            onClick={() => handleColumnCut(columnContextMenu.header)}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Scissors className="w-3.5 h-3.5 text-zinc-500" />
+              Cut
+            </span>
+            <span className="text-[10px] text-zinc-400 font-mono">Ctrl+X</span>
+          </button>
+
+          {/* 2. Copy */}
+          <button
+            onClick={handleColumnCopy}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Copy className="w-3.5 h-3.5 text-zinc-500" />
+              Copy
+            </span>
+            <span className="text-[10px] text-zinc-400 font-mono">Ctrl+C</span>
+          </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          {/* 3. Insert Column */}
+          <button
+            onClick={() => handleInsertColumnAt(columnContextMenu.col)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 text-emerald-500" />
+            Insert Column
+          </button>
+
+          {/* 4. Delete Column */}
+          <button
+            onClick={() => handleDeleteColumn(columnContextMenu.header)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            Delete Column
+          </button>
+
+          {/* 5. Clear Contents */}
+          <button
+            onClick={() => handleClearColumnContents(columnContextMenu.header)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Eraser className="w-3.5 h-3.5 text-amber-500" />
+            Clear Contents
+          </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          {/* 6. Rename Column */}
+          <button
+            onClick={() => {
+              setRenamingHeader(columnContextMenu.header);
+              setRenameValue(columnContextMenu.header);
+              setRenameError(null);
+              setColumnContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+            Rename Column...
+          </button>
+
+          {/* 7. Format Cells... */}
+          <button
+            onClick={() => {
+              setFormatModalCol(columnContextMenu.header);
+              setColumnContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Sliders className="w-3.5 h-3.5 text-purple-500" />
+            Format Cells...
+          </button>
+
+          {/* 8. Column Width... */}
+          <button
+            onClick={() => {
+              const curW = columnWidths[columnContextMenu.header] || 150;
+              setColumnWidthModal({
+                header: columnContextMenu.header,
+                currentWidth: curW,
+              });
+              setCustomColumnWidthInput(String(curW));
+              setColumnContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />
+            Column Width...
+          </button>
+
+          {/* 9. AutoFit Column Width */}
+          <button
+            onClick={() => handleAutoFitSingleColumn(columnContextMenu.header)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            AutoFit Column Width
+          </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          {/* 10. Hide Column */}
+          <button
+            onClick={() => {
+              handleHideColumn(columnContextMenu.header);
+              setColumnContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
+            Hide Column
+          </button>
+
+          {/* 11. Unhide Columns */}
+          <button
+            onClick={() => {
+              handleShowAllColumns();
+              setColumnContextMenu(null);
+            }}
+            disabled={hiddenColumns.size === 0}
+            className={cn(
+              "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors",
+              hiddenColumns.size > 0 
+                ? "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer" 
+                : "opacity-40 cursor-not-allowed text-zinc-400"
+            )}
+          >
+            <Eye className="w-3.5 h-3.5 text-zinc-400" />
+            Unhide Columns {hiddenColumns.size > 0 ? `(${hiddenColumns.size})` : ''}
+          </button>
+
+          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+
+          {/* 12. Change Data Type */}
+          {!workingFormulas[columnContextMenu.header] && (
+            <button
+              onClick={() => {
+                setTypeModalCol(columnContextMenu.header);
+                setColumnContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <Database className="w-3.5 h-3.5 text-amber-600" />
+              Change Data Type...
+            </button>
+          )}
+
+          {/* 13. Split Column... */}
+          {!workingFormulas[columnContextMenu.header] && (
+            <button
+              onClick={() => {
+                setActiveCleaningModal({ actionType: 'split_column' as any, column: columnContextMenu.header });
+                setColumnContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <SplitSquareVertical className="w-3.5 h-3.5 text-cyan-600" />
+              Split Column...
+            </button>
+          )}
+
+          {/* 14. Extract Date */}
+          {!workingFormulas[columnContextMenu.header] && (
+            <button
+              onClick={() => {
+                setActiveCleaningModal({ actionType: 'extract_date' as any, column: columnContextMenu.header });
+                setColumnContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+              Extract Date
+            </button>
+          )}
+
+          {/* 15. Extract Time */}
+          {!workingFormulas[columnContextMenu.header] && (
+            <button
+              onClick={() => {
+                setActiveCleaningModal({ actionType: 'extract_time' as any, column: columnContextMenu.header });
+                setColumnContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5 text-blue-600" />
+              Extract Time
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
       {/* 5. Modals */}
       {/* ---------------------------------------------------- */}
 
@@ -3090,7 +3690,11 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
 
       {/* Floating Bulk Operations Toolbar */}
       <BulkOperationsBar
-        selectedCellCount={selectedCellCount}
+        selectedCellCount={
+          (rangeBounds && displayedRows.length > 0 && rangeBounds.minRow === 0 && rangeBounds.maxRow === displayedRows.length - 1 && rangeBounds.minCol === rangeBounds.maxCol)
+            ? 0
+            : selectedCellCount
+        }
         selectedRowCount={selectedRowCount}
         hasFormulaColumnsInSelection={hasFormulaColumnsInSelection}
         onApplyBulkValue={handleApplyBulkValue}
@@ -3102,6 +3706,90 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
           setSelectionRange(null);
         }}
       />
+
+      {/* Column Width Modal (Phase 8P-2W) */}
+      {columnWidthModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-xs p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <ArrowLeftRight className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">Column Width</h3>
+              </div>
+              <button 
+                onClick={() => setColumnWidthModal(null)} 
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                Column Width (pixels) for <span className="font-bold text-zinc-900 dark:text-zinc-100">{columnWidthModal.header}</span>:
+              </label>
+              <input
+                type="number"
+                min="50"
+                max="800"
+                step="5"
+                autoFocus
+                value={customColumnWidthInput}
+                onChange={(e) => setCustomColumnWidthInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const w = parseInt(customColumnWidthInput, 10);
+                    if (!isNaN(w) && w >= 50 && w <= 800) {
+                      setColumnWidths(prev => ({ ...prev, [columnWidthModal.header]: w }));
+                      setColumnWidthModal(null);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setColumnWidthModal(null);
+                  }
+                }}
+                className="w-full px-3 py-2 text-xs font-mono font-bold bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100"
+              />
+              <div className="flex gap-1.5 pt-1">
+                {[100, 150, 200, 260].map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setCustomColumnWidthInput(String(preset))}
+                    className="flex-1 py-1 text-[10px] font-mono font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                  >
+                    {preset}px
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setColumnWidthModal(null)}
+                className="text-xs h-8"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  const w = parseInt(customColumnWidthInput, 10);
+                  if (!isNaN(w) && w >= 50 && w <= 800) {
+                    setColumnWidths(prev => ({ ...prev, [columnWidthModal.header]: w }));
+                    setColumnWidthModal(null);
+                  }
+                }}
+                className="text-xs h-8 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Find & Replace Modal */}
       <FindReplaceModal
