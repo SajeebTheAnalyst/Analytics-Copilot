@@ -397,8 +397,8 @@ export function CleaningView({
       {/* RESET CONFIRMATION MODAL                           */}
       {/* ================================================== */}
       {showResetModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-transparent pointer-events-none flex items-center justify-center z-50 p-4">
+          <div className="pointer-events-auto bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
               <RotateCcw className="w-5 h-5 shrink-0" />
               <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Reset Dataset to Original?</h3>
@@ -423,8 +423,8 @@ export function CleaningView({
       {/* DATA QUALITY AUDIT MODAL OVERLAY                   */}
       {/* ================================================== */}
       {showQualityAudit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-black/50 animate-in fade-in duration-200 overflow-y-auto">
-          <div className="max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar my-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-transparent pointer-events-none animate-in fade-in duration-200 overflow-y-auto">
+          <div className="pointer-events-auto max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar my-auto shadow-2xl rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
             <DataQualityPanel
               dataset={selectedDataset}
               onOpenFixModal={(actionType, col, vars) => {
@@ -449,18 +449,20 @@ export function CleaningView({
       {/* AI DATA CLEANING COPILOT MODAL OVERLAY             */}
       {/* ================================================== */}
       {showAICopilotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200">
-          <AICleaningCopilotPanel
-            dataset={selectedDataset}
-            workingData={selectedDataset.data}
-            workingHeaders={selectedDataset.headers}
-            qualityReport={scanDatasetQuality(selectedDataset, selectedDataset.data)}
-            onOpenFixModal={(actionType, col, vars) => {
-              setShowAICopilotModal(false);
-              setActiveCleaningModal({ actionType, column: col, variations: vars });
-            }}
-            onClose={() => setShowAICopilotModal(false)}
-          />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent pointer-events-none animate-in fade-in duration-200">
+          <div className="pointer-events-auto shadow-2xl rounded-2xl border border-zinc-200 dark:border-zinc-800">
+            <AICleaningCopilotPanel
+              dataset={selectedDataset}
+              workingData={selectedDataset.data}
+              workingHeaders={selectedDataset.headers}
+              qualityReport={scanDatasetQuality(selectedDataset, selectedDataset.data)}
+              onOpenFixModal={(actionType, col, vars) => {
+                setShowAICopilotModal(false);
+                setActiveCleaningModal({ actionType, column: col, variations: vars });
+              }}
+              onClose={() => setShowAICopilotModal(false)}
+            />
+          </div>
         </div>
       )}
 
