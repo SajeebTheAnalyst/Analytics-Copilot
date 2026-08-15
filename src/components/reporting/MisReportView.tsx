@@ -1103,8 +1103,8 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
-                        {reportData.trendAnalysis.trendData.map(item => (
-                          <tr key={item.period} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 odd:bg-zinc-50/20 dark:odd:bg-zinc-900/5">
+                        {reportData.trendAnalysis.trendData.map((item, index) => (
+                          <tr key={`${item.period}-${index}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 odd:bg-zinc-50/20 dark:odd:bg-zinc-900/5">
                             <td className="py-2 px-3 font-bold font-sans text-zinc-800 dark:text-zinc-200">{item.period}</td>
                             <td className="py-2 px-3 text-right font-bold text-zinc-900 dark:text-zinc-50">{item.formattedRevenue}</td>
                             <td className="py-2 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">{item.formattedProfit}</td>
@@ -1146,8 +1146,8 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850/30">
-                      {reportData.varianceAnalysis.items.map(item => (
-                        <tr key={item.metricName} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20">
+                      {reportData.varianceAnalysis.items.map((item, index) => (
+                        <tr key={`${item.metricName}-${index}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20">
                           <td className="py-3 px-4 font-bold font-sans text-zinc-850 dark:text-zinc-150">{item.metricName}</td>
                           <td className="py-3 px-4 text-center text-zinc-500 font-sans text-[11px]">{reportData.varianceAnalysis.currentPeriodLabel}</td>
                           <td className="py-3 px-4 text-center text-zinc-500 font-sans text-[11px]">{reportData.varianceAnalysis.previousPeriodLabel}</td>
