@@ -336,11 +336,11 @@ export function DataUploader({ onDatasetsImported, existingDatasets = [], compac
           e.currentTarget.style.setProperty("--mouse-y", `${y}px`);
         }}
         className={cn(
-          "relative flex flex-col items-center justify-center border border-dashed rounded-xl transition-all cursor-pointer overflow-hidden bg-white/75 dark:bg-zinc-950/75 backdrop-blur-md interactive-glow interactive-glow-bg",
-          compact ? "p-6" : "p-10",
+          "relative flex flex-col items-center justify-center border border-dashed rounded-2xl transition-all cursor-pointer overflow-hidden bg-white/75 dark:bg-zinc-950/75 backdrop-blur-md interactive-glow interactive-glow-bg group shadow-3xs",
+          compact ? "p-6" : "p-12",
           isDragging 
-            ? "border-blue-500/60 bg-blue-50/30 dark:bg-blue-950/15 scale-[1.005] shadow-[0_4px_20px_rgba(59,130,246,0.06)]" 
-            : "border-zinc-200/80 dark:border-zinc-800/80 hover:border-zinc-350 dark:hover:border-zinc-700/60 hover:bg-zinc-50/25 dark:hover:bg-zinc-900/10",
+            ? "border-blue-500 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-950/20 scale-[1.005] ring-4 ring-blue-500/10 dark:ring-blue-400/10 shadow-[0_8px_30px_rgba(59,130,246,0.12)]" 
+            : "border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50/15 dark:hover:bg-zinc-900/5 hover:-translate-y-[1px] hover:shadow-md",
           isUploading && "pointer-events-none opacity-90 border-blue-500/50"
         )}
         onDragEnter={handleDrag}
@@ -370,26 +370,26 @@ export function DataUploader({ onDatasetsImported, existingDatasets = [], compac
           disabled={isUploading}
         />
         
-        <div className="flex flex-col items-center text-center space-y-3.5 z-10">
-          <div className="w-12 h-12 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100/60 dark:border-blue-900/20 flex items-center justify-center text-blue-650 dark:text-blue-400 shadow-3xs animate-float">
-            <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        <div className="flex flex-col items-center text-center space-y-4 z-10">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100/80 dark:border-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-xs animate-float group-hover:scale-110 group-hover:-translate-y-0.5 transition-all duration-300">
+            <UploadCloud className="w-7 h-7 text-blue-600 dark:text-blue-400" />
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Drag and drop your spreadsheet here
+            <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 transition-colors">
+              {isDragging ? "Drop your data here to begin." : "Drag and drop your spreadsheet here"}
             </p>
-            <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">
-              or click to browse local files
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              {isDragging ? "Release mouse button to import instantly" : "or click to browse local files"}
             </p>
           </div>
 
-          <div className="flex items-center gap-3 pt-0.5">
+          <div className="flex items-center gap-3 pt-1">
               <Button 
                 type="button" 
                 variant="outline" 
                 size="sm" 
-                className="text-xs h-8 px-4 border-zinc-250 hover:bg-zinc-100 dark:border-zinc-800/80 font-bold shadow-3xs hover-elevate transition-all duration-200"
+                className="text-xs h-9 px-4 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-semibold shadow-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 hover-elevate transition-all duration-200 rounded-lg cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (fileInputRef.current) {
@@ -404,7 +404,7 @@ export function DataUploader({ onDatasetsImported, existingDatasets = [], compac
                 type="button" 
                 variant="outline" 
                 size="sm" 
-                className="text-xs h-8 px-4 border-zinc-250 hover:bg-zinc-100 dark:border-zinc-800/80 font-bold shadow-3xs hover-elevate transition-all duration-200"
+                className="text-xs h-9 px-4 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-semibold shadow-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 hover-elevate transition-all duration-200 rounded-lg cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (folderInputRef.current) {
