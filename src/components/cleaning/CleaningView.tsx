@@ -381,7 +381,7 @@ export function CleaningView({
       {/* ================================================== */}
       {/* 3. FULL-WIDTH EXCEL DATAGRID WORKSPACE             */}
       {/* ================================================== */}
-      <div className="flex-1 min-h-0 flex flex-col p-2 sm:p-3 bg-transparent overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col px-2 pb-2 pt-0 sm:px-3 sm:pb-3 bg-transparent overflow-hidden">
         <DataGrid 
           ref={gridRef}
           dataset={selectedDataset} 

@@ -2152,7 +2152,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     }
   };
 
-  // Right-Click Context Menu Handler
+  // Right-Click Context Menu Handler (Cell / Row)
   const handleContextMenu = (
     rIndex: number, 
     cIndex: number, 
@@ -2202,13 +2202,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       }
     }
 
-    const targetEl = e.currentTarget as HTMLElement | null;
-    const rect = targetEl?.getBoundingClientRect ? targetEl.getBoundingClientRect() : null;
+    // Dismiss any active column menu
+    setColumnContextMenu(null);
 
-    const MENU_WIDTH = 256;
-    const MENU_HEIGHT = 380;
+    const MENU_WIDTH = 230;
+    const MENU_HEIGHT = 420;
     const PADDING = 8;
-    const GAP = 3;
 
     const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
     const vh = window.innerHeight || document.documentElement.clientHeight || 768;
@@ -2216,65 +2215,16 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     let x = e.clientX;
     let y = e.clientY;
 
-    if (rect) {
-      if (targetType === 'column') {
-        // Open below the column header
-        y = rect.bottom + GAP;
-        if (y + MENU_HEIGHT > vh - PADDING) {
-          if (rect.top - MENU_HEIGHT - GAP >= PADDING) {
-            y = rect.top - MENU_HEIGHT - GAP;
-          } else {
-            y = Math.max(PADDING, vh - MENU_HEIGHT - PADDING);
-          }
-        }
-        x = rect.left;
-        if (x + MENU_WIDTH > vw - PADDING) {
-          x = Math.max(PADDING, rect.right - MENU_WIDTH);
-        }
-        x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, x));
-      } else if (targetType === 'row') {
-        // Open to the right of the row number cell
-        x = rect.right + GAP;
-        if (x + MENU_WIDTH > vw - PADDING) {
-          x = Math.max(PADDING, rect.left - MENU_WIDTH - GAP);
-        }
-        x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, x));
-        
-        y = rect.top;
-        if (y + MENU_HEIGHT > vh - PADDING) {
-          y = Math.max(PADDING, rect.bottom - MENU_HEIGHT);
-        }
-        y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, y));
-      } else {
-        // Normal Cell: Try opening to the RIGHT of the clicked cell
-        const spaceRight = vw - (rect.right + GAP);
-        const spaceLeft = rect.left - GAP;
-        
-        if (spaceRight >= MENU_WIDTH + PADDING) {
-          x = rect.right + GAP;
-        } else if (spaceLeft >= MENU_WIDTH + PADDING) {
-          // If not enough space on the right, open to the left
-          x = rect.left - MENU_WIDTH - GAP;
-        } else {
-          // If both sides are constrained, choose position with most available space
-          if (spaceRight >= spaceLeft) {
-            x = Math.max(PADDING, vw - MENU_WIDTH - PADDING);
-          } else {
-            x = PADDING;
-          }
-        }
-
-        // Vertical positioning: start aligned with top of cell
-        y = rect.top;
-        if (y + MENU_HEIGHT > vh - PADDING) {
-          // If not enough space below, open above or align bottom
-          y = Math.max(PADDING, rect.bottom - MENU_HEIGHT);
-        }
-        y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, y));
-      }
+    if (x + MENU_WIDTH > vw - PADDING) {
+      x = Math.max(PADDING, e.clientX - MENU_WIDTH);
     } else {
-      x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, e.clientX + GAP));
-      y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, e.clientY));
+      x = Math.max(PADDING, x);
+    }
+
+    if (y + MENU_HEIGHT > vh - PADDING) {
+      y = Math.max(PADDING, e.clientY - MENU_HEIGHT);
+    } else {
+      y = Math.max(PADDING, y);
     }
 
     setContextMenu({
@@ -2338,7 +2288,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   };
 
   // ----------------------------------------------------
-  // Phase 8P-2W: Excel-Style Column Header Context Menu Logic
+  // Excel-Style Column Header Context Menu Logic
   // ----------------------------------------------------
   const handleColumnHeaderContextMenu = (
     header: string,
@@ -2361,25 +2311,23 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     // 2. Dismiss any generic cell context menu
     setContextMenu(null);
 
-    // 3. Anchor Excel-style context menu right beside/at the clicked column header interaction point
     const targetEl = e.currentTarget as HTMLElement | null;
     const rect = targetEl?.getBoundingClientRect ? targetEl.getBoundingClientRect() : null;
 
     const MENU_WIDTH = 240;
-    const MENU_HEIGHT = 480;
+    const MENU_HEIGHT = 460;
     const PADDING = 8;
     const GAP = 2;
 
     const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
     const vh = window.innerHeight || document.documentElement.clientHeight || 768;
 
-    // Start directly at cursor X and header cell bottom Y (or click Y)
+    // Anchor at cursor X, column header bottom Y
     let x = e.clientX;
-    let y = rect ? Math.min(e.clientY + GAP, rect.bottom + GAP) : e.clientY + GAP;
+    let y = rect ? rect.bottom + GAP : e.clientY + GAP;
 
-    // Viewport boundary protection
     if (x + MENU_WIDTH > vw - PADDING) {
-      x = Math.max(PADDING, vw - MENU_WIDTH - PADDING);
+      x = Math.max(PADDING, e.clientX - MENU_WIDTH);
     } else {
       x = Math.max(PADDING, x);
     }
@@ -2387,10 +2335,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     if (y + MENU_HEIGHT > vh - PADDING) {
       if (rect && rect.top - MENU_HEIGHT - GAP >= PADDING) {
         y = rect.top - MENU_HEIGHT - GAP;
-      } else if (e.clientY - MENU_HEIGHT - PADDING >= PADDING) {
-        y = e.clientY - MENU_HEIGHT - PADDING;
       } else {
-        y = Math.max(PADDING, vh - MENU_HEIGHT - PADDING);
+        y = Math.max(PADDING, e.clientY - MENU_HEIGHT);
       }
     } else {
       y = Math.max(PADDING, y);
@@ -3453,43 +3399,22 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         <div
           ref={contextMenuRef}
           style={{ top: contextMenu.y, left: contextMenu.x }}
-          className="fixed z-50 w-64 max-h-[calc(100vh-20px)] overflow-y-auto custom-scrollbar bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-0.5 text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-[100] w-[230px] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-1.5 space-y-0.5 text-[12px] font-sans select-none animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Draggable Header / Title Bar */}
-          <div 
-            className="px-2.5 py-1.5 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between cursor-move text-[10px] font-bold text-zinc-500 dark:text-zinc-400 select-none"
-            onMouseDown={(e) => {
-              setIsDraggingContextMenu(true);
-              menuDragOffset.current = {
-                x: e.clientX - contextMenu.x,
-                y: e.clientY - contextMenu.y,
-              };
-              const handleMouseMove = (mv: MouseEvent) => {
-                setContextMenu(prev => prev ? {
-                  ...prev,
-                  x: Math.max(8, Math.min(window.innerWidth - 264, mv.clientX - menuDragOffset.current.x)),
-                  y: Math.max(8, Math.min(window.innerHeight - 120, mv.clientY - menuDragOffset.current.y)),
-                } : null);
-              };
-              const handleMouseUp = () => {
-                setIsDraggingContextMenu(false);
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-              };
-              window.addEventListener('mousemove', handleMouseMove);
-              window.addEventListener('mouseup', handleMouseUp);
-            }}
-          >
-            <span className="truncate max-w-[170px]">
+          {/* Header Title Bar */}
+          <div className="px-2 py-1 mb-1 bg-zinc-100/80 dark:bg-zinc-800/60 rounded-md flex items-center justify-between text-[10px] font-bold text-zinc-500 dark:text-zinc-400 select-none">
+            <span className="truncate max-w-[150px]">
               {contextMenu.targetType === 'row' 
                 ? `Row: #${contextMenu.row + 1}`
                 : contextMenu.targetType === 'column'
                 ? `Column: ${contextMenu.header} (${getColumnLetter(contextMenu.col)})`
-                : `Cell: ${getColumnLetter(contextMenu.col)}${contextMenu.row + 1} (${contextMenu.header})`
+                : `Cell: ${getColumnLetter(contextMenu.col)}${contextMenu.row + 1}`
               }
             </span>
-            <span className="text-[9px] uppercase tracking-wider text-zinc-400 shrink-0">Menu</span>
+            <span className="text-[9px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-mono font-bold shrink-0">
+              {contextMenu.targetType.toUpperCase()}
+            </span>
           </div>
 
           {/* Cell & Edit Actions */}
@@ -3499,13 +3424,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 startEditingCell(contextMenu.row, contextMenu.col);
                 setContextMenu(null);
               }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <span className="flex items-center gap-2">
                 <Edit3 className="w-3.5 h-3.5 text-blue-500" />
                 Edit Cell
               </span>
-              <span className="text-[10px] text-zinc-400 font-mono">Enter</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Enter</span>
             </button>
           )}
 
@@ -3514,13 +3439,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               copyToClipboard();
               setContextMenu(null);
             }}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <span className="flex items-center gap-2">
-              <Copy className="w-3.5 h-3.5 text-blue-500" />
+              <Copy className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
               Copy
             </span>
-            <span className="text-[10px] text-zinc-400 font-mono">Ctrl+C</span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Ctrl+C</span>
           </button>
 
           {!workingFormulas[contextMenu.header] && (
@@ -3529,21 +3454,22 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 handleClearSelectedCells();
                 setContextMenu(null);
               }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <span className="flex items-center gap-2">
                 <Eraser className="w-3.5 h-3.5 text-amber-500" />
                 Clear Cell / Selection
               </span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Del</span>
             </button>
           )}
 
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
 
           {/* Selection Actions */}
           <button
             onClick={() => handleSelectRow(contextMenu.row)}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Rows className="w-3.5 h-3.5 text-indigo-500" />
             Select Row (#{contextMenu.row + 1})
@@ -3551,21 +3477,21 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
 
           <button
             onClick={() => handleSelectColumn(contextMenu.col)}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Columns3 className="w-3.5 h-3.5 text-indigo-500" />
             Select Column ({contextMenu.header})
           </button>
 
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
 
-          {/* Row & Column Structure Actions */}
+          {/* Row Structure Actions */}
           <button
             onClick={() => {
               handleAddRow();
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-500" />
             Add Row
@@ -3576,13 +3502,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               setDeletingRowIndex(contextMenu.row);
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5 text-red-500" />
             Delete Row #{contextMenu.row + 1}
           </button>
 
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
 
           <button
             onClick={() => {
@@ -3591,7 +3517,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               setRenameError(null);
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Edit3 className="w-3.5 h-3.5 text-amber-500" />
             Rename Column "{contextMenu.header}"
@@ -3602,13 +3528,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               handleHideColumn(contextMenu.header);
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
-            <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
+            <EyeOff className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
             Hide Column "{contextMenu.header}"
           </button>
 
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
 
           {/* Find & Replace */}
           <button
@@ -3616,7 +3542,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               setShowFindReplaceModal(true);
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Search className="w-3.5 h-3.5 text-blue-500" />
             Find & Replace...
@@ -3629,7 +3555,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 setTypeModalCol(contextMenu.header);
                 setContextMenu(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <Database className="w-3.5 h-3.5 text-amber-600" />
               Change Data Type...
@@ -3643,7 +3569,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 setActiveCleaningModal({ actionType: 'split_column' as any, column: contextMenu.header });
                 setContextMenu(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <SplitSquareVertical className="w-3.5 h-3.5 text-cyan-600" />
               Split Column...
@@ -3658,7 +3584,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                   setActiveCleaningModal({ actionType: 'extract_date' as any, column: contextMenu.header });
                   setContextMenu(null);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
               >
                 <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                 Extract Date
@@ -3668,7 +3594,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                   setActiveCleaningModal({ actionType: 'extract_time' as any, column: contextMenu.header });
                   setContextMenu(null);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
               >
                 <Clock className="w-3.5 h-3.5 text-blue-600" />
                 Extract Time
@@ -3677,7 +3603,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
           )}
 
           {/* Formula Actions */}
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
           {workingFormulas[contextMenu.header] ? (
             <>
               <button
@@ -3686,7 +3612,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                   setShowFormulaModal(true);
                   setContextMenu(null);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer transition-colors"
               >
                 <Calculator className="w-3.5 h-3.5 text-indigo-500" />
                 Edit Formula ({contextMenu.header})
@@ -3697,7 +3623,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                   handleDeleteFormulaColumn(contextMenu.header);
                   setContextMenu(null);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5 text-red-500" />
                 Delete Formula Column
@@ -3710,7 +3636,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 setShowFormulaModal(true);
                 setContextMenu(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left font-medium text-indigo-700 dark:text-indigo-300 cursor-pointer transition-colors"
             >
               <Calculator className="w-3.5 h-3.5 text-indigo-500" />
               Add Formula Column...
@@ -3720,21 +3646,21 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* 4b. Dedicated Column Header Context Menu (Phase 8P-2W) */}
+      {/* 4b. Dedicated Column Header Context Menu */}
       {/* ---------------------------------------------------- */}
       {columnContextMenu && (
         <div
           ref={columnContextMenuRef}
           style={{ top: columnContextMenu.y, left: columnContextMenu.x }}
-          className="fixed z-50 w-60 max-h-[calc(100vh-20px)] overflow-y-auto custom-scrollbar bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-0.5 text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-[100] w-[240px] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-1.5 space-y-0.5 text-[12px] font-sans select-none animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Title Bar */}
-          <div className="px-2.5 py-1 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between text-[10px] font-bold text-zinc-500 dark:text-zinc-400 select-none">
+          <div className="px-2 py-1 mb-1 bg-zinc-100/80 dark:bg-zinc-800/60 rounded-md flex items-center justify-between text-[10px] font-bold text-zinc-500 dark:text-zinc-400 select-none">
             <span className="truncate max-w-[150px]">
               Column: {columnContextMenu.header} ({getColumnLetter(columnContextMenu.col)})
             </span>
-            <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-mono font-black shrink-0">Column</span>
+            <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-mono font-bold shrink-0">COLUMN</span>
           </div>
 
           {/* Mini Formatting Toolbar (Excel Style) */}
@@ -3812,57 +3738,58 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
           {/* 1. Cut */}
           <button
             onClick={() => handleColumnCut(columnContextMenu.header)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <span className="flex items-center gap-2">
-              <Scissors className="w-3.5 h-3.5 text-zinc-500" />
+              <Scissors className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
               Cut
             </span>
-            <span className="text-[10px] text-zinc-400 font-mono">Ctrl+X</span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Ctrl+X</span>
           </button>
 
           {/* 2. Copy */}
           <button
             onClick={handleColumnCopy}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <span className="flex items-center gap-2">
-              <Copy className="w-3.5 h-3.5 text-zinc-500" />
+              <Copy className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
               Copy
             </span>
-            <span className="text-[10px] text-zinc-400 font-mono">Ctrl+C</span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Ctrl+C</span>
           </button>
 
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          {/* 3. Clear Contents */}
+          <button
+            onClick={() => handleClearColumnContents(columnContextMenu.header)}
+            className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Eraser className="w-3.5 h-3.5 text-amber-500" />
+              Clear Contents
+            </span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Del</span>
+          </button>
 
-          {/* 3. Insert Column */}
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
+
+          {/* 4. Insert Column */}
           <button
             onClick={() => handleInsertColumnAt(columnContextMenu.col)}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-500" />
             Insert Column
           </button>
 
-          {/* 4. Delete Column */}
+          {/* 5. Delete Column */}
           <button
             onClick={() => handleDeleteColumn(columnContextMenu.header)}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 text-left font-medium text-red-600 dark:text-red-400 cursor-pointer transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5 text-red-500" />
             Delete Column
           </button>
-
-          {/* 5. Clear Contents */}
-          <button
-            onClick={() => handleClearColumnContents(columnContextMenu.header)}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
-          >
-            <Eraser className="w-3.5 h-3.5 text-amber-500" />
-            Clear Contents
-          </button>
-
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
 
           {/* 6. Rename Column */}
           <button
@@ -3872,25 +3799,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               setRenameError(null);
               setColumnContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Edit3 className="w-3.5 h-3.5 text-amber-500" />
             Rename Column...
           </button>
 
-          {/* 7. Format Cells... */}
-          <button
-            onClick={() => {
-              setFormatModalCol(columnContextMenu.header);
-              setColumnContextMenu(null);
-            }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
-          >
-            <Sliders className="w-3.5 h-3.5 text-purple-500" />
-            Format Cells...
-          </button>
-
-          {/* 8. Column Width... */}
+          {/* 7. Column Width... */}
           <button
             onClick={() => {
               const curW = columnWidths[columnContextMenu.header] || 150;
@@ -3901,22 +3816,34 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               setCustomColumnWidthInput(String(curW));
               setColumnContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />
             Column Width...
           </button>
 
-          {/* 9. AutoFit Column Width */}
+          {/* 8. AutoFit Column Width */}
           <button
             onClick={() => handleAutoFitSingleColumn(columnContextMenu.header)}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
             AutoFit Column Width
           </button>
 
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
+
+          {/* 9. Format Cells... */}
+          <button
+            onClick={() => {
+              setFormatModalCol(columnContextMenu.header);
+              setColumnContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
+          >
+            <Sliders className="w-3.5 h-3.5 text-purple-500" />
+            Format Cells...
+          </button>
 
           {/* 10. Hide Column */}
           <button
@@ -3924,9 +3851,9 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
               handleHideColumn(columnContextMenu.header);
               setColumnContextMenu(null);
             }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
           >
-            <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
+            <EyeOff className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
             Hide Column
           </button>
 
@@ -3938,17 +3865,17 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
             }}
             disabled={hiddenColumns.size === 0}
             className={cn(
-              "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors",
+              "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left font-medium transition-colors",
               hiddenColumns.size > 0 
-                ? "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer" 
-                : "opacity-40 cursor-not-allowed text-zinc-400"
+                ? "hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-800 dark:text-zinc-200 cursor-pointer" 
+                : "opacity-40 cursor-not-allowed text-zinc-400 dark:text-zinc-600"
             )}
           >
-            <Eye className="w-3.5 h-3.5 text-zinc-400" />
+            <Eye className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
             Unhide Columns {hiddenColumns.size > 0 ? `(${hiddenColumns.size})` : ''}
           </button>
 
-          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-150 dark:bg-zinc-800 my-1" />
 
           {/* 12. Change Data Type */}
           {!workingFormulas[columnContextMenu.header] && (
@@ -3957,7 +3884,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 setTypeModalCol(columnContextMenu.header);
                 setColumnContextMenu(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <Database className="w-3.5 h-3.5 text-amber-600" />
               Change Data Type...
@@ -3971,7 +3898,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 setActiveCleaningModal({ actionType: 'split_column' as any, column: columnContextMenu.header });
                 setColumnContextMenu(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <SplitSquareVertical className="w-3.5 h-3.5 text-cyan-600" />
               Split Column...
@@ -3985,7 +3912,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 setActiveCleaningModal({ actionType: 'extract_date' as any, column: columnContextMenu.header });
                 setColumnContextMenu(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <Calendar className="w-3.5 h-3.5 text-emerald-600" />
               Extract Date
@@ -3999,7 +3926,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 setActiveCleaningModal({ actionType: 'extract_time' as any, column: columnContextMenu.header });
                 setColumnContextMenu(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-left font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer transition-colors"
             >
               <Clock className="w-3.5 h-3.5 text-blue-600" />
               Extract Time
