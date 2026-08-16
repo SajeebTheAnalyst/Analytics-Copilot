@@ -119,11 +119,34 @@ const HudWidget = ({ className, children, delay = 0, floatRange = 10 }: any) => 
 
 export function LoginView() {
   const { login, loading } = useFirebase();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState({
     records: 12.4,
     accuracy: 78,
     sync: 2.4
   });
+
+  const handleLogin = async () => {
+    try {
+      setIsLoggingIn(true);
+      setError(null);
+      await login();
+    } catch (err: any) {
+      console.error('Login error:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('Sign-in popup was closed before completing. Please try again.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Popup was blocked by your browser. Please allow popups for this site.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized for Google Sign-In in Firebase.');
+      } else {
+        setError(err.message || 'Authentication failed. Please check your configuration and try again.');
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   // Randomize some numbers slightly for a "live" feel
   useEffect(() => {
@@ -361,11 +384,11 @@ export function LoginView() {
           </div>
 
           <Button 
-            onClick={login} 
-            disabled={loading}
+            onClick={handleLogin} 
+            disabled={loading || isLoggingIn}
             className="w-full bg-[#155EEF] hover:bg-[#3B82F6] text-white font-[700] text-[15px] h-14 rounded-2xl transition-all shadow-lg dark:shadow-[0_0_20px_rgba(21,94,239,0.4)] dark:hover:shadow-[0_0_30px_rgba(37,99,235,0.6)] flex items-center justify-center gap-3 border border-blue-400/20 relative z-10"
           >
-            {loading ? (
+            {loading || isLoggingIn ? (
               <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             ) : (
               <>
@@ -374,6 +397,12 @@ export function LoginView() {
               </>
             )}
           </Button>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl text-center relative z-10 w-full animate-in fade-in slide-in-from-top-2">
+              <p className="text-[11px] font-medium text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
 
           <div className="mt-6 flex items-center justify-center gap-2 text-[11px] font-medium text-slate-500 dark:text-[#94A3B8] relative z-10">
             <ShieldCheck className="w-3.5 h-3.5 text-[#00E5A0] dark:drop-shadow-[0_0_4px_rgba(0,229,160,0.4)]" />
