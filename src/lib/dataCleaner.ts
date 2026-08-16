@@ -3,6 +3,11 @@ import { recalculateDatasetProfiles } from './analyzer';
 import { calculateDatasetHealth } from './profiler';
 import { isValid, parse } from 'date-fns';
 
+function cloneRows(rows: Record<string, any>[]): Record<string, any>[] {
+  if (!rows) return [];
+  return rows.map(r => ({ ...r }));
+}
+
 export interface OutlierStats {
   column: string;
   q1: number;
@@ -388,6 +393,15 @@ export function detectIssues(datasets: Dataset[], relationships: RelationshipSug
     const pendingCount = mergedIssues.filter(i => i.status === 'pending').length;
     const cleaningStatus = pendingCount > 0 ? 'issues-found' : (dataset.cleaningStatus === 'cleaned' ? 'cleaned' : 'original');
 
+    // If issues and status are identical, preserve existing dataset reference to avoid unnecessary re-renders
+    const isSameIssues = dataset.issues &&
+      dataset.issues.length === mergedIssues.length &&
+      dataset.issues.every((iss, idx) => iss.id === mergedIssues[idx].id && iss.status === mergedIssues[idx].status);
+
+    if (isSameIssues && dataset.cleaningStatus === cleaningStatus) {
+      return dataset;
+    }
+
     return {
       ...dataset,
       issues: mergedIssues,
@@ -403,7 +417,7 @@ export function applyCleaningAction(dataset: Dataset, issueId: string): Dataset 
   const issue = (dataset.issues || []).find(i => i.id === issueId);
   if (!issue || issue.status === 'applied') return dataset;
 
-  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const originalDataSnapshot = cloneRows(dataset.fullData);
   const previousHealth = calculateDatasetHealth(dataset);
   let newData = [...dataset.fullData];
   let rowsAffected = 0;
@@ -640,7 +654,7 @@ export function removeNullsCustom(
   strategy: 'drop' | 'zero' | 'mean' | 'median' | 'mode' | 'text' | 'date',
   customVal?: any
 ): Dataset {
-  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const originalDataSnapshot = cloneRows(dataset.fullData);
   const previousHealth = calculateDatasetHealth(dataset);
   let rowsAffected = 0;
   let cellsAffected = 0;
@@ -738,7 +752,7 @@ export function transformTextCustom(
   column: string,
   action: 'trim' | 'lowercase' | 'uppercase' | 'titlecase'
 ): Dataset {
-  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const originalDataSnapshot = cloneRows(dataset.fullData);
   const previousHealth = calculateDatasetHealth(dataset);
   let rowsAffected = 0;
   let cellsAffected = 0;
@@ -800,7 +814,7 @@ export function castColumnTypeCustom(
   column: string,
   targetType: 'numeric' | 'text' | 'date' | 'boolean'
 ): Dataset {
-  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const originalDataSnapshot = cloneRows(dataset.fullData);
   const previousHealth = calculateDatasetHealth(dataset);
   let rowsAffected = 0;
   let cellsAffected = 0;
@@ -882,7 +896,7 @@ export function standardizeDatesCustom(
   column: string,
   targetFormat: 'YYYY-MM-DD' | 'MM/DD/YYYY' | 'DD/MM/YYYY' = 'YYYY-MM-DD'
 ): Dataset {
-  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const originalDataSnapshot = cloneRows(dataset.fullData);
   const previousHealth = calculateDatasetHealth(dataset);
   let rowsAffected = 0;
   let cellsAffected = 0;
@@ -947,7 +961,7 @@ export function filterOutliersCustom(
   column: string,
   iqrMultiplier = 1.5
 ): Dataset {
-  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const originalDataSnapshot = cloneRows(dataset.fullData);
   const previousHealth = calculateDatasetHealth(dataset);
   const stats = calculateIQRStats(dataset.fullData, column);
 
@@ -1000,7 +1014,7 @@ export function cleanHeadersCustom(
   dataset: Dataset,
   style: 'snake_case' | 'lowercase' | 'trim'
 ): Dataset {
-  const originalDataSnapshot = JSON.parse(JSON.stringify(dataset.fullData));
+  const originalDataSnapshot = cloneRows(dataset.fullData);
   const previousHealth = calculateDatasetHealth(dataset);
   const oldHeaders = dataset.headers;
 
@@ -1084,7 +1098,7 @@ export function undoCleaningAction(dataset: Dataset, logId: string): Dataset {
 export function restoreOriginal(dataset: Dataset): Dataset {
   const restored = recalculateDatasetProfiles({
     ...dataset,
-    fullData: JSON.parse(JSON.stringify(dataset.originalData)),
+    fullData: cloneRows(dataset.originalData),
     cleaningLogs: [],
     issues: (dataset.issues || []).map(i => ({ ...i, status: 'pending' as const })),
     cleaningStatus: 'original' as const

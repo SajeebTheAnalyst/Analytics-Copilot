@@ -29,10 +29,28 @@ export interface DatasetHealthSummary {
   };
 }
 
+const profileCache = new Map<string, ExtendedColumnProfile>();
+
 /**
  * Calculates complete column statistics for a single column.
  */
 export function profileColumn(data: Record<string, any>[], header: string, colType: string): ExtendedColumnProfile {
+  if (!data || data.length === 0) {
+    return {
+      name: header,
+      type: (colType as ColumnProfile['type']) || 'text',
+      nullCount: 0,
+      uniqueCount: 0,
+      exampleValue: null,
+      missingPercentage: 0
+    };
+  }
+
+  const cacheKey = `${data.length}_${header}_${colType}_${data[0]?._rowId || ''}_${data[data.length - 1]?._rowId || ''}_${data[0]?.[header] || ''}`;
+  if (profileCache.has(cacheKey)) {
+    return profileCache.get(cacheKey)!;
+  }
+
   let nullCount = 0;
   const uniqueValues = new Set<any>();
   let exampleValue: any = null;
@@ -104,7 +122,7 @@ export function profileColumn(data: Record<string, any>[], header: string, colTy
     maxDate = dateValues[dateValues.length - 1].toISOString().split('T')[0];
   }
 
-  return {
+  const profileResult: ExtendedColumnProfile = {
     name: header,
     type: (colType as ColumnProfile['type']) || 'text',
     nullCount,
@@ -119,35 +137,76 @@ export function profileColumn(data: Record<string, any>[], header: string, colTy
     minDate,
     maxDate,
   };
+
+  profileCache.set(cacheKey, profileResult);
+  return profileResult;
 }
+
+const dupCache = new WeakMap<Record<string, any>[], number>();
 
 /**
  * Calculates exact duplicate row count across full dataset.
  */
 export function calculateDuplicateRows(data: Record<string, any>[]): number {
   if (!data || data.length === 0) return 0;
+  if (dupCache.has(data)) {
+    return dupCache.get(data)!;
+  }
+
   const seen = new Set<string>();
   let duplicates = 0;
 
   for (const row of data) {
-    // Stringify row ignoring keys order
-    const keys = Object.keys(row).sort();
-    const str = keys.map(k => `${k}:${row[k]}`).join('|');
-    if (seen.has(str)) {
+    let key = '';
+    for (const k in row) {
+      if (k !== '_rowId') {
+        key += `${k}:${row[k]}|`;
+      }
+    }
+    if (seen.has(key)) {
       duplicates++;
     } else {
-      seen.add(str);
+      seen.add(key);
     }
   }
 
+  dupCache.set(data, duplicates);
   return duplicates;
 }
+
+const healthCache = new WeakMap<Dataset, { fingerprint: string; result: DatasetHealthSummary }>();
 
 /**
  * Computes overall dataset health score and issue breakdown.
  */
 export function calculateDatasetHealth(dataset: Dataset): DatasetHealthSummary {
-  const data = dataset.fullData || [];
+  if (!dataset) {
+    return {
+      score: 100,
+      status: 'Healthy',
+      totalCells: 0,
+      missingCells: 0,
+      missingCellsPercentage: 0,
+      duplicateRows: 0,
+      duplicateRowsPercentage: 0,
+      issuesCount: 0,
+      issueBreakdown: {
+        missingValuesColumns: 0,
+        duplicateRowsCount: 0,
+        invalidDatesCount: 0,
+        emptyColumnsCount: 0
+      }
+    };
+  }
+
+  const data = dataset.fullData || dataset.data || [];
+  const fingerprint = `${dataset.id}_${dataset.rowCount || data.length}_${dataset.colCount || dataset.headers?.length}_${dataset.issues?.length || 0}_${dataset.cleaningLogs?.length || 0}_${dataset.updatedAt || ''}`;
+
+  const cached = healthCache.get(dataset);
+  if (cached && cached.fingerprint === fingerprint) {
+    return cached.result;
+  }
+
   const rowCount = dataset.rowCount || data.length;
   const colCount = dataset.colCount || dataset.headers.length;
   const totalCells = rowCount * colCount;
@@ -202,7 +261,7 @@ export function calculateDatasetHealth(dataset: Dataset): DatasetHealthSummary {
     status = 'Needs Attention';
   }
 
-  return {
+  const result: DatasetHealthSummary = {
     score,
     status,
     totalCells,
@@ -218,4 +277,7 @@ export function calculateDatasetHealth(dataset: Dataset): DatasetHealthSummary {
       emptyColumnsCount
     }
   };
+
+  healthCache.set(dataset, { fingerprint, result });
+  return result;
 }

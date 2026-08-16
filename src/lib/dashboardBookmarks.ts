@@ -341,7 +341,7 @@ export function duplicateSavedView(
     isDefault: false,
     createdAt: now,
     updatedAt: now,
-    state: JSON.parse(JSON.stringify(view.state))
+    state: typeof structuredClone === 'function' ? structuredClone(view.state) : JSON.parse(JSON.stringify(view.state))
   };
 }
 

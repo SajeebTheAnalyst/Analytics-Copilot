@@ -27,6 +27,11 @@ import { evaluateDataReadiness } from '@/lib/dataReadinessEngine';
 import { CleaningActionType, CleaningHistoryItem, CleaningPreviewResult } from '@/lib/manualCleaningEngine';
 import { formatColumnValue, ColumnFormatConfig, ExtendedType } from '@/lib/typeStandardizer';
 
+const cloneDataSnapshot = (data: Record<string, any>[]): Record<string, any>[] => {
+  if (!data) return [];
+  return data.map(row => ({ ...row }));
+};
+
 interface DataGridProps {
   dataset: Dataset;
   onNavigateView?: (view: any) => void;
@@ -197,7 +202,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       rowsAffected: maxRow - minRow + 1,
       cellsAffected: (maxRow - minRow + 1) * (maxCol - minCol + 1),
       timestamp: new Date(),
-      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousDataSnapshot: cloneDataSnapshot(workingData),
       previousHeadersSnapshot: [...workingHeaders],
       previousCellFormattingSnapshot: prevFormattingSnapshot,
     };
@@ -248,7 +253,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         rowsAffected: Math.abs(endRow - startRow) + 1,
         cellsAffected: (Math.abs(endRow - startRow) + 1) * (Math.abs(endCol - startCol) + 1),
         timestamp: new Date(),
-        previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+        previousDataSnapshot: cloneDataSnapshot(workingData),
         previousHeadersSnapshot: [...workingHeaders],
         previousCellFormattingSnapshot: prevFormattingSnapshot,
       };
@@ -426,6 +431,34 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Data Grid Virtualization State
+  const [scrollTop, setScrollTop] = useState<number>(0);
+  const [viewportHeight, setViewportHeight] = useState<number>(600);
+
+  useEffect(() => {
+    if (!gridRef.current) return;
+    const el = gridRef.current;
+    setViewportHeight(el.clientHeight || 600);
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.height) {
+          setViewportHeight(entry.contentRect.height);
+        }
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Selection state
   const [selectedCell, setSelectedCell] = useState<CellCoords | null>({ row: 0, col: 0 });
@@ -591,7 +624,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       rowsAffected: result.rowsAffectedCount,
       cellsAffected: result.cellsAffectedCount,
       timestamp: new Date(),
-      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousDataSnapshot: cloneDataSnapshot(workingData),
       previousHeadersSnapshot: [...workingHeaders],
     };
 
@@ -618,12 +651,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     // Save current state to redo stack before undoing
     const redoItem: CleaningHistoryItem = {
       ...lastItem,
-      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousDataSnapshot: cloneDataSnapshot(workingData),
       previousHeadersSnapshot: [...workingHeaders],
       previousCellFormattingSnapshot: { ...cellFormatting },
     };
 
-    let restoredRows = JSON.parse(JSON.stringify(lastItem.previousDataSnapshot));
+    let restoredRows = cloneDataSnapshot(lastItem.previousDataSnapshot);
 
     if (workingFormulas && Object.keys(workingFormulas).length > 0) {
       restoredRows = evaluateAllFormulas(lastItem.previousHeadersSnapshot, restoredRows, workingFormulas).updatedData;
@@ -650,12 +683,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     // Save current state to undo stack before redoing
     const undoItem: CleaningHistoryItem = {
       ...redoItem,
-      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousDataSnapshot: cloneDataSnapshot(workingData),
       previousHeadersSnapshot: [...workingHeaders],
       previousCellFormattingSnapshot: { ...cellFormatting },
     };
 
-    let restoredRows = JSON.parse(JSON.stringify(redoItem.previousDataSnapshot));
+    let restoredRows = cloneDataSnapshot(redoItem.previousDataSnapshot);
 
     if (workingFormulas && Object.keys(workingFormulas).length > 0) {
       restoredRows = evaluateAllFormulas(redoItem.previousHeadersSnapshot, restoredRows, workingFormulas).updatedData;
@@ -734,8 +767,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     let result = [...workingData];
 
     // Search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.toLowerCase();
       result = result.filter(row =>
         visibleHeaders.some(h => {
           const val = row[h];
@@ -800,10 +833,28 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     }
 
     return result;
-  }, [workingData, visibleHeaders, searchQuery, sortConfig, isFilterActive, columnFilters]);
+  }, [workingData, visibleHeaders, debouncedSearchQuery, sortConfig, isFilterActive, columnFilters]);
 
   // Displayed rows (continuous worksheet)
   const displayedRows = processedRows;
+
+  // Virtual Row Slice Calculation
+  const rowHeight = useMemo(() => {
+    return rowDensity === 'compact' ? 28 : rowDensity === 'comfortable' ? 48 : 36;
+  }, [rowDensity]);
+
+  const totalRows = displayedRows.length;
+  const overscan = 15;
+  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const endIndex = Math.min(totalRows - 1, Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan);
+
+  const visibleRows = useMemo(() => {
+    if (totalRows === 0) return [];
+    return displayedRows.slice(startIndex, Math.min(totalRows, endIndex + 1));
+  }, [displayedRows, startIndex, endIndex, totalRows]);
+
+  const topSpacerHeight = startIndex * rowHeight;
+  const bottomSpacerHeight = Math.max(0, (totalRows - 1 - endIndex) * rowHeight);
 
   // Normalized Range Bounds
   const rangeBounds = useMemo(() => {
@@ -1842,15 +1893,27 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     }
   };
 
-  // Scroll active cell into view smoothly and minimally (Phase 8P-2R)
+  // Scroll active cell into view smoothly and minimally with virtualization support
   useEffect(() => {
     if (selectedCell && gridRef.current) {
+      const container = gridRef.current;
+      const targetTop = selectedCell.row * rowHeight;
+      const targetBottom = targetTop + rowHeight;
+      const currentScrollTop = container.scrollTop;
+      const currentScrollBottom = currentScrollTop + (container.clientHeight || 600);
+
+      if (targetTop < currentScrollTop) {
+        container.scrollTop = targetTop;
+      } else if (targetBottom > currentScrollBottom) {
+        container.scrollTop = targetBottom - (container.clientHeight || 600);
+      }
+
       const cellElement = document.getElementById(`cell-${selectedCell.row}-${selectedCell.col}`);
       if (cellElement) {
         cellElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
     }
-  }, [selectedCell]);
+  }, [selectedCell, rowHeight]);
 
   // Synchronize formula bar with selection
   useEffect(() => {
@@ -2621,7 +2684,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         rowsAffected: maxRow - minRow,
         cellsAffected: filledCount,
         timestamp: new Date(),
-        previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+        previousDataSnapshot: cloneDataSnapshot(workingData),
         previousHeadersSnapshot: [...workingHeaders],
         previousCellFormattingSnapshot: { ...cellFormatting },
       };
@@ -2670,7 +2733,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         rowsAffected: maxRow - minRow + 1,
         cellsAffected: filledCount,
         timestamp: new Date(),
-        previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+        previousDataSnapshot: cloneDataSnapshot(workingData),
         previousHeadersSnapshot: [...workingHeaders],
         previousCellFormattingSnapshot: { ...cellFormatting },
       };
@@ -2730,7 +2793,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       rowsAffected: workingData.length,
       cellsAffected: blankCols.length * workingData.length,
       timestamp: new Date(),
-      previousDataSnapshot: JSON.parse(JSON.stringify(workingData)),
+      previousDataSnapshot: cloneDataSnapshot(workingData),
       previousHeadersSnapshot: [...workingHeaders],
       previousCellFormattingSnapshot: { ...cellFormatting },
     };
@@ -3056,7 +3119,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         ref={gridRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        onScroll={() => {
+        onScroll={(e) => {
+          setScrollTop(e.currentTarget.scrollTop);
           if (contextMenu) setContextMenu(null);
           if (columnContextMenu) setColumnContextMenu(null);
         }}
@@ -3157,9 +3221,10 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                       onMouseDown={(e) => handleResizeMouseDown(header, e)}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
+                        const sampleRows = displayedRows.slice(0, 100);
                         const maxLen = Math.max(
                           header.length,
-                          ...displayedRows.map(row => String(row[header] || '').length)
+                          ...sampleRows.map(row => String(row[header] || '').length)
                         );
                         const newWidth = Math.max(100, Math.min(450, maxLen * 9 + 30));
                         setColumnWidths(prev => ({ ...prev, [header]: newWidth }));
@@ -3178,12 +3243,18 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
 
           {/* Spreadsheet Body */}
           <tbody className="divide-y divide-zinc-200/50 dark:divide-zinc-800/60 text-[11px] bg-white dark:bg-[#0c0c0e]">
-            {displayedRows.map((row, rIndex) => {
+            {topSpacerHeight > 0 && (
+              <tr style={{ height: `${topSpacerHeight}px` }}>
+                <td colSpan={visibleHeaders.length + 1} style={{ border: 'none', padding: 0, margin: 0 }} />
+              </tr>
+            )}
+            {visibleRows.map((row, idx) => {
+              const rIndex = startIndex + idx;
               const isRowActive = rangeBounds && rIndex >= rangeBounds.minRow && rIndex <= rangeBounds.maxRow;
               const isNewRow = addedRowIds.has(row._rowId);
 
               return (
-                <tr key={row._rowId || rIndex} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-900/30 transition-colors">
+                <tr key={row._rowId || `row-${rIndex}`} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-900/30 transition-colors">
                   {/* Fixed Row Number (#) */}
                   <td
                     onClick={() => handleSelectRow(rIndex)}
@@ -3340,6 +3411,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
                 </tr>
               );
             })}
+
+            {bottomSpacerHeight > 0 && (
+              <tr style={{ height: `${bottomSpacerHeight}px` }}>
+                <td colSpan={visibleHeaders.length + 1} style={{ border: 'none', padding: 0, margin: 0 }} />
+              </tr>
+            )}
 
             {displayedRows.length === 0 && (
               <tr>

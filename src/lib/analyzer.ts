@@ -220,7 +220,7 @@ export async function processDataset(file: File): Promise<Dataset[]> {
         return newRow;
       }),
       fullData: data,
-      originalData: JSON.parse(JSON.stringify(data)),
+      originalData: data.map(r => ({ ...r })),
       columnTypes,
       columnProfiles,
       cleaningStatus: 'original',
