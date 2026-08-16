@@ -376,6 +376,7 @@ export default function App() {
 
       // If quality score is < 75 and dataset is not marked clean, block reporting completely
       if (score < 75 && !isCleaned) {
+        const isDashboard = currentView === 'dashboards';
         return (
           <div className="flex-1 flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto">
             <div className="max-w-xl w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
@@ -384,25 +385,15 @@ export default function App() {
                   {score}%
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">Data quality is too low for reliable reporting.</h2>
+                  <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+                    Data quality is too low for reliable reporting.
+                  </h2>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Data Quality: <span className="font-bold text-red-600">{score}/100</span> — Dataset quality score must reach at least <span className="font-bold">75/100</span> before generating reports or KPIs.
+                    Data Quality: <span className="font-bold text-red-600">{score}/100</span> — Dataset quality score must reach at least <span className="font-bold">75/100</span> before generating {isDashboard ? "dashboards" : "reports or KPIs"}.
                   </p>
                 </div>
               </div>
-              <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-100 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
-                <span className="font-semibold text-zinc-900 dark:text-zinc-200 block">Recommended Action:</span>
-                <p>Clean your data in the Data Cleaning workspace to remove duplicate rows, fill missing values, or correct inconsistent formats.</p>
-              </div>
               <div className="flex items-center justify-end gap-3 pt-2">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setCurrentView('data-manager')}
-                  className="text-xs h-8 font-medium"
-                >
-                  Back to Dataset Manager
-                </Button>
                 <Button 
                   size="sm" 
                   onClick={() => setCurrentView('cleaning')}
@@ -416,61 +407,105 @@ export default function App() {
         );
       }
 
-      // If score is between 75 and 99 and not explicitly cleaned, show compact warning with [Clean Data] and [Continue with This Data]
+      // If score is between 75 and 99 and not explicitly cleaned, show warning block with [Clean Data] and [Continue with This Data]
       if (score >= 75 && score < 100 && !isCleaned) {
-        return (
-          <div className="flex-1 flex flex-col min-h-0 relative">
-            {/* Compact Top Quality Warning Banner */}
-            <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 px-6 py-3 flex items-center justify-between gap-4 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/60 flex items-center justify-center text-amber-700 dark:text-amber-300 font-bold font-mono text-xs">
-                  {score}%
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-amber-900 dark:text-amber-200">This dataset has unresolved data quality issues.</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-200/60 dark:bg-amber-900/50 text-amber-900 dark:text-amber-300 font-semibold">
-                      Data Quality: {score}/100 — Acceptable with Issues
-                    </span>
+        if (currentView === 'dashboards') {
+          return (
+            <div className="flex-1 flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto">
+              <div className="max-w-xl w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold font-mono">
+                    {score}%
                   </div>
-                  <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80">
-                    Recommended: Clean Data before building analytics, or proceed with current records.
-                  </p>
+                  <div>
+                    <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+                      Your dataset is usable, but some data quality issues remain.
+                    </h2>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Button 
+                    size="sm" 
+                    onClick={() => setCurrentView('cleaning')}
+                    className="text-xs h-8 bg-blue-600 text-white hover:bg-blue-700 font-medium"
+                  >
+                    Clean Data
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => {
+                      setDatasets(prev => prev.map(d => {
+                        if (d.id === selectedDataset.id) {
+                          return { ...d, cleaningStatus: 'cleaned' };
+                        }
+                        return d;
+                      }));
+                    }}
+                    className="text-xs h-8 font-medium"
+                  >
+                    Continue with This Data
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setCurrentView('cleaning')}
-                  className="text-xs h-7 bg-white dark:bg-zinc-900 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 font-semibold hover:bg-amber-100"
-                >
-                  Clean Data
-                </Button>
-                <Button 
-                  size="sm" 
-                  onClick={() => {
-                    setDatasets(prev => prev.map(d => {
-                      if (d.id === selectedDataset.id) {
-                        return { ...d, cleaningStatus: 'cleaned' };
-                      }
-                      return d;
-                    }));
-                  }}
-                  className="text-xs h-7 bg-amber-700 hover:bg-amber-800 text-white font-semibold"
-                >
-                  Continue with This Data
-                </Button>
+            </div>
+          );
+        } else {
+          return (
+            <div className="flex-1 flex flex-col min-h-0 relative">
+              {/* Compact Top Quality Warning Banner */}
+              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 px-6 py-3 flex items-center justify-between gap-4 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/60 flex items-center justify-center text-amber-700 dark:text-amber-300 font-bold font-mono text-xs">
+                    {score}%
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-amber-900 dark:text-amber-200">This dataset has unresolved data quality issues.</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-200/60 dark:bg-amber-900/50 text-amber-900 dark:text-amber-300 font-semibold">
+                        Data Quality: {score}/100 — Acceptable with Issues
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80">
+                      Recommended: Clean Data before building analytics, or proceed with current records.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setCurrentView('cleaning')}
+                    className="text-xs h-7 bg-white dark:bg-zinc-900 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 font-semibold hover:bg-amber-100"
+                  >
+                    Clean Data
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={() => {
+                      setDatasets(prev => prev.map(d => {
+                        if (d.id === selectedDataset.id) {
+                          return { ...d, cleaningStatus: 'cleaned' };
+                        }
+                        return d;
+                      }));
+                    }}
+                    className="text-xs h-7 bg-amber-700 hover:bg-amber-800 text-white font-semibold"
+                  >
+                    Continue with This Data
+                  </Button>
+                </div>
+              </div>
+
+              {/* Render View Node */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {viewNode}
               </div>
             </div>
-
-            {/* Render View Node */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {viewNode}
-            </div>
-          </div>
-        );
+          );
+        }
       }
+
     }
 
     return viewNode;

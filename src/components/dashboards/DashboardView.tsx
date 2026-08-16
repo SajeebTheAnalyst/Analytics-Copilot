@@ -6,6 +6,7 @@ import {
   DashboardFilter, 
   DashboardCrossFilter, 
   WidgetConfig, 
+  WidgetType,
   KpiDefinition, 
   WidgetLayout, 
   WidgetDrillState, 
@@ -24,7 +25,7 @@ import { ExportDialog } from './ExportDialog';
 import { ShareDialog } from './ShareDialog';
 import { PresentationMode } from './PresentationMode';
 import { PresentationSequenceModal } from './PresentationSequenceModal';
-import { generateDemoDashboard } from '@/lib/dashboardStorage';
+import { generateDemoDashboard, generateAiDashboard } from '@/lib/dashboardStorage';
 import { getSavedKpis } from '@/lib/kpiStorage';
 import { getValidLayout, compactLayout, findFirstAvailablePosition, getMinDimensions } from '@/lib/dashboardLayout';
 import { applyDashboardFilters } from '@/lib/dashboardFiltering';
@@ -40,7 +41,7 @@ import {
   LayoutDashboard, Plus, Trash2, Edit3, Settings, Filter, FileText, Check, X, 
   Eye, Edit2, Copy, Sparkles, Layers, ArrowUp, ArrowDown, Move, AlertCircle, Save, Calendar, RefreshCw,
   ChevronDown, ChevronUp, GripVertical, Maximize2, Grid, Bookmark, Star, EyeOff, CheckCircle2, RotateCcw,
-  Play, Share2
+  Play, Share2, Activity, BarChart2, TrendingUp, PieChart as PieChartIcon, Table as TableIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -79,6 +80,21 @@ export function DashboardView({
   const [isWidgetModalOpen, setIsWidgetModalOpen] = useState(false);
   const [editingWidget, setEditingWidget] = useState<WidgetConfig | null>(null);
   
+  const [isWidgetMenuOpen, setIsWidgetMenuOpen] = useState(false);
+  const [selectedWidgetTypeToAdd, setSelectedWidgetTypeToAdd] = useState<WidgetType | undefined>(undefined);
+  
+  const widgetMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (widgetMenuRef.current && !widgetMenuRef.current.contains(event.target as Node)) {
+        setIsWidgetMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // Selected Dashboard fallback
   const currentDash = dashboards.find(d => d.id === selectedDashId) || dashboards[0] || null;
 
@@ -486,6 +502,16 @@ export function DashboardView({
     triggerSaveToast();
   };
 
+  // 2b. Create AI Dashboard
+  const handleCreateAiDashboard = () => {
+    if (!primaryDataset) return;
+    const aiDash = generateAiDashboard(primaryDataset, savedKpis);
+    onUpdateDashboard(aiDash.id, aiDash);
+    onSelectDashboard(aiDash.id);
+    setMode('view');
+    triggerSaveToast();
+  };
+
   // 3. Duplicate Active Dashboard
   const handleDuplicateDashboard = () => {
     if (!currentDash) return;
@@ -532,8 +558,7 @@ export function DashboardView({
       updatedWidgets = [...currentDash.widgets, newWidgetWithLayout];
     }
 
-    const compacted = compactLayout(updatedWidgets, widget.id, 12);
-    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    onUpdateDashboard(currentDash.id, { widgets: updatedWidgets, updatedAt: Date.now() });
     setEditingWidget(null);
     triggerSaveToast();
   };
@@ -542,8 +567,7 @@ export function DashboardView({
   const handleDeleteWidget = (widgetId: string) => {
     if (!currentDash) return;
     const updated = currentDash.widgets.filter(w => w.id !== widgetId);
-    const compacted = compactLayout(updated, undefined, 12);
-    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
     triggerSaveToast();
   };
 
@@ -560,8 +584,7 @@ export function DashboardView({
       layout: { x: pos.x, y: pos.y, w: currentL.w, h: currentL.h }
     };
     const updated = [...currentDash.widgets, cloned];
-    const compacted = compactLayout(updated, cloned.id, 12);
-    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
     triggerSaveToast();
   };
 
@@ -576,8 +599,7 @@ export function DashboardView({
     newWidgets[index] = newWidgets[targetIdx];
     newWidgets[targetIdx] = temp;
 
-    const compacted = compactLayout(newWidgets, undefined, 12);
-    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    onUpdateDashboard(currentDash.id, { widgets: newWidgets, updatedAt: Date.now() });
   };
 
   // 9. Resize Widget Grid Span
@@ -592,12 +614,14 @@ export function DashboardView({
       }
       return w;
     });
-    const compacted = compactLayout(updated, widgetId, 12);
-    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    onUpdateDashboard(currentDash.id, { widgets: updated, updatedAt: Date.now() });
   };
 
   // Canvas & Grid Container Ref
   const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Selected Widget State
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
 
   // Pointer Drag State
   const [dragState, setDragState] = useState<{
@@ -611,12 +635,23 @@ export function DashboardView({
   // Pointer Resize State
   const [resizeState, setResizeState] = useState<{
     widgetId: string;
-    handle: 'se' | 'e' | 's';
+    handle: 'se' | 'e' | 's' | 'ne' | 'sw';
     startX: number;
     startY: number;
     startLayout: WidgetLayout;
     currentLayout: WidgetLayout;
   } | null>(null);
+
+  const cardPointerDownRef = useRef<{
+    widgetId: string;
+    startX: number;
+    startY: number;
+    startLayout: WidgetLayout;
+    pointerId: number;
+    element: HTMLElement;
+  } | null>(null);
+
+  const isDraggingCardRef = useRef<boolean>(false);
 
   // Helper to measure cell dimensions
   const getCellDimensions = () => {
@@ -629,96 +664,140 @@ export function DashboardView({
     return { cellW: Math.max(20, cellW), cellH: 106 };
   };
 
-  // Compute active real-time layouts across all widgets
+  // Compute active real-time layouts across all widgets without upward compaction
   const activeLayouts = useMemo(() => {
     if (!currentDash || !currentDash.widgets) return [];
     let baseWidgets = currentDash.widgets;
 
     if (dragState) {
-      baseWidgets = baseWidgets.map(w => w.id === dragState.widgetId ? { ...w, layout: dragState.currentLayout } : w);
-      return compactLayout(baseWidgets, dragState.widgetId, 12);
+      return baseWidgets.map((w, idx) => ({
+        id: w.id,
+        layout: w.id === dragState.widgetId ? dragState.currentLayout : getValidLayout(w, idx, 12)
+      }));
     }
 
     if (resizeState) {
-      baseWidgets = baseWidgets.map(w => w.id === resizeState.widgetId ? { ...w, layout: resizeState.currentLayout } : w);
-      return compactLayout(baseWidgets, resizeState.widgetId, 12);
+      return baseWidgets.map((w, idx) => ({
+        id: w.id,
+        layout: w.id === resizeState.widgetId ? resizeState.currentLayout : getValidLayout(w, idx, 12)
+      }));
     }
 
-    return compactLayout(baseWidgets, undefined, 12);
+    return baseWidgets.map((w, idx) => ({
+      id: w.id,
+      layout: getValidLayout(w, idx, 12)
+    }));
   }, [currentDash?.widgets, dragState, resizeState]);
 
-  // Pointer Drag Event Handlers
-  const handleDragStart = (e: React.PointerEvent, widget: WidgetConfig, layout: WidgetLayout) => {
-    if (mode !== 'build') return;
-    e.preventDefault();
-    e.stopPropagation();
+  // Pointer Drag Event Handlers for Grab & Move
+  const handleCardPointerDown = (e: React.PointerEvent, widget: WidgetConfig, layout: WidgetLayout) => {
+    const targetEl = e.target as HTMLElement;
+    if (targetEl.closest('button, select, input, textarea, a, [role="button"], .no-drag, .resize-handle')) {
+      return;
+    }
 
-    const target = e.currentTarget as HTMLElement;
-    target.setPointerCapture(e.pointerId);
+    setSelectedWidgetId(widget.id);
 
-    setDragState({
+    cardPointerDownRef.current = {
       widgetId: widget.id,
       startX: e.clientX,
       startY: e.clientY,
       startLayout: { ...layout },
-      currentLayout: { ...layout }
-    });
+      pointerId: e.pointerId,
+      element: e.currentTarget as HTMLElement
+    };
+    isDraggingCardRef.current = false;
   };
 
-  const handleDragMove = (e: React.PointerEvent) => {
-    if (!dragState) return;
-    const { cellW, cellH } = getCellDimensions();
-    const deltaX = e.clientX - dragState.startX;
-    const deltaY = e.clientY - dragState.startY;
+  const handleCardPointerMove = (e: React.PointerEvent) => {
+    if (resizeState) {
+      handleResizeMove(e);
+      return;
+    }
 
-    const gridDeltaX = Math.round(deltaX / cellW);
-    const gridDeltaY = Math.round(deltaY / cellH);
+    if (cardPointerDownRef.current) {
+      const { startX, startY, startLayout, widgetId, pointerId, element } = cardPointerDownRef.current;
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
 
-    const newX = Math.max(0, Math.min(12 - dragState.startLayout.w, dragState.startLayout.x + gridDeltaX));
-    const newY = Math.max(0, dragState.startLayout.y + gridDeltaY);
+      if (!isDraggingCardRef.current && (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4)) {
+        isDraggingCardRef.current = true;
+        try {
+          element.setPointerCapture(pointerId);
+        } catch (_) {}
 
-    if (newX !== dragState.currentLayout.x || newY !== dragState.currentLayout.y) {
-      setDragState(prev => prev ? {
-        ...prev,
-        currentLayout: {
-          ...prev.currentLayout,
-          x: newX,
-          y: newY
-        }
-      } : null);
+        setDragState({
+          widgetId,
+          startX,
+          startY,
+          startLayout,
+          currentLayout: { ...startLayout }
+        });
+      }
+
+      if (isDraggingCardRef.current) {
+        const { cellW, cellH } = getCellDimensions();
+        const gridDeltaX = Math.round(deltaX / cellW);
+        const gridDeltaY = Math.round(deltaY / cellH);
+
+        const newX = Math.max(0, Math.min(12 - startLayout.w, startLayout.x + gridDeltaX));
+        const newY = Math.max(0, startLayout.y + gridDeltaY);
+
+        setDragState(prev => prev ? {
+          ...prev,
+          currentLayout: {
+            ...prev.currentLayout,
+            x: newX,
+            y: newY
+          }
+        } : null);
+      }
     }
   };
 
-  const handleDragEnd = (e: React.PointerEvent) => {
-    if (!dragState || !currentDash) return;
+  const handleCardPointerUp = (e: React.PointerEvent) => {
+    if (resizeState) {
+      handleResizeEnd(e);
+      return;
+    }
 
-    try {
-      const target = e.currentTarget as HTMLElement;
-      if (target.hasPointerCapture(e.pointerId)) {
-        target.releasePointerCapture(e.pointerId);
+    if (cardPointerDownRef.current) {
+      const { pointerId, element } = cardPointerDownRef.current;
+      try {
+        if (element.hasPointerCapture(pointerId)) {
+          element.releasePointerCapture(pointerId);
+        }
+      } catch (_) {}
+
+      if (isDraggingCardRef.current && dragState && currentDash) {
+        const updatedWidgets = currentDash.widgets.map(w => {
+          if (w.id === dragState.widgetId) {
+            return { ...w, layout: dragState.currentLayout };
+          }
+          return w;
+        });
+
+        onUpdateDashboard(currentDash.id, { widgets: updatedWidgets, updatedAt: Date.now() });
+        triggerSaveToast();
       }
-    } catch (_) {}
 
-    const updatedWidgets = currentDash.widgets.map(w => {
-      if (w.id === dragState.widgetId) {
-        return { ...w, layout: dragState.currentLayout };
-      }
-      return w;
-    });
-
-    const compacted = compactLayout(updatedWidgets, dragState.widgetId, 12);
-    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
-    setDragState(null);
+      setDragState(null);
+      cardPointerDownRef.current = null;
+      isDraggingCardRef.current = false;
+    }
   };
 
   // Pointer Resize Event Handlers
-  const handleResizeStart = (e: React.PointerEvent, widget: WidgetConfig, layout: WidgetLayout, handle: 'se' | 'e' | 's') => {
-    if (mode !== 'build') return;
+  const handleResizeStart = (e: React.PointerEvent, widget: WidgetConfig, layout: WidgetLayout, handle: 'se' | 'e' | 's' | 'ne' | 'sw') => {
     e.preventDefault();
     e.stopPropagation();
 
+    setSelectedWidgetId(widget.id);
+
     const target = e.currentTarget as HTMLElement;
-    target.setPointerCapture(e.pointerId);
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch (_) {}
 
     setResizeState({
       widgetId: widget.id,
@@ -745,10 +824,10 @@ export function DashboardView({
     let newW = resizeState.startLayout.w;
     let newH = resizeState.startLayout.h;
 
-    if (resizeState.handle === 'se' || resizeState.handle === 'e') {
+    if (resizeState.handle === 'se' || resizeState.handle === 'e' || resizeState.handle === 'ne') {
       newW = Math.max(minDim.minW, Math.min(12 - resizeState.startLayout.x, resizeState.startLayout.w + gridDeltaX));
     }
-    if (resizeState.handle === 'se' || resizeState.handle === 's') {
+    if (resizeState.handle === 'se' || resizeState.handle === 's' || resizeState.handle === 'sw') {
       newH = Math.max(minDim.minH, resizeState.startLayout.h + gridDeltaY);
     }
 
@@ -785,9 +864,9 @@ export function DashboardView({
       return w;
     });
 
-    const compacted = compactLayout(updatedWidgets, resizeState.widgetId, 12);
-    onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+    onUpdateDashboard(currentDash.id, { widgets: updatedWidgets, updatedAt: Date.now() });
     setResizeState(null);
+    triggerSaveToast();
   };
 
   const handleUpdateWidget = (widgetId: string, updatedConfig: Partial<any>) => {
@@ -1076,17 +1155,50 @@ export function DashboardView({
 
             {/* Add Widget Button */}
             {currentDash && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditingWidget(null);
-                  setIsWidgetModalOpen(true);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex items-center gap-1.5 h-8"
-              >
-                <Plus className="w-4 h-4" />
-                Add Widget
-              </Button>
+              <div className="relative" ref={widgetMenuRef}>
+                <Button
+                  size="sm"
+                  onClick={() => setIsWidgetMenuOpen(!isWidgetMenuOpen)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex items-center gap-1.5 h-8"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Widget
+                </Button>
+                
+                {isWidgetMenuOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                    <div className="p-1">
+                      {[
+                        { type: 'kpi', label: 'KPI', icon: Activity },
+                        { type: 'bar', label: 'Bar Chart', icon: BarChart2 },
+                        { type: 'line', label: 'Line Chart', icon: TrendingUp },
+                        { type: 'area', label: 'Area Chart', icon: Layers },
+                        { type: 'donut', label: 'Pie / Donut Chart', icon: PieChartIcon },
+                        { type: 'table', label: 'Table', icon: TableIcon },
+                        { type: 'text', label: 'Text', icon: FileText },
+                        { type: 'filter', label: 'Filter', icon: Filter },
+                      ].map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={item.type}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2 rounded-md transition-colors text-zinc-700 dark:text-zinc-300"
+                            onClick={() => {
+                              setSelectedWidgetTypeToAdd(item.type as WidgetType);
+                              setEditingWidget(null);
+                              setIsWidgetMenuOpen(false);
+                              setIsWidgetModalOpen(true);
+                            }}
+                          >
+                            <Icon className="w-4 h-4 text-zinc-500" />
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Ask AI Button */}
@@ -1248,41 +1360,93 @@ export function DashboardView({
 
       {/* DASHBOARD GRID CONTENT */}
       <div className="p-4 sm:p-6">
-        {!currentDash || currentDash.widgets.length === 0 ? (
-          
-          /* EMPTY DASHBOARD STATE */
-          <div className="max-w-xl mx-auto my-12 p-8 glass-panel glass-card border-dashed border-2 rounded-3xl text-center space-y-4">
+        {!currentDash ? (
+          /* EMPTY WORKSPACE STATE */
+          <div id="empty-workspace-state" className="max-w-md mx-auto my-12 p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-md text-center space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
               <LayoutDashboard className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Build Your Dashboard</h3>
-              <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
-                Add KPI cards, charts, and tables to start analyzing your business metrics and trends.
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Build Your Dashboard</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs mx-auto font-medium">
+                Create a dashboard from your validated dataset.
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
               <Button
-                onClick={() => {
-                  setEditingWidget(null);
-                  setIsWidgetModalOpen(true);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs w-full sm:w-auto"
+                id="btn-create-yourself"
+                onClick={handleCreateNewDashboard}
+                className="bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs w-full sm:w-auto font-bold px-4"
               >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Visual
+                <Plus className="w-4 h-4 mr-1.5 shrink-0" />
+                Create Yourself
               </Button>
               <Button
-                variant="outline"
-                onClick={handleCreateDemoDashboard}
-                className="text-xs text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700 w-full sm:w-auto"
+                id="btn-create-with-ai"
+                onClick={handleCreateAiDashboard}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs w-full sm:w-auto font-bold px-4"
               >
-                <Sparkles className="w-4 h-4 mr-1.5 text-blue-600" />
-                Create Demo Dashboard
+                <Sparkles className="w-4 h-4 mr-1.5 shrink-0" />
+                Create with AI
               </Button>
             </div>
           </div>
+        ) : currentDash.widgets.length === 0 ? (
+          /* EMPTY DASHBOARD CANVAS */
+          <div className="max-w-4xl mx-auto border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl p-12 flex flex-col items-center justify-center text-center space-y-4 animate-fade-in">
+            <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 dark:text-zinc-500 mb-2">
+              <Layers className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Empty Dashboard Canvas</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                Add widgets to start building your analytics view.
+              </p>
+            </div>
+            <div className="relative" ref={widgetMenuRef}>
+              <Button
+                onClick={() => setIsWidgetMenuOpen(!isWidgetMenuOpen)}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-6 h-9 shadow-sm flex items-center gap-1.5 mx-auto"
+              >
+                <Plus className="w-4 h-4" />
+                Add Widget
+              </Button>
 
+              {isWidgetMenuOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 text-left">
+                  <div className="p-1">
+                    {[
+                      { type: 'kpi', label: 'KPI', icon: Activity },
+                      { type: 'bar', label: 'Bar Chart', icon: BarChart2 },
+                      { type: 'line', label: 'Line Chart', icon: TrendingUp },
+                      { type: 'area', label: 'Area Chart', icon: Layers },
+                      { type: 'donut', label: 'Pie / Donut Chart', icon: PieChartIcon },
+                      { type: 'table', label: 'Table', icon: TableIcon },
+                      { type: 'text', label: 'Text', icon: FileText },
+                      { type: 'filter', label: 'Filter', icon: Filter },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.type}
+                          className="w-full text-left px-3 py-2.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 rounded-md transition-colors text-zinc-700 dark:text-zinc-300 font-medium"
+                          onClick={() => {
+                            setSelectedWidgetTypeToAdd(item.type as WidgetType);
+                            setEditingWidget(null);
+                            setIsWidgetMenuOpen(false);
+                            setIsWidgetModalOpen(true);
+                          }}
+                        >
+                          <Icon className="w-4 h-4 text-zinc-500" />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
 
           /* WIDGETS RESPONSIVE GRID CANVAS (12 COLUMNS) */
@@ -1313,6 +1477,11 @@ export function DashboardView({
             {/* Grid Container */}
             <div
               ref={gridContainerRef}
+              onPointerDown={(e) => {
+                if (e.target === gridContainerRef.current) {
+                  setSelectedWidgetId(null);
+                }
+              }}
               className={cn(
                 "grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 sm:gap-5 w-full relative transition-all duration-200 min-h-[500px]",
                 mode === 'build' && "p-4 rounded-2xl border-2 border-dashed border-blue-400/50 dark:border-blue-600/40 bg-blue-500/5 dark:bg-blue-950/20"
@@ -1343,6 +1512,7 @@ export function DashboardView({
                 const validLayout = activeLayouts.find(l => l.id === widget.id)?.layout || getValidLayout(widget, index, 12);
                 const isBeingDragged = dragState?.widgetId === widget.id;
                 const isBeingResized = resizeState?.widgetId === widget.id;
+                const isSelected = selectedWidgetId === widget.id || isBeingDragged || isBeingResized;
                 const isActiveAction = isBeingDragged || isBeingResized;
 
                 // Card visual styling
@@ -1361,8 +1531,8 @@ export function DashboardView({
 
                 const customShadow = widget.subtleShadow === 'none' ? 'shadow-none hover:shadow-none'
                   : widget.subtleShadow === 'sm' ? 'shadow-xs hover:shadow-sm'
-                  : widget.subtleShadow === 'lg' ? 'shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-200'
-                  : 'shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200'; // default md/medium
+                  : widget.subtleShadow === 'lg' ? 'shadow-md hover:shadow-xl'
+                  : 'shadow-2xs hover:shadow-md'; // default md/medium
 
                 const customPadding = widget.internalPadding === 'sm' ? 'p-3.5'
                   : widget.internalPadding === 'lg' ? 'p-7'
@@ -1372,6 +1542,34 @@ export function DashboardView({
                   ? { '--tw-bg-opacity': widget.backgroundOpacity / 100 } as React.CSSProperties 
                   : undefined;
 
+                // KPI specific styling overrides for card container
+                const kpiContainerStyles: React.CSSProperties = {};
+                if (widget.type === 'kpi' && !isActiveAction) {
+                  if (widget.kpiBgType === 'custom' && widget.kpiBgColor) {
+                    kpiContainerStyles.backgroundColor = widget.kpiBgColor;
+                  }
+                  if (widget.kpiTextColorType === 'custom' && widget.kpiTextColor) {
+                    kpiContainerStyles.color = widget.kpiTextColor;
+                  }
+                  if (widget.kpiBorderType === 'glow' && widget.kpiAccentColor) {
+                    kpiContainerStyles.boxShadow = `0 0 12px 2px ${widget.kpiAccentColor}35`;
+                    kpiContainerStyles.borderColor = widget.kpiAccentColor;
+                  } else if (widget.kpiBorderType === 'strong' && widget.kpiAccentColor) {
+                    kpiContainerStyles.borderWidth = '2px';
+                    kpiContainerStyles.borderColor = widget.kpiAccentColor;
+                  } else if (widget.kpiBorderType === 'none') {
+                    kpiContainerStyles.borderWidth = '0px';
+                    kpiContainerStyles.borderColor = 'transparent';
+                  } else if (widget.kpiBorderType === 'subtle') {
+                    kpiContainerStyles.borderWidth = '1px';
+                  }
+
+                  if (widget.kpiCardStyle === 'filled' && widget.kpiAccentColor) {
+                    kpiContainerStyles.backgroundColor = widget.kpiAccentColor;
+                    kpiContainerStyles.color = '#ffffff';
+                  }
+                }
+
                 return (
                   <div
                     key={widget.id}
@@ -1380,19 +1578,70 @@ export function DashboardView({
                       gridColumnEnd: `span ${validLayout.w}`,
                       gridRowStart: validLayout.y + 1,
                       gridRowEnd: `span ${validLayout.h}`,
-                      ...opacityStyle
+                      zIndex: isSelected ? 40 : 10,
+                      ...opacityStyle,
+                      ...kpiContainerStyles
                     }}
+                    onPointerDown={(e) => handleCardPointerDown(e, widget, validLayout)}
+                    onPointerMove={handleCardPointerMove}
+                    onPointerUp={handleCardPointerUp}
                     className={cn(
-                      "flex flex-col justify-between group relative border transition-all duration-200 ease-out min-w-0 overflow-hidden",
-                      isActiveAction 
-                        ? "z-40 shadow-2xl ring-2 ring-blue-500 scale-[1.01] bg-white dark:bg-zinc-900 transition-none"
-                        : mode === 'build' 
-                          ? "border-2 border-dashed border-blue-400/60 dark:border-blue-500/40 bg-white/95 dark:bg-zinc-950/95 hover:border-blue-500 hover:shadow-md" 
+                      "flex flex-col justify-between group relative border transition-shadow duration-150 ease-out min-w-0 overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing",
+                      isSelected
+                        ? "ring-2 ring-blue-500 border-blue-500 shadow-2xl bg-white dark:bg-zinc-950"
+                        : mode === 'build'
+                          ? "border-2 border-dashed border-blue-400/60 dark:border-blue-500/40 bg-white/95 dark:bg-zinc-950/95 hover:border-blue-500 hover:shadow-md"
                           : cn("bg-white dark:bg-zinc-950/90 backdrop-blur-xs", customBorder, customShadow),
                       customRadius,
                       customPadding
                     )}
                   >
+                    {/* Floating Contextual Toolbar for Selected Widget */}
+                    {isSelected && (
+                      <div className="no-drag absolute -top-3.5 right-3 z-50 flex items-center gap-1 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 p-1 rounded-lg shadow-xl border border-zinc-700/50 dark:border-zinc-300/50 animate-in fade-in duration-150">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingWidget(widget);
+                            setIsWidgetModalOpen(true);
+                          }}
+                          className="p-1 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded text-zinc-300 dark:text-zinc-700 hover:text-white dark:hover:text-zinc-900 transition-colors flex items-center gap-1 text-[11px] font-medium"
+                          title="Edit Widget"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+
+                        <div className="w-[1px] h-3 bg-zinc-700 dark:bg-zinc-300 my-auto" />
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicateWidget(widget);
+                          }}
+                          className="p-1 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded text-zinc-300 dark:text-zinc-700 hover:text-white dark:hover:text-zinc-900 transition-colors flex items-center gap-1 text-[11px] font-medium"
+                          title="Duplicate Widget"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Duplicate</span>
+                        </button>
+
+                        <div className="w-[1px] h-3 bg-zinc-700 dark:bg-zinc-300 my-auto" />
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteWidget(widget.id);
+                          }}
+                          className="p-1 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded text-red-400 hover:text-red-300 dark:text-red-600 dark:hover:text-red-700 transition-colors flex items-center gap-1 text-[11px] font-medium"
+                          title="Delete Widget"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    )}
+
                     {/* Live Resize Dimension Tooltip */}
                     {isBeingResized && (
                       <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-950/40 backdrop-blur-3xs rounded-2xl border-2 border-blue-500 z-50 flex items-center justify-center pointer-events-none animate-fade-in">
@@ -1404,48 +1653,37 @@ export function DashboardView({
                     )}
 
                     {/* Widget Header Bar */}
-                    <div className="flex items-center justify-between mb-2 shrink-0 gap-1.5">
+                    <div className="flex items-center justify-between mb-2 shrink-0 gap-1.5 pointer-events-auto">
                       <div className="flex items-center gap-1.5 truncate">
-                        {/* Drag Handle Grip in Build Mode */}
-                        {mode === 'build' && (
-                          <div
-                            onPointerDown={(e) => handleDragStart(e, widget, validLayout)}
-                            onPointerMove={handleDragMove}
-                            onPointerUp={handleDragEnd}
-                            className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-colors shrink-0 touch-none flex items-center justify-center"
-                            title="Click and drag to re-position on grid"
-                          >
-                            <GripVertical className="w-4 h-4" />
+                        {widget.type !== 'kpi' && (
+                          <div className="truncate">
+                            <h3 className={cn(
+                              "text-zinc-900 dark:text-zinc-100 truncate",
+                              widget.chartTitleSize === 'sm' ? 'text-xs'
+                                : widget.chartTitleSize === 'lg' ? 'text-base'
+                                : 'text-sm', // default
+                              widget.chartTitleWeight === 'normal' ? 'font-normal'
+                                : widget.chartTitleWeight === 'medium' ? 'font-medium'
+                                : widget.chartTitleWeight === 'black' ? 'font-black'
+                                : 'font-semibold' // default
+                            )}>
+                              {widget.title}
+                            </h3>
+                            {widget.subtitle && (
+                              <p className="text-[11px] text-zinc-400 truncate">{widget.subtitle}</p>
+                            )}
                           </div>
                         )}
-
-                        <div className="truncate">
-                          <h3 className={cn(
-                            "text-zinc-900 dark:text-zinc-100 truncate",
-                            widget.chartTitleSize === 'sm' ? 'text-xs'
-                              : widget.chartTitleSize === 'lg' ? 'text-base'
-                              : 'text-sm', // default
-                            widget.chartTitleWeight === 'normal' ? 'font-normal'
-                              : widget.chartTitleWeight === 'medium' ? 'font-medium'
-                              : widget.chartTitleWeight === 'black' ? 'font-black'
-                              : 'font-semibold' // default
-                          )}>
-                            {widget.title}
-                          </h3>
-                          {widget.subtitle && (
-                            <p className="text-[11px] text-zinc-400 truncate">{widget.subtitle}</p>
-                          )}
-                        </div>
                       </div>
 
                       {/* BUILD MODE EDIT CONTROLS */}
                       {mode === 'build' ? (
-                        <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 opacity-90 group-hover:opacity-100 transition-opacity">
+                        <div className="no-drag flex items-center gap-1 bg-zinc-50 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 opacity-90 group-hover:opacity-100 transition-opacity">
                           {/* Width Span Preset Selector */}
                           <select
                             value={Math.ceil(validLayout.w / 3)}
                             onChange={(e) => handleResizeWidget(widget.id, Number(e.target.value))}
-                            className="text-[10px] bg-transparent text-zinc-600 dark:text-zinc-300 font-mono focus:outline-none"
+                            className="text-[10px] bg-transparent text-zinc-600 dark:text-zinc-300 font-mono focus:outline-none cursor-pointer"
                             title="Change Width Span"
                           >
                             <option value={1}>1/4</option>
@@ -1506,7 +1744,7 @@ export function DashboardView({
                         </div>
                       ) : (
                         /* VIEW MODE: Quick edit & hide options on hover */
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <div className="no-drag opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1553,15 +1791,15 @@ export function DashboardView({
                       />
                     </div>
 
-                    {/* Resize Handles in Build Mode */}
-                    {mode === 'build' && (
+                    {/* Resize Handles for Selected / Build Mode Widgets */}
+                    {(isSelected || mode === 'build') && (
                       <>
                         {/* Bottom-Right Corner Diagonal Handle */}
                         <div
                           onPointerDown={(e) => handleResizeStart(e, widget, validLayout, 'se')}
                           onPointerMove={handleResizeMove}
                           onPointerUp={handleResizeEnd}
-                          className="absolute bottom-1 right-1 w-6 h-6 flex items-center justify-center cursor-nwse-resize text-blue-500 hover:text-blue-600 hover:bg-blue-500/20 rounded-md transition-all z-30 touch-none group/resize"
+                          className="resize-handle absolute bottom-1 right-1 w-6 h-6 flex items-center justify-center cursor-nwse-resize text-blue-500 hover:text-blue-600 hover:bg-blue-500/20 rounded-md transition-all z-30 touch-none group/resize"
                           title="Drag to resize widget width and height"
                         >
                           <Maximize2 className="w-3.5 h-3.5 rotate-90 transform group-hover/resize:scale-110" />
@@ -1572,7 +1810,7 @@ export function DashboardView({
                           onPointerDown={(e) => handleResizeStart(e, widget, validLayout, 'e')}
                           onPointerMove={handleResizeMove}
                           onPointerUp={handleResizeEnd}
-                          className="absolute top-6 bottom-6 right-0 w-2 hover:w-3 cursor-ew-resize bg-blue-500/0 hover:bg-blue-500/30 rounded-r-lg transition-all z-20 touch-none"
+                          className="resize-handle absolute top-6 bottom-6 right-0 w-2.5 hover:w-3.5 cursor-ew-resize bg-blue-500/0 hover:bg-blue-500/30 rounded-r-lg transition-all z-20 touch-none"
                           title="Drag right edge to adjust width"
                         />
 
@@ -1581,7 +1819,7 @@ export function DashboardView({
                           onPointerDown={(e) => handleResizeStart(e, widget, validLayout, 's')}
                           onPointerMove={handleResizeMove}
                           onPointerUp={handleResizeEnd}
-                          className="absolute left-6 right-6 bottom-0 h-2 hover:h-3 cursor-ns-resize bg-blue-500/0 hover:bg-blue-500/30 rounded-b-lg transition-all z-20 touch-none"
+                          className="resize-handle absolute left-6 right-6 bottom-0 h-2.5 hover:h-3.5 cursor-ns-resize bg-blue-500/0 hover:bg-blue-500/30 rounded-b-lg transition-all z-20 touch-none"
                           title="Drag bottom edge to adjust height"
                         />
                       </>
@@ -1616,6 +1854,7 @@ export function DashboardView({
         savedKpis={savedKpis}
         activeDatasetId={primaryDataset?.id || ''}
         initialWidget={editingWidget}
+        initialType={selectedWidgetTypeToAdd}
       />
 
       {/* AI DASHBOARD EXPLANATION MODAL */}

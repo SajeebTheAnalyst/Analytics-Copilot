@@ -54,6 +54,87 @@ const CustomTooltip = ({ active, payload, label, formatConfig, yAxisColumn }: an
   return null;
 };
 
+export function formatKpiValueWithConfig(value: number, widget: WidgetConfig): string {
+  if (value === null || value === undefined || isNaN(value) || !isFinite(value)) {
+    return '0';
+  }
+
+  // 1. Determine Display Unit
+  const displayUnit = widget.kpiDisplayUnit || (widget.format?.compactNotation ? 'K' : 'none');
+  let scale = 1;
+  let suffix = '';
+
+  if (displayUnit === 'K') {
+    scale = 1000;
+    suffix = 'K';
+  } else if (displayUnit === 'M') {
+    scale = 1000000;
+    suffix = 'M';
+  } else if (displayUnit === 'B') {
+    scale = 1000000000;
+    suffix = 'B';
+  }
+
+  const scaledValue = value / scale;
+
+  // 2. Determine Currency Prefix
+  const currency = widget.kpiCurrency || widget.format?.currencySymbol || 'none';
+  let prefix = '';
+  if (currency === 'BDT' || currency === '৳') {
+    prefix = '৳';
+  } else if (currency === 'USD' || currency === '$') {
+    prefix = '$';
+  } else if (currency === 'EUR' || currency === '€') {
+    prefix = '€';
+  } else if (currency === 'GBP' || currency === '£') {
+    prefix = '£';
+  } else if (currency === 'INR' || currency === '₹') {
+    prefix = '₹';
+  } else if (currency !== 'none' && currency !== '') {
+    prefix = currency;
+  }
+
+  // 3. Determine Decimals
+  const decimals = widget.kpiDecimals !== undefined ? widget.kpiDecimals : (widget.format?.decimals !== undefined ? widget.format.decimals : 'auto');
+
+  let formattedNumber = '';
+
+  if (decimals === 'auto') {
+    if (suffix !== '') {
+      if (scaledValue % 1 === 0) {
+        formattedNumber = scaledValue.toLocaleString('en-US');
+      } else {
+        formattedNumber = scaledValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
+      }
+    } else {
+      if (scaledValue % 1 === 0) {
+        formattedNumber = scaledValue.toLocaleString('en-US');
+      } else {
+        formattedNumber = scaledValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
+      }
+    }
+  } else {
+    const decNum = Number(decimals);
+    if (suffix !== '') {
+      if (scaledValue % 1 === 0) {
+        formattedNumber = scaledValue.toLocaleString('en-US');
+      } else {
+        formattedNumber = scaledValue.toLocaleString('en-US', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: decNum
+        });
+      }
+    } else {
+      formattedNumber = scaledValue.toLocaleString('en-US', {
+        minimumFractionDigits: decNum,
+        maximumFractionDigits: decNum
+      });
+    }
+  }
+
+  return `${prefix}${formattedNumber}${suffix}`;
+}
+
 export function fuzzyMatchColumn(sought: string | undefined, headers: string[]): string | undefined {
   if (!sought) return undefined;
   // If exact match exists, use it first
@@ -1322,15 +1403,15 @@ export function WidgetRenderer({
             : d
         );
         const result = evaluateKpi(referencedKpi, contextualDatasets, savedKpis);
-        valueFormatted = result.formattedResult;
         rawVal = result.rawResult || 0;
+        valueFormatted = formatKpiValueWithConfig(rawVal, widget);
         aggFn = referencedKpi.aggregation || 'sum';
         colToAggregate = referencedKpi.column || yAxisColumn;
         formatConfig = referencedKpi.format;
         formulaSummaryText = result.formulaSummary;
       } else {
         rawVal = evaluateSimpleAggregation(drillFilteredRows, yAxisColumn, aggFn as any) || 0;
-        valueFormatted = formatKpiValue(rawVal, formatConfig);
+        valueFormatted = formatKpiValueWithConfig(rawVal, widget);
         formulaSummaryText = `Direct ${aggFn} of ${colToAggregate || 'rows'}`;
       }
 
@@ -1456,32 +1537,127 @@ export function WidgetRenderer({
       );
     }
 
+    const kpiAlignClass = widget.kpiAlignment === 'center' ? 'items-center text-center'
+      : widget.kpiAlignment === 'right' ? 'items-end text-right'
+      : 'items-start text-left';
+    
+    const kpiJustifyClass = widget.kpiAlignment === 'center' ? 'justify-center'
+      : widget.kpiAlignment === 'right' ? 'justify-end'
+      : 'justify-start';
+
+    const kpiTitleSizeClass = widget.kpiTitleSize === 'sm' ? 'text-[10px]'
+      : widget.kpiTitleSize === 'lg' ? 'text-sm'
+      : 'text-[11px]'; // default/md
+
+    const kpiValueSizeClass = widget.kpiValueSize === 'sm' ? 'text-xl sm:text-2xl font-black'
+      : widget.kpiValueSize === 'md' ? 'text-2xl sm:text-3xl font-black'
+      : widget.kpiValueSize === 'xl' ? 'text-4xl sm:text-5xl font-extrabold'
+      : 'text-3xl sm:text-4xl font-extrabold'; // default/lg
+
+    const isFilledStyle = widget.kpiCardStyle === 'filled';
+    const isSoftStyle = widget.kpiCardStyle === 'soft';
+    const isGradientStyle = widget.kpiCardStyle === 'gradient';
+    const isOutlinedStyle = widget.kpiCardStyle === 'outlined';
+    const isMinimalStyle = widget.kpiCardStyle === 'minimal';
+
+    // Style overrides for inner card
+    const innerCardStyles: React.CSSProperties = {};
+    const innerTitleStyles: React.CSSProperties = {};
+    const innerValueStyles: React.CSSProperties = {};
+
+    // Title Color
+    if (widget.kpiTitleColor) {
+      innerTitleStyles.color = widget.kpiTitleColor;
+    } else if (widget.kpiTextColorType === 'custom' && widget.kpiTextColor) {
+      innerTitleStyles.color = widget.kpiTextColor;
+    }
+
+    // Value Color
+    if (widget.kpiValueColor) {
+      innerValueStyles.color = widget.kpiValueColor;
+    } else if (widget.kpiTextColorType === 'custom' && widget.kpiTextColor) {
+      innerValueStyles.color = widget.kpiTextColor;
+    }
+
+    // Background & Card Style
+    if (widget.kpiBgType === 'custom' && widget.kpiBgColor) {
+      innerCardStyles.backgroundColor = widget.kpiBgColor;
+    }
+
+    if (isFilledStyle) {
+      innerCardStyles.backgroundColor = widget.kpiBgColor || widget.kpiAccentColor || '#3b82f6';
+      if (!widget.kpiTitleColor && !widget.kpiTextColor) innerTitleStyles.color = 'rgba(255, 255, 255, 0.85)';
+      if (!widget.kpiValueColor && !widget.kpiTextColor) innerValueStyles.color = '#ffffff';
+    } else if (isSoftStyle) {
+      const softBg = widget.kpiAccentColor || widget.kpiBgColor || '#3b82f6';
+      innerCardStyles.backgroundColor = `${softBg}18`;
+    } else if (isGradientStyle) {
+      const accent = widget.kpiAccentColor || '#3b82f6';
+      const baseBg = widget.kpiBgColor || 'transparent';
+      innerCardStyles.background = `linear-gradient(135deg, ${accent}30 0%, ${baseBg} 100%)`;
+    } else if (isOutlinedStyle) {
+      const outlineColor = widget.kpiBorderColor || widget.kpiAccentColor || '#3b82f6';
+      innerCardStyles.border = `2px double ${outlineColor}`;
+    } else if (isMinimalStyle) {
+      innerCardStyles.backgroundColor = 'transparent';
+      innerCardStyles.boxShadow = 'none';
+    }
+
+    // Border Treatment
+    if (widget.kpiBorderColor) {
+      innerCardStyles.borderColor = widget.kpiBorderColor;
+    }
+    if (widget.kpiBorderType === 'glow') {
+      const glowCol = widget.kpiAccentColor || widget.kpiBorderColor || '#3b82f6';
+      innerCardStyles.boxShadow = `0 0 15px 2px ${glowCol}40`;
+      innerCardStyles.borderColor = glowCol;
+    } else if (widget.kpiBorderType === 'strong') {
+      innerCardStyles.borderWidth = '2px';
+      if (widget.kpiBorderColor || widget.kpiAccentColor) {
+        innerCardStyles.borderColor = widget.kpiBorderColor || widget.kpiAccentColor;
+      }
+    } else if (widget.kpiBorderType === 'none') {
+      innerCardStyles.borderWidth = '0px';
+      innerCardStyles.borderColor = 'transparent';
+    } else if (widget.kpiBorderType === 'subtle') {
+      innerCardStyles.borderWidth = '1px';
+    }
+
+    // Sparkline theme matching
+    const sparklineStroke = widget.kpiAccentColor || (kpiDetails.isPositive ? "#10b981" : "#ef4444");
+    const sparklineFill = widget.kpiAccentColor ? `${widget.kpiAccentColor}10` : (kpiDetails.isPositive ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)");
+
     return (
       <div 
-        onClick={() => handleOpenDetailRecords()}
-        title="Click to view granular detail records"
-        className="h-full flex flex-col justify-between p-1 select-all cursor-pointer group/kpi"
+        style={innerCardStyles}
+        className={cn(
+          "h-full flex flex-col justify-between p-3 rounded-lg group/kpi transition-all duration-200 select-text",
+          kpiAlignClass
+        )}
       >
         {/* Top row: Title */}
-        <div className="flex items-start justify-between gap-1.5 shrink-0">
-          <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider truncate" title={kpiDetails.formulaSummary}>
+        <div className={cn("flex items-start justify-between gap-1.5 shrink-0 w-full", kpiJustifyClass)}>
+          <span 
+            style={innerTitleStyles} 
+            className={cn("font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider truncate", kpiTitleSizeClass)} 
+            title={kpiDetails.formulaSummary}
+          >
             {kpiDetails.title}
-          </span>
-          <span className="opacity-0 group-hover/kpi:opacity-100 transition-opacity text-[10px] font-bold text-blue-500 flex items-center gap-0.5">
-            <FileSpreadsheet className="w-3 h-3" />
-            <span className="hidden sm:inline">Details</span>
           </span>
         </div>
 
         {/* Mid row: Main Metric Value */}
-        <div className="flex-1 flex items-center min-h-0 my-1">
-          <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50 leading-none">
+        <div className={cn("flex-1 flex items-center min-h-0 my-1 w-full", kpiJustifyClass)}>
+          <span 
+            style={innerValueStyles} 
+            className={cn("tracking-tight text-zinc-900 dark:text-zinc-50 leading-none font-bold", kpiValueSizeClass)}
+          >
             {kpiDetails.value}
           </span>
         </div>
 
         {/* Bottom row: Trend badge + sparkline inline */}
-        <div className="flex items-center justify-between gap-2 border-t border-zinc-100/80 dark:border-zinc-900/60 pt-2 shrink-0">
+        <div className="flex items-center justify-between gap-2 border-t border-zinc-100/80 dark:border-zinc-900/60 pt-2 shrink-0 w-full">
           <div className="flex items-center gap-1.5 min-w-0">
             {widget.comparisonType && widget.comparisonType !== 'none' && (
               kpiDetails.comparisonText === 'Comparison unavailable' ? (
@@ -1489,12 +1665,15 @@ export function WidgetRenderer({
                   Comparison unavailable
                 </span>
               ) : (
-                <span className={cn(
-                  "text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 flex items-center gap-0.5",
-                  kpiDetails.isPositive
-                    ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 border-emerald-500/20"
-                    : "bg-rose-500/10 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400 border-rose-500/20"
-                )}>
+                <span 
+                  style={{ color: widget.kpiAccentColor }}
+                  className={cn(
+                    "text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 flex items-center gap-0.5",
+                    kpiDetails.isPositive
+                      ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 border-emerald-500/20"
+                      : "bg-rose-500/10 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400 border-rose-500/20"
+                  )}
+                >
                   {kpiDetails.comparisonText}
                 </span>
               )
@@ -1509,8 +1688,8 @@ export function WidgetRenderer({
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke={kpiDetails.isPositive ? "#10b981" : "#ef4444"}
-                    fill={kpiDetails.isPositive ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)"}
+                    stroke={sparklineStroke}
+                    fill={sparklineFill}
                     strokeWidth={1.2}
                     dot={false}
                   />
@@ -1519,18 +1698,6 @@ export function WidgetRenderer({
             </div>
           )}
         </div>
-
-        {/* Drill-Through Records Modal */}
-        {isLocalDrillThroughOpen && (
-          <DrillThroughModal
-            isOpen={isLocalDrillThroughOpen}
-            onClose={() => setIsLocalDrillThroughOpen(false)}
-            dataset={primaryDataset}
-            filteredRecords={drillFilteredRows}
-            widgetTitle={widget.title || kpiDetails.title}
-            drillPath={activeDrillState.path}
-          />
-        )}
       </div>
     );
   }

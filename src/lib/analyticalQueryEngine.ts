@@ -1,7 +1,7 @@
 import { Dataset, RelationshipSuggestion } from '@/types';
 import { ModelIntegrityReport } from '@/lib/modelIntegrityEngine';
 
-export type AggregationType = 'SUM' | 'AVERAGE' | 'COUNT' | 'MIN' | 'MAX';
+export type AggregationType = 'SUM' | 'AVERAGE' | 'COUNT' | 'MIN' | 'MAX' | 'DISTINCT COUNT' | 'distinct_count';
 
 export interface AnalyticalQuery {
   datasetId: string;
@@ -116,10 +116,21 @@ export function executeAnalyticalQuery(
 
 function calculateAggregation(rows: any[], column: string, aggregation: AggregationType): number {
   if (rows.length === 0) return 0;
+
+  const aggString = String(aggregation).toUpperCase().replace(/_/g, ' ').trim();
+
+  if (aggString === 'DISTINCT COUNT') {
+    const rawValues = rows
+      .map(r => r[column])
+      .filter(val => val !== undefined && val !== null);
+    const distinctSet = new Set(rawValues.map(v => String(v).trim()));
+    return distinctSet.size;
+  }
+
   const values = rows.map(r => Number(r[column])).filter(n => !isNaN(n));
   if (values.length === 0) return 0;
 
-  switch (aggregation) {
+  switch (aggString) {
     case 'SUM': return values.reduce((sum, val) => sum + val, 0);
     case 'AVERAGE': return values.reduce((sum, val) => sum + val, 0) / values.length;
     case 'COUNT': return values.length;

@@ -800,7 +800,7 @@ export function KpiBuilderView({
                     LIVE EVALUATED PREVIEW
                   </span>
                   <span className="font-mono text-[11px] text-blue-700 dark:text-blue-400">
-                    {livePreviewResult?.rowCountEvaluated.toLocaleString() || 0} rows evaluated ({livePreviewResult?.executionTimeMs.toFixed(1)}ms)
+                    {livePreviewResult?.rowCountEvaluated.toLocaleString() || 0} rows evaluated ({livePreviewResult?.executionTimeMs?.toFixed(1) ?? '0.0'}ms)
                   </span>
                 </div>
 

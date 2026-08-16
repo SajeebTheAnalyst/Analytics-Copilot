@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WidgetConfig, WidgetType, Dataset, KpiDefinition, KpiAggregation, KpiFormatConfig } from '@/types';
 import { WidgetRenderer } from './WidgetRenderer';
-import { X, Check, BarChart2, TrendingUp, PieChart as PieChartIcon, Table as TableIcon, Award, Activity, DollarSign, Hash, Percent, Layers, Sliders, Eye } from 'lucide-react';
+import { X, Check, BarChart2, TrendingUp, PieChart as PieChartIcon, Table as TableIcon, Award, Activity, DollarSign, Hash, Percent, Layers, Sliders, Eye, FileText, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { isDateColumn } from '@/lib/dateIntelligence';
@@ -14,6 +14,7 @@ interface WidgetBuilderModalProps {
   savedKpis: KpiDefinition[];
   activeDatasetId: string;
   initialWidget?: WidgetConfig | null;
+  initialType?: WidgetType;
 }
 
 export function WidgetBuilderModal({
@@ -23,13 +24,14 @@ export function WidgetBuilderModal({
   datasets,
   savedKpis,
   activeDatasetId,
-  initialWidget
+  initialWidget,
+  initialType
 }: WidgetBuilderModalProps) {
   if (!isOpen) return null;
 
   const primaryDataset = datasets.find(d => d.id === activeDatasetId) || datasets[0];
 
-  const [widgetType, setWidgetType] = useState<WidgetType>(initialWidget?.type || 'bar');
+  const [widgetType, setWidgetType] = useState<WidgetType>(initialWidget?.type || initialType || 'bar');
   const [dateAggregation, setDateAggregation] = useState<'auto' | 'day' | 'week' | 'month' | 'quarter' | 'year' | undefined>(initialWidget?.dateAggregation);
   const [comparisonType, setComparisonType] = useState<'none' | 'yoy' | 'mom'>(initialWidget?.comparisonType || 'none');
   const [title, setTitle] = useState(initialWidget?.title || '');
@@ -97,6 +99,80 @@ export function WidgetBuilderModal({
   const [subtleShadow, setSubtleShadow] = useState<'none' | 'sm' | 'md' | 'lg'>(initialWidget?.subtleShadow || 'sm');
   const [backgroundOpacity, setBackgroundOpacity] = useState<number>(initialWidget?.backgroundOpacity ?? 100);
   const [internalPadding, setInternalPadding] = useState<'sm' | 'md' | 'lg'>(initialWidget?.internalPadding || 'md');
+
+  // KPI Specific Styling States
+  const [kpiDecimals, setKpiDecimals] = useState<'auto' | 0 | 1 | 2 | 3 | 4>(initialWidget?.kpiDecimals !== undefined ? initialWidget.kpiDecimals : 'auto');
+  const [kpiDisplayUnit, setKpiDisplayUnit] = useState<'none' | 'K' | 'M' | 'B'>(initialWidget?.kpiDisplayUnit || 'none');
+  const [kpiCurrency, setKpiCurrency] = useState<string>(initialWidget?.kpiCurrency || 'none');
+  const [kpiCardStyle, setKpiCardStyle] = useState<'default' | 'minimal' | 'filled' | 'outlined' | 'soft' | 'gradient'>(initialWidget?.kpiCardStyle || 'default');
+  const [kpiBgType, setKpiBgType] = useState<'theme' | 'custom'>(initialWidget?.kpiBgType || 'theme');
+  const [kpiBgColor, setKpiBgColor] = useState<string>(initialWidget?.kpiBgColor || '#f8fafc');
+  const [kpiTextColorType, setKpiTextColorType] = useState<'theme' | 'custom'>(initialWidget?.kpiTextColorType || 'theme');
+  const [kpiTextColor, setKpiTextColor] = useState<string>(initialWidget?.kpiTextColor || '#0f172a');
+  const [kpiTitleColor, setKpiTitleColor] = useState<string>(initialWidget?.kpiTitleColor || '#64748b');
+  const [kpiValueColor, setKpiValueColor] = useState<string>(initialWidget?.kpiValueColor || '#0f172a');
+  const [kpiAccentColor, setKpiAccentColor] = useState<string>(initialWidget?.kpiAccentColor || '#3b82f6');
+  const [kpiBorderColor, setKpiBorderColor] = useState<string>(initialWidget?.kpiBorderColor || '#e2e8f0');
+  const [kpiBorderType, setKpiBorderType] = useState<'none' | 'subtle' | 'strong' | 'glow'>(initialWidget?.kpiBorderType || 'subtle');
+  const [kpiAlignment, setKpiAlignment] = useState<'left' | 'center' | 'right'>(initialWidget?.kpiAlignment || 'left');
+  const [kpiValueSize, setKpiValueSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialWidget?.kpiValueSize || 'lg');
+  const [kpiTitleSize, setKpiTitleSize] = useState<'sm' | 'md' | 'lg'>(initialWidget?.kpiTitleSize || 'md');
+
+  // Reset/sync state when modal opens or initialWidget/initialType changes
+  useEffect(() => {
+    if (isOpen) {
+      if (initialWidget) {
+        setWidgetType(initialWidget.type);
+        setTitle(initialWidget.title || '');
+        setSubtitle(initialWidget.subtitle || '');
+        setDatasetId(initialWidget.datasetId || activeDatasetId);
+        setKpiId(initialWidget.kpiId || '');
+        setXAxisColumn(initialWidget.xAxisColumn || '');
+        setYAxisColumn(initialWidget.yAxisColumn || '');
+        setAggregation((initialWidget.aggregation as any) || 'sum');
+
+        // KPI Specific Fields
+        setKpiDecimals(initialWidget.kpiDecimals !== undefined ? initialWidget.kpiDecimals : 'auto');
+        setKpiDisplayUnit(initialWidget.kpiDisplayUnit || 'none');
+        setKpiCurrency(initialWidget.kpiCurrency || 'none');
+        setKpiCardStyle(initialWidget.kpiCardStyle || 'default');
+        setKpiBgType(initialWidget.kpiBgType || 'theme');
+        setKpiBgColor(initialWidget.kpiBgColor || '#f8fafc');
+        setKpiTextColorType(initialWidget.kpiTextColorType || 'theme');
+        setKpiTextColor(initialWidget.kpiTextColor || '#0f172a');
+        setKpiTitleColor(initialWidget.kpiTitleColor || '#64748b');
+        setKpiValueColor(initialWidget.kpiValueColor || '#0f172a');
+        setKpiAccentColor(initialWidget.kpiAccentColor || '#3b82f6');
+        setKpiBorderColor(initialWidget.kpiBorderColor || '#e2e8f0');
+        setKpiBorderType(initialWidget.kpiBorderType || 'subtle');
+        setKpiAlignment(initialWidget.kpiAlignment || 'left');
+        setKpiValueSize(initialWidget.kpiValueSize || 'lg');
+        setKpiTitleSize(initialWidget.kpiTitleSize || 'md');
+      } else {
+        setWidgetType(initialType || 'bar');
+        setTitle('');
+        setSubtitle('');
+        setDatasetId(activeDatasetId);
+        setKpiId('');
+        setKpiDecimals('auto');
+        setKpiDisplayUnit('none');
+        setKpiCurrency('none');
+        setKpiCardStyle('default');
+        setKpiBgType('theme');
+        setKpiBgColor('#f8fafc');
+        setKpiTextColorType('theme');
+        setKpiTextColor('#0f172a');
+        setKpiTitleColor('#64748b');
+        setKpiValueColor('#0f172a');
+        setKpiAccentColor('#3b82f6');
+        setKpiBorderColor('#e2e8f0');
+        setKpiBorderType('subtle');
+        setKpiAlignment('left');
+        setKpiValueSize('lg');
+        setKpiTitleSize('md');
+      }
+    }
+  }, [isOpen, initialWidget, initialType, activeDatasetId]);
 
   // Apply Preset Palette effect
   useEffect(() => {
@@ -233,6 +309,24 @@ export function WidgetBuilderModal({
       secondaryMetric: widgetType === 'matrix' ? secondaryMetric : undefined,
       secondaryAggregation: widgetType === 'matrix' ? secondaryAggregation : undefined,
       matrixConditionalFormat: widgetType === 'matrix' ? matrixConditionalFormat : undefined,
+      
+      // KPI specific style properties
+      kpiDecimals: widgetType === 'kpi' ? kpiDecimals : undefined,
+      kpiDisplayUnit: widgetType === 'kpi' ? kpiDisplayUnit : undefined,
+      kpiCurrency: widgetType === 'kpi' ? kpiCurrency : undefined,
+      kpiCardStyle: widgetType === 'kpi' ? kpiCardStyle : undefined,
+      kpiBgType: widgetType === 'kpi' ? kpiBgType : undefined,
+      kpiBgColor: widgetType === 'kpi' ? kpiBgColor : undefined,
+      kpiTextColorType: widgetType === 'kpi' ? kpiTextColorType : undefined,
+      kpiTextColor: widgetType === 'kpi' ? kpiTextColor : undefined,
+      kpiTitleColor: widgetType === 'kpi' ? kpiTitleColor : undefined,
+      kpiValueColor: widgetType === 'kpi' ? kpiValueColor : undefined,
+      kpiAccentColor: widgetType === 'kpi' ? kpiAccentColor : undefined,
+      kpiBorderColor: widgetType === 'kpi' ? kpiBorderColor : undefined,
+      kpiBorderType: widgetType === 'kpi' ? kpiBorderType : undefined,
+      kpiAlignment: widgetType === 'kpi' ? kpiAlignment : undefined,
+      kpiValueSize: widgetType === 'kpi' ? kpiValueSize : undefined,
+      kpiTitleSize: widgetType === 'kpi' ? kpiTitleSize : undefined,
     };
 
     onSave(newWidget);
@@ -305,6 +399,24 @@ export function WidgetBuilderModal({
     secondaryMetric: widgetType === 'matrix' ? secondaryMetric : undefined,
     secondaryAggregation: widgetType === 'matrix' ? secondaryAggregation : undefined,
     matrixConditionalFormat: widgetType === 'matrix' ? matrixConditionalFormat : undefined,
+
+    // KPI specific style properties
+    kpiDecimals: widgetType === 'kpi' ? kpiDecimals : undefined,
+    kpiDisplayUnit: widgetType === 'kpi' ? kpiDisplayUnit : undefined,
+    kpiCurrency: widgetType === 'kpi' ? kpiCurrency : undefined,
+    kpiCardStyle: widgetType === 'kpi' ? kpiCardStyle : undefined,
+    kpiBgType: widgetType === 'kpi' ? kpiBgType : undefined,
+    kpiBgColor: widgetType === 'kpi' ? kpiBgColor : undefined,
+    kpiTextColorType: widgetType === 'kpi' ? kpiTextColorType : undefined,
+    kpiTextColor: widgetType === 'kpi' ? kpiTextColor : undefined,
+    kpiTitleColor: widgetType === 'kpi' ? kpiTitleColor : undefined,
+    kpiValueColor: widgetType === 'kpi' ? kpiValueColor : undefined,
+    kpiAccentColor: widgetType === 'kpi' ? kpiAccentColor : undefined,
+    kpiBorderColor: widgetType === 'kpi' ? kpiBorderColor : undefined,
+    kpiBorderType: widgetType === 'kpi' ? kpiBorderType : undefined,
+    kpiAlignment: widgetType === 'kpi' ? kpiAlignment : undefined,
+    kpiValueSize: widgetType === 'kpi' ? kpiValueSize : undefined,
+    kpiTitleSize: widgetType === 'kpi' ? kpiTitleSize : undefined,
   };
 
   const isFormValid = title.trim() !== '' && (
@@ -385,10 +497,13 @@ export function WidgetBuilderModal({
                     { type: 'area', label: 'Area Chart', icon: Layers },
                     { type: 'donut', label: 'Donut Chart', icon: PieChartIcon },
                     { type: 'pie', label: 'Pie Chart', icon: PieChartIcon },
+                    { type: 'table', label: 'Table', icon: TableIcon, isImplemented: true },
+                    { type: 'text', label: 'Text Block', icon: FileText, isImplemented: true },
+                    { type: 'filter', label: 'Filter', icon: Filter, isImplemented: true },
                   ].map(item => {
                     const Icon = item.icon;
                     const selected = widgetType === item.type;
-                    return (
+                    return item.isImplemented !== false ? (
                       <button
                         key={item.type}
                         type="button"
@@ -403,6 +518,15 @@ export function WidgetBuilderModal({
                         <Icon className={cn("w-4 h-4", selected ? "text-blue-600 dark:text-blue-400" : "text-zinc-400")} />
                         <span className="text-[11px] leading-tight">{item.label}</span>
                       </button>
+                    ) : (
+                      <div
+                        key={item.type}
+                        className="p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-900 bg-zinc-50/30 dark:bg-zinc-900/10 text-center flex flex-col items-center justify-center gap-1.5 opacity-45 relative overflow-hidden"
+                      >
+                        <Icon className="w-4 h-4 text-zinc-400" />
+                        <span className="text-[11px] text-zinc-400 leading-tight">{item.label}</span>
+                        <span className="text-[7px] font-black uppercase text-zinc-400 tracking-wider bg-zinc-150 dark:bg-zinc-800 px-1 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 mt-1">Soon</span>
+                      </div>
                     );
                   })}
                 </div>
@@ -1028,34 +1152,110 @@ export function WidgetBuilderModal({
                 4. Formatting & Grid Layout
               </label>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-zinc-600 dark:text-zinc-400 mb-1 block">Format Type</label>
-                  <select
-                    value={formatType}
-                    onChange={(e) => setFormatType(e.target.value as any)}
-                    className="w-full text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="currency">Currency ($)</option>
-                    <option value="number">Number (Standard)</option>
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="decimal">Decimal</option>
-                  </select>
+              {widgetType === 'kpi' ? (
+                <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl space-y-3">
+                  <div className="text-xs font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5" />
+                    KPI Value Formatting Settings
+                  </div>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1 block">
+                        Decimal Places
+                      </label>
+                      <select
+                        value={kpiDecimals}
+                        onChange={(e) => setKpiDecimals(e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as any))}
+                        className="w-full text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="auto">Auto</option>
+                        <option value={0}>0 (10,000)</option>
+                        <option value={1}>1 (10,000.0)</option>
+                        <option value={2}>2 (10,000.00)</option>
+                        <option value={3}>3 (10,000.000)</option>
+                        <option value={4}>4 (10,000.0000)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1 block">
+                        Display Units
+                      </label>
+                      <select
+                        value={kpiDisplayUnit}
+                        onChange={(e) => setKpiDisplayUnit(e.target.value as any)}
+                        className="w-full text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="none">None (Full Number)</option>
+                        <option value="K">Thousands (K)</option>
+                        <option value="M">Millions (M)</option>
+                        <option value="B">Billions (B)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1 block">
+                        Currency
+                      </label>
+                      <select
+                        value={kpiCurrency}
+                        onChange={(e) => setKpiCurrency(e.target.value)}
+                        className="w-full text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="none">None</option>
+                        <option value="BDT">BDT (৳)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="INR">INR (₹)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1 block">Grid Width Span</label>
+                    <select
+                      value={gridSpan}
+                      onChange={(e) => setGridSpan(Number(e.target.value))}
+                      className="w-full text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={1}>Quarter Width (3 Cols)</option>
+                      <option value={2}>Half Width (6 Cols)</option>
+                      <option value={3}>Three-Quarter Width (9 Cols)</option>
+                      <option value={4}>Full Width (12 Cols)</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs text-zinc-600 dark:text-zinc-400 mb-1 block">Grid Width Span</label>
-                  <select
-                    value={gridSpan}
-                    onChange={(e) => setGridSpan(Number(e.target.value))}
-                    className="w-full text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value={1}>Quarter Width (3 Cols)</option>
-                    <option value={2}>Half Width (6 Cols)</option>
-                    <option value={3}>Three-Quarter Width (9 Cols)</option>
-                    <option value={4}>Full Width (12 Cols)</option>
-                  </select>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-zinc-600 dark:text-zinc-400 mb-1 block">Format Type</label>
+                    <select
+                      value={formatType}
+                      onChange={(e) => setFormatType(e.target.value as any)}
+                      className="w-full text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="currency">Currency ($)</option>
+                      <option value="number">Number (Standard)</option>
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="decimal">Decimal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-600 dark:text-zinc-400 mb-1 block">Grid Width Span</label>
+                    <select
+                      value={gridSpan}
+                      onChange={(e) => setGridSpan(Number(e.target.value))}
+                      className="w-full text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={1}>Quarter Width (3 Cols)</option>
+                      <option value={2}>Half Width (6 Cols)</option>
+                      <option value={3}>Three-Quarter Width (9 Cols)</option>
+                      <option value={4}>Full Width (12 Cols)</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center gap-4 text-xs pt-1">
                 <label className="flex items-center gap-1.5 cursor-pointer text-zinc-700 dark:text-zinc-300">
@@ -1083,6 +1283,224 @@ export function WidgetBuilderModal({
 
         {activeTab === 'style' && (
           <div className="space-y-5 animate-fadeIn">
+                {/* KPI Specific Styling Options */}
+                {widgetType === 'kpi' && (
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-3">
+                    <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1">
+                      <Activity className="w-3.5 h-3.5 text-blue-600" />
+                      KPI Specific Styles
+                    </span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Card Style</label>
+                        <select
+                          value={kpiCardStyle}
+                          onChange={(e) => setKpiCardStyle(e.target.value as any)}
+                          className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 rounded-lg px-2 py-1.5 text-zinc-800 dark:text-zinc-250"
+                        >
+                          <option value="default">Default Card</option>
+                          <option value="minimal">Minimal Flat</option>
+                          <option value="filled">Solid Color Filled</option>
+                          <option value="outlined">Double Border Outlined</option>
+                          <option value="soft">Soft Background Tint</option>
+                          <option value="gradient">Gradient Accent</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Text Alignment</label>
+                        <select
+                          value={kpiAlignment}
+                          onChange={(e) => setKpiAlignment(e.target.value as any)}
+                          className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 rounded-lg px-2 py-1.5 text-zinc-800 dark:text-zinc-250"
+                        >
+                          <option value="left">Align Left</option>
+                          <option value="center">Align Center</option>
+                          <option value="right">Align Right</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Value Font Size</label>
+                        <select
+                          value={kpiValueSize}
+                          onChange={(e) => setKpiValueSize(e.target.value as any)}
+                          className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 rounded-lg px-2 py-1.5 text-zinc-800 dark:text-zinc-250"
+                        >
+                          <option value="sm">Small (2xl)</option>
+                          <option value="md">Medium (3xl)</option>
+                          <option value="lg">Large (4xl)</option>
+                          <option value="xl">Extra Large (5xl)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Title Font Size</label>
+                        <select
+                          value={kpiTitleSize}
+                          onChange={(e) => setKpiTitleSize(e.target.value as any)}
+                          className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 rounded-lg px-2 py-1.5 text-zinc-800 dark:text-zinc-250"
+                        >
+                          <option value="sm">Small (10px)</option>
+                          <option value="md">Medium (11px)</option>
+                          <option value="lg">Large (13px)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Background Theme</label>
+                        <select
+                          value={kpiBgType}
+                          onChange={(e) => setKpiBgType(e.target.value as any)}
+                          className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 rounded-lg px-2 py-1.5 text-zinc-800 dark:text-zinc-250"
+                        >
+                          <option value="theme">Dashboard Canvas Theme</option>
+                          <option value="custom">Custom Color Picker</option>
+                        </select>
+                      </div>
+
+                      {kpiBgType === 'custom' ? (
+                        <div>
+                          <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Custom Background</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={kpiBgColor}
+                              onChange={(e) => setKpiBgColor(e.target.value)}
+                              className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer shrink-0"
+                            />
+                            <input
+                              type="text"
+                              value={kpiBgColor}
+                              onChange={(e) => setKpiBgColor(e.target.value)}
+                              className="w-full text-xs font-mono bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 px-2 py-1.5 rounded-lg text-zinc-800 dark:text-zinc-200"
+                            />
+                          </div>
+                        </div>
+                      ) : <div />}
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Text Color Mode</label>
+                        <select
+                          value={kpiTextColorType}
+                          onChange={(e) => setKpiTextColorType(e.target.value as any)}
+                          className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 rounded-lg px-2 py-1.5 text-zinc-800 dark:text-zinc-250"
+                        >
+                          <option value="theme">Default Contrast Text</option>
+                          <option value="custom">Custom Text Color</option>
+                        </select>
+                      </div>
+
+                      {kpiTextColorType === 'custom' ? (
+                        <div>
+                          <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Custom Text Color</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={kpiTextColor}
+                              onChange={(e) => setKpiTextColor(e.target.value)}
+                              className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer shrink-0"
+                            />
+                            <input
+                              type="text"
+                              value={kpiTextColor}
+                              onChange={(e) => setKpiTextColor(e.target.value)}
+                              className="w-full text-xs font-mono bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 px-2 py-1.5 rounded-lg text-zinc-800 dark:text-zinc-200"
+                            />
+                          </div>
+                        </div>
+                      ) : <div />}
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Border Treatment</label>
+                        <select
+                          value={kpiBorderType}
+                          onChange={(e) => setKpiBorderType(e.target.value as any)}
+                          className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 rounded-lg px-2 py-1.5 text-zinc-800 dark:text-zinc-200"
+                        >
+                          <option value="none">No Border</option>
+                          <option value="subtle">Subtle Hairline (1px)</option>
+                          <option value="strong">Strong Border (2px)</option>
+                          <option value="glow">Accent Glow Highlight</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Title Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={kpiTitleColor}
+                            onChange={(e) => setKpiTitleColor(e.target.value)}
+                            className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer shrink-0"
+                          />
+                          <input
+                            type="text"
+                            value={kpiTitleColor}
+                            onChange={(e) => setKpiTitleColor(e.target.value)}
+                            className="w-full text-xs font-mono bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 px-2 py-1.5 rounded-lg text-zinc-800 dark:text-zinc-200"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Value Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={kpiValueColor}
+                            onChange={(e) => setKpiValueColor(e.target.value)}
+                            className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer shrink-0"
+                          />
+                          <input
+                            type="text"
+                            value={kpiValueColor}
+                            onChange={(e) => setKpiValueColor(e.target.value)}
+                            className="w-full text-xs font-mono bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 px-2 py-1.5 rounded-lg text-zinc-800 dark:text-zinc-200"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Border Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={kpiBorderColor}
+                            onChange={(e) => setKpiBorderColor(e.target.value)}
+                            className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer shrink-0"
+                          />
+                          <input
+                            type="text"
+                            value={kpiBorderColor}
+                            onChange={(e) => setKpiBorderColor(e.target.value)}
+                            className="w-full text-xs font-mono bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 px-2 py-1.5 rounded-lg text-zinc-800 dark:text-zinc-200"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-650 dark:text-zinc-400 font-bold block mb-1">Accent / Trend Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={kpiAccentColor}
+                            onChange={(e) => setKpiAccentColor(e.target.value)}
+                            className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer shrink-0"
+                          />
+                          <input
+                            type="text"
+                            value={kpiAccentColor}
+                            onChange={(e) => setKpiAccentColor(e.target.value)}
+                            className="w-full text-xs font-mono bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-850 px-2 py-1.5 rounded-lg text-zinc-800 dark:text-zinc-200"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* section 1: Colors & Palettes */}
                 <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-3">
                   <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1">

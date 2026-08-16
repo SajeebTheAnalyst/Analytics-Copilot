@@ -33,9 +33,12 @@ export function getMinDimensions(type: string): { minW: number; minH: number } {
 }
 
 /**
-  * Get a valid layout for a widget, computing defaults if missing
+  * Get a valid layout for a widget, computing defaults if missing.
+  * Clamps x and y strictly within canvas bounds without altering relative position.
   */
 export function getValidLayout(widget: WidgetConfig, indexFallback: number = 0, cols: number = 12): WidgetLayout {
+  const { minW, minH } = getMinDimensions(widget.type);
+
   if (
     widget.layout &&
     typeof widget.layout.x === 'number' &&
@@ -47,17 +50,14 @@ export function getValidLayout(widget: WidgetConfig, indexFallback: number = 0, 
     !isNaN(widget.layout.w) &&
     !isNaN(widget.layout.h)
   ) {
-    const { minW, minH } = getMinDimensions(widget.type);
-    return {
-      x: Math.max(0, Math.min(cols - 1, widget.layout.x)),
-      y: Math.max(0, widget.layout.y),
-      w: Math.max(minW, Math.min(cols, widget.layout.w)),
-      h: Math.max(minH, widget.layout.h)
-    };
+    const w = Math.max(minW, Math.min(cols, widget.layout.w));
+    const h = Math.max(minH, widget.layout.h);
+    const x = Math.max(0, Math.min(cols - w, widget.layout.x));
+    const y = Math.max(0, widget.layout.y);
+    return { x, y, w, h };
   }
 
   // Fallback from gridSpan or widget type
-  const { minW, minH } = getMinDimensions(widget.type);
   let defaultW = 6;
   let defaultH = 4;
 

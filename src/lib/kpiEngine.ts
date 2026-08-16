@@ -36,6 +36,7 @@ export function calculateKPI(
   integrityReport: ModelIntegrityReport,
   datasetReadinessResults: Record<string, ReadinessEvaluation>
 ): KPIResult {
+  const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const errors: string[] = [];
   const warnings: string[] = [];
   
@@ -51,6 +52,7 @@ export function calculateKPI(
   if (ds && definition.column && !ds.headers.includes(definition.column)) errors.push(`Metric column ${definition.column} not found.`);
 
   if (errors.length > 0) {
+    const endTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
     return {
       currentValue: 0,
       comparisonType: 'None',
@@ -62,7 +64,8 @@ export function calculateKPI(
       formattedResult: 'N/A',
       rawResult: 0,
       status: 'invalid',
-      rowCountEvaluated: 0
+      rowCountEvaluated: 0,
+      executionTimeMs: endTime - startTime
     };
   }
 
@@ -104,6 +107,8 @@ export function calculateKPI(
     targetAchievementPercentage = (currentValue / definition.targetValue) * 100;
   }
 
+  const endTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
   return {
     currentValue,
     previousValue,
@@ -120,7 +125,8 @@ export function calculateKPI(
     formattedResult: currentValue.toLocaleString(),
     rawResult: currentValue,
     status: 'active',
-    rowCountEvaluated: currentQuery.metadata.rowCount
+    rowCountEvaluated: currentQuery.metadata.rowCount,
+    executionTimeMs: endTime - startTime
   };
 }
 
@@ -157,6 +163,40 @@ export function formatKpiValue(value: number, format: KpiFormatConfig): string {
   return String(value);
 }
 
-export function evaluateSimpleAggregation(rows: any[], column: string, aggregation: 'sum' | 'avg' | 'count' | 'min' | 'max' | 'distinct_count'): number {
+export function evaluateSimpleAggregation(rows: any[], column: string, aggregation: string): number {
+  if (!rows || rows.length === 0 || !column) return 0;
+  
+  const values = rows
+    .map(r => r[column])
+    .filter(val => val !== undefined && val !== null);
+    
+  if (values.length === 0) return 0;
+
+  const numericValues = values
+    .map(v => Number(v))
+    .filter(n => !isNaN(n));
+
+  const aggLower = String(aggregation).toLowerCase().replace(/_/g, ' ').trim();
+
+  if (aggLower === 'sum') {
+    return numericValues.reduce((sum, val) => sum + val, 0);
+  }
+  if (aggLower === 'avg' || aggLower === 'average') {
+    return numericValues.length === 0 ? 0 : numericValues.reduce((sum, val) => sum + val, 0) / numericValues.length;
+  }
+  if (aggLower === 'count') {
+    return values.length;
+  }
+  if (aggLower === 'distinct count' || aggLower === 'distinct_count') {
+    const distinctSet = new Set(values.map(v => String(v).trim()));
+    return distinctSet.size;
+  }
+  if (aggLower === 'min') {
+    return numericValues.length === 0 ? 0 : Math.min(...numericValues);
+  }
+  if (aggLower === 'max') {
+    return numericValues.length === 0 ? 0 : Math.max(...numericValues);
+  }
+
   return 0;
 }

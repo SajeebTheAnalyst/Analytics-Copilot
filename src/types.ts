@@ -105,7 +105,7 @@ export type ViewState =
   | 'mis-report' 
   | 'data-dictionary';
 
-export type WidgetType = 'kpi' | 'line' | 'bar' | 'column' | 'area' | 'scatter' | 'donut' | 'pie' | 'table' | 'ranking_table' | 'combo' | 'waterfall' | 'gauge' | 'funnel' | 'heatmap' | 'matrix';
+export type WidgetType = 'kpi' | 'line' | 'bar' | 'column' | 'area' | 'scatter' | 'donut' | 'pie' | 'table' | 'ranking_table' | 'combo' | 'waterfall' | 'gauge' | 'funnel' | 'heatmap' | 'matrix' | 'text' | 'filter';
 export type AggregationFunction = 'sum' | 'count' | 'avg' | 'min' | 'max' | 'distinct_count';
 
 export type KpiStatus = 'active' | 'needs_attention' | 'invalid';
@@ -254,6 +254,24 @@ export interface WidgetConfig {
   subtleShadow?: 'none' | 'sm' | 'md' | 'lg';
   backgroundOpacity?: number; // 0 to 100
   internalPadding?: 'sm' | 'md' | 'lg';
+
+  // KPI Specific Styling Fields
+  kpiCardStyle?: 'default' | 'minimal' | 'filled' | 'outlined' | 'soft' | 'gradient';
+  kpiBgType?: 'theme' | 'custom';
+  kpiBgColor?: string;
+  kpiTextColorType?: 'theme' | 'custom';
+  kpiTextColor?: string;
+  kpiTitleColor?: string;
+  kpiValueColor?: string;
+  kpiAccentColor?: string;
+  kpiBorderColor?: string;
+  kpiBorderType?: 'none' | 'subtle' | 'strong' | 'glow';
+  kpiAlignment?: 'left' | 'center' | 'right';
+  kpiValueSize?: 'sm' | 'md' | 'lg' | 'xl';
+  kpiTitleSize?: 'sm' | 'md' | 'lg';
+  kpiDecimals?: 'auto' | 0 | 1 | 2 | 3 | 4;
+  kpiDisplayUnit?: 'none' | 'K' | 'M' | 'B';
+  kpiCurrency?: 'none' | 'BDT' | 'USD' | 'EUR' | 'GBP' | 'INR' | string;
 
   // Phase 7D: Drill-Down & Drill-Through properties
   hierarchy?: string[]; // Categorical hierarchy fields (e.g. ['Region', 'Country', 'City'])
