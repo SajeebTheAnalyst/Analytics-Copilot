@@ -13,12 +13,15 @@ import { cn } from '@/lib/utils';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import Markdown from 'react-markdown';
 
+import { useDatasetStore } from '@/lib/datasetStore';
+
 interface MisReportViewProps {
-  datasets: Dataset[];
+  datasets?: Dataset[];
   dashboards: Dashboard[];
 }
 
-export function MisReportView({ datasets, dashboards }: MisReportViewProps) {
+export function MisReportView({ dashboards }: MisReportViewProps) {
+  const { currentDataset: activeDataset, allDatasets: datasets, setSelectedDatasetId: setGlobalDatasetId } = useDatasetStore();
   // Active Selections & Config
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
   const [selectedDashboardId, setSelectedDashboardId] = useState<string>('none');
@@ -44,12 +47,14 @@ export function MisReportView({ datasets, dashboards }: MisReportViewProps) {
   const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
 
-  // Initial Load & Dataset Fallback
+  // Initial Load & Dataset Fallback & Sync with global activeDataset
   useEffect(() => {
-    if (datasets.length > 0 && !selectedDatasetId) {
+    if (activeDataset) {
+      setSelectedDatasetId(activeDataset.id);
+    } else if (datasets.length > 0 && !selectedDatasetId) {
       setSelectedDatasetId(datasets[0].id);
     }
-  }, [datasets, selectedDatasetId]);
+  }, [activeDataset, datasets, selectedDatasetId]);
 
   // Load Saved KPIs & Saved MIS Configurations
   useEffect(() => {
@@ -386,7 +391,10 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
               <label className="font-semibold text-zinc-700 dark:text-zinc-300">Target Dataset:</label>
               <select
                 value={selectedDatasetId}
-                onChange={(e) => setSelectedDatasetId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedDatasetId(e.target.value);
+                  setGlobalDatasetId(e.target.value);
+                }}
                 className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2.5 py-1 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 {datasets.map(d => (

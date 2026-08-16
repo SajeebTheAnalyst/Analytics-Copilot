@@ -52,9 +52,10 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
+import { useDatasetStore } from '@/lib/datasetStore';
 
 interface KpiBuilderViewProps {
-  datasets: Dataset[];
+  datasets?: Dataset[];
   selectedDatasetId?: string;
   onNavigateView?: (view: ViewState) => void;
   onAddToDashboard?: (kpi: KpiDefinition) => void;
@@ -66,21 +67,12 @@ interface KpiBuilderViewProps {
 }
 
 export function KpiBuilderView({
-  datasets,
-  selectedDatasetId,
   onNavigateView,
   onAddToDashboard,
   explorerContext,
 }: KpiBuilderViewProps) {
-  // Active dataset state
-  const [activeDatasetId, setActiveDatasetId] = useState<string>(
-    selectedDatasetId || datasets[0]?.id || ''
-  );
-
-  const activeDataset = useMemo(
-    () => datasets.find((d) => d.id === activeDatasetId) || datasets[0] || null,
-    [datasets, activeDatasetId]
-  );
+  const { currentDataset: activeDataset, allDatasets: datasets, setSelectedDatasetId } = useDatasetStore();
+  const activeDatasetId = activeDataset?.id || '';
 
   // Saved KPIs state
   const [savedKpis, setSavedKpis] = useState<KpiDefinition[]>([]);
@@ -540,7 +532,7 @@ export function KpiBuilderView({
                 <Database className="w-3.5 h-3.5 text-zinc-400" />
                 <select
                   value={activeDatasetId}
-                  onChange={(e) => setActiveDatasetId(e.target.value)}
+                  onChange={(e) => setSelectedDatasetId(e.target.value)}
                   className="bg-transparent text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none"
                 >
                   {datasets.map((d) => (

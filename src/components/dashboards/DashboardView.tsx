@@ -45,10 +45,11 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useDatasetStore } from '@/lib/datasetStore';
 
 interface DashboardViewProps {
   dashboards: Dashboard[];
-  datasets: Dataset[];
+  datasets?: Dataset[];
   relationships?: RelationshipSuggestion[];
   selectedDashId: string | null;
   selectedDatasetId?: string | null;
@@ -62,17 +63,16 @@ interface DashboardViewProps {
 
 export function DashboardView({
   dashboards,
-  datasets,
   relationships = [],
   selectedDashId,
-  selectedDatasetId,
-  onSelectDataset,
   onSelectDashboard,
   onUpdateDashboard,
   onDeleteDashboard,
   pendingKpiToAdd,
   onClearPendingKpi
 }: DashboardViewProps) {
+  const { currentDataset: selectedDataset, allDatasets: datasets, setSelectedDatasetId: onSelectDataset } = useDatasetStore();
+  const selectedDatasetId = selectedDataset?.id || null;
   // Mode: 'view' (clean presentation) vs 'build' (editing, drag, resize)
   const [mode, setMode] = useState<'view' | 'build'>('view');
   

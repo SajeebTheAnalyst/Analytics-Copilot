@@ -17,6 +17,7 @@ import { restoreOriginal } from '@/lib/dataCleaner';
 import { calculateDatasetHealth } from '@/lib/profiler';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { useDatasetStore } from '@/lib/datasetStore';
 
 interface CleaningViewProps {
   datasets: Dataset[];
@@ -29,11 +30,10 @@ interface CleaningViewProps {
 }
 
 export function CleaningView({ 
-  datasets, 
-  onUpdateDataset,
   onNavigateView
 }: CleaningViewProps) {
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(datasets[0]?.id || null);
+  const { currentDataset: selectedDataset, allDatasets: datasets, setSelectedDatasetId, updateCurrentDataset } = useDatasetStore();
+  const selectedDatasetId = selectedDataset?.id || null;
   const [activeRibbonTab, setActiveRibbonTab] = useState<RibbonTabId>('home');
   const [showResetModal, setShowResetModal] = useState(false);
   const [showQualityAudit, setShowQualityAudit] = useState(false);
@@ -49,7 +49,7 @@ export function CleaningView({
 
   const gridRef = useRef<DataGridHandle>(null);
 
-  if (datasets.length === 0) {
+  if (!selectedDataset || datasets.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center bg-zinc-50 dark:bg-[#050505] h-full">
         <div className="text-center max-w-sm p-6 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
@@ -66,7 +66,6 @@ export function CleaningView({
     );
   }
 
-  const selectedDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
   const issues = selectedDataset.issues || [];
   const healthMetrics = calculateDatasetHealth(selectedDataset);
   const pendingIssues = issues.filter(i => i.status === 'pending');
@@ -89,9 +88,9 @@ export function CleaningView({
   };
 
   const handleResetConfirm = () => {
-    if (onUpdateDataset) {
+    if (updateCurrentDataset) {
       const resetDs = restoreOriginal(selectedDataset);
-      onUpdateDataset(resetDs);
+      updateCurrentDataset(resetDs);
     }
     setShowResetModal(false);
   };
@@ -386,7 +385,7 @@ export function CleaningView({
           ref={gridRef}
           dataset={selectedDataset} 
           onNavigateView={onNavigateView} 
-          onUpdateDataset={onUpdateDataset}
+          onUpdateDataset={updateCurrentDataset}
           showGridlines={showGridlines}
           rowDensity={rowDensity}
           isHeaderFrozen={isHeaderFrozen}
@@ -478,7 +477,7 @@ export function CleaningView({
           headers={selectedDataset.headers}
           onClose={() => setActiveCleaningModal(null)}
           onApply={(result) => {
-            if (onUpdateDataset && selectedDataset) {
+            if (updateCurrentDataset && selectedDataset) {
               const updated = {
                 ...selectedDataset,
                 data: result.updatedData,
@@ -487,7 +486,7 @@ export function CleaningView({
                 rowCount: result.updatedData.length,
                 updatedAt: Date.now()
               };
-              onUpdateDataset(updated);
+              updateCurrentDataset(updated);
             }
             setActiveCleaningModal(null);
           }}

@@ -34,20 +34,19 @@ import {
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
+import { useDatasetStore } from '@/lib/datasetStore';
 
 interface DataExplorerProps {
-  dataset: Dataset | null;
+  dataset?: Dataset | null;
   allDatasets?: Dataset[];
   onSelectDataset?: (id: string) => void;
   onNavigateView: (view: ViewState) => void;
 }
 
 export function DataExplorer({
-  dataset,
-  allDatasets = [],
-  onSelectDataset,
   onNavigateView,
 }: DataExplorerProps) {
+  const { currentDataset: dataset, allDatasets, setSelectedDatasetId: onSelectDataset } = useDatasetStore();
   // If no active dataset, render Empty State (Section 16)
   if (!dataset) {
     return (

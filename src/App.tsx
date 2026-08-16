@@ -15,6 +15,7 @@ import { DataDictionaryView } from './components/assets/DataDictionaryView';
 import { RenameModal } from './components/workspace/RenameModal';
 
 import { Dataset, ViewState, RelationshipSuggestion, Dashboard, DashboardPlan, KpiDefinition } from '@/types';
+import { DatasetStoreContext, DatasetStoreState, DatasetStoreContextType } from '@/lib/datasetStore';
 import { cn } from '@/lib/utils';
 import { discoverRelationships } from '@/lib/relationshipDiscovery';
 import { detectIssues, applyCleaningAction, undoCleaningAction, restoreOriginal } from '@/lib/dataCleaner';
@@ -143,10 +144,16 @@ export default function App() {
     loadWorkspace();
   }, []);
 
-  // Save to IDB on change
+  // Save to IDB on change, debounced to avoid excessive writes during rapid edits
   useEffect(() => {
     if (!isInitialized) return;
-    set('ac_datasets', datasets).catch(console.error);
+    const handler = setTimeout(() => {
+      set('ac_datasets', datasets).catch(console.error);
+    }, 1000); // 1-second debounce
+
+    return () => {
+      clearTimeout(handler);
+    };
   }, [datasets, isInitialized]);
 
   useEffect(() => {
@@ -285,6 +292,52 @@ export default function App() {
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
   const renamingTargetDataset = datasets.find(d => d.id === renamingDatasetId) || null;
+
+  const workingDataset = useMemo<DatasetStoreState | null>(() => {
+    if (!selectedDataset) return null;
+    return {
+      datasetId: selectedDataset.id,
+      name: selectedDataset.name,
+      filename: selectedDataset.filename,
+      sheetName: selectedDataset.sheetName,
+      type: selectedDataset.type,
+      size: selectedDataset.size,
+      uploadTime: selectedDataset.uploadTime,
+      updatedAt: selectedDataset.updatedAt,
+      rowCount: selectedDataset.rowCount,
+      colCount: selectedDataset.colCount,
+      rows: selectedDataset.fullData && selectedDataset.fullData.length > 0 ? selectedDataset.fullData : selectedDataset.data,
+      columns: selectedDataset.headers,
+      dataTypes: selectedDataset.columnTypes,
+      schema: selectedDataset.columnProfiles,
+      originalData: selectedDataset.originalData,
+      metadata: {
+        sheetName: selectedDataset.sheetName,
+        cleaningStatus: selectedDataset.cleaningStatus,
+      }
+    };
+  }, [selectedDataset]);
+
+  const updateCurrentDataset = (updated: Dataset) => {
+    setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d));
+  };
+
+  const recoverCurrentDataset = () => {
+    if (selectedDataset) {
+      const resetDs = restoreOriginal(selectedDataset);
+      updateCurrentDataset(resetDs);
+    }
+  };
+
+  const storeValue = useMemo<DatasetStoreContextType>(() => ({
+    currentDataset: selectedDataset || null,
+    workingDataset,
+    allDatasets: datasets,
+    selectedDatasetId,
+    setSelectedDatasetId,
+    updateCurrentDataset,
+    recoverCurrentDataset
+  }), [selectedDataset, workingDataset, datasets, selectedDatasetId]);
 
   const readinessEval = useMemo(() => {
     if (!selectedDataset) return null;
@@ -516,183 +569,185 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
-      <div className="h-[100dvh] flex flex-col ambient-bg text-zinc-900 dark:text-zinc-50 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 overflow-hidden">
-        
-        {/* Top Header Navigation */}
-        <TopNav 
-          currentView={currentView} 
-          onViewChange={setCurrentView} 
-          onImportFiles={() => {
-            setIsUploading(true);
-            setCurrentView('data-manager');
-          }}
-          datasets={datasets}
-          selectedDatasetId={selectedDatasetId}
-          onSelectDataset={setSelectedDatasetId}
-          onToggleCopilot={() => setIsCopilotOpen(!isCopilotOpen)}
-          isCopilotOpen={isCopilotOpen}
-        />
-
-        {/* Workspace Body */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
+    <DatasetStoreContext.Provider value={storeValue}>
+      <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
+        <div className="h-[100dvh] flex flex-col ambient-bg text-zinc-900 dark:text-zinc-50 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 overflow-hidden">
           
-          {/* Global Sidebar Navigation */}
-          <Sidebar 
+          {/* Top Header Navigation */}
+          <TopNav 
+            currentView={currentView} 
+            onViewChange={setCurrentView} 
+            onImportFiles={() => {
+              setIsUploading(true);
+              setCurrentView('data-manager');
+            }}
             datasets={datasets}
             selectedDatasetId={selectedDatasetId}
-            onSelectDataset={(id) => {
-              setSelectedDatasetId(id);
-              setIsUploading(false);
-            }}
-            onRemoveDataset={handleRemove}
-            onRenameDataset={(id) => setRenamingDatasetId(id)}
-            currentView={currentView}
-            onViewChange={setCurrentView}
+            onSelectDataset={setSelectedDatasetId}
             onToggleCopilot={() => setIsCopilotOpen(!isCopilotOpen)}
             isCopilotOpen={isCopilotOpen}
-            isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           />
 
-          {/* Main View Router Container */}
-          <main className={cn("flex-1 min-w-0 bg-transparent relative flex flex-col", currentView === 'cleaning' ? "overflow-hidden" : "overflow-y-auto custom-scrollbar")}>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentView}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.15, ease: "easeOut" }}
-                className={cn("flex-1 min-h-full flex flex-col", currentView === 'cleaning' && "h-full min-h-0 overflow-hidden")}
-              >
-                {currentView === 'data-manager' ? (
-                  <DatasetManager 
-                    datasets={datasets}
-                    selectedDatasetId={selectedDatasetId}
-                    onSelectDataset={(id) => {
-                      setSelectedDatasetId(id);
-                      setIsUploading(false);
-                    }}
-                    onImport={handleImport}
-                    onRemove={handleRemove}
-                    onRename={(id) => setRenamingDatasetId(id)}
-                    onNavigateView={(view) => setCurrentView(view)}
-                    onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
-                  />
-                ) : currentView === 'cleaning' ? (
-                  <CleaningView 
-                    datasets={datasets}
-                    onApplyIssue={handleApplyIssue}
-                    onRejectIssue={handleRejectIssue}
-                    onUndoLog={handleUndoLog}
-                    onApproveAllSafe={handleApproveAllSafe}
-                    onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
-                  />
-                ) : currentView === 'explorer' ? (
-                  <DataExplorer 
-                    dataset={selectedDataset} 
-                    allDatasets={datasets}
-                    onSelectDataset={setSelectedDatasetId}
-                    onNavigateView={(view) => setCurrentView(view)}
-                  />
-                ) : currentView === 'relationships' ? (
-                  <RelationshipView 
-                    datasets={datasets} 
-                    suggestions={suggestions} 
-                    setSuggestions={setSuggestions} 
-                    onOpenDataset={(datasetId) => {
-                      setSelectedDatasetId(datasetId);
-                      setCurrentView('data-manager');
-                    }}
-                    onNavigateView={(view) => setCurrentView(view)}
-                  />
-                ) : currentView === 'kpi-builder' ? renderReportingOrGate(
-                  <KpiBuilderView 
-                    datasets={datasets} 
-                    selectedDatasetId={selectedDatasetId || undefined}
-                    onNavigateView={(view) => setCurrentView(view)}
-                    onAddToDashboard={(kpi) => {
-                      setPendingKpiToAdd(kpi);
-                      setCurrentView('dashboards');
-                    }}
-                  />
-                ) : currentView === 'dashboards' ? renderReportingOrGate(
-                  <DashboardView 
-                    dashboards={dashboards} 
-                    datasets={datasets} 
-                    relationships={suggestions.filter(s => s.status === 'accepted')}
-                    selectedDashId={selectedDashId}
-                    selectedDatasetId={selectedDatasetId}
-                    onSelectDataset={setSelectedDatasetId}
-                    onSelectDashboard={setSelectedDashId}
-                    onUpdateDashboard={(id, update) => {
-                      setDashboards(prev => {
-                        const exists = prev.some(d => d.id === id);
-                        if (exists) {
-                          return prev.map(d => d.id === id ? { ...d, ...update } : d);
-                        } else {
-                          const newDash: Dashboard = {
-                            id,
-                            title: update.title || 'New Dashboard',
-                            createdAt: Date.now(),
-                            updatedAt: Date.now(),
-                            widgets: update.widgets || [],
-                            filters: update.filters || [],
-                            ...update
-                          };
-                          return [newDash, ...prev];
-                        }
-                      });
-                    }}
-                    onDeleteDashboard={(id) => {
-                      setDashboards(prev => prev.filter(d => d.id !== id));
-                      if (selectedDashId === id) setSelectedDashId(null);
-                    }}
-                    pendingKpiToAdd={pendingKpiToAdd}
-                    onClearPendingKpi={() => setPendingKpiToAdd(null)}
-                  />
-                ) : currentView === 'mis-report' ? renderReportingOrGate(
-                  <MisReportView datasets={datasets} dashboards={dashboards} />
-                ) : currentView === 'data-dictionary' ? (
-                  <DataDictionaryView datasets={datasets} dashboards={dashboards} />
-                ) : null}
-              </motion.div>
-            </AnimatePresence>
-          </main>
-          
-          {/* Collapsible AI Copilot Panel */}
-          <RightPanel 
-            isOpen={isCopilotOpen}
-            onClose={() => setIsCopilotOpen(false)}
-            currentView={currentView} 
-            onViewChange={setCurrentView}
-            datasets={datasets}
-            suggestions={suggestions}
-            dashboards={dashboards}
-            activeDashboardId={selectedDashId}
-            onBuildDashboard={handleBuildDashboard}
-            onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+          {/* Workspace Body */}
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            
+            {/* Global Sidebar Navigation */}
+            <Sidebar 
+              datasets={datasets}
+              selectedDatasetId={selectedDatasetId}
+              onSelectDataset={(id) => {
+                setSelectedDatasetId(id);
+                setIsUploading(false);
+              }}
+              onRemoveDataset={handleRemove}
+              onRenameDataset={(id) => setRenamingDatasetId(id)}
+              currentView={currentView}
+              onViewChange={setCurrentView}
+              onToggleCopilot={() => setIsCopilotOpen(!isCopilotOpen)}
+              isCopilotOpen={isCopilotOpen}
+              isCollapsed={isSidebarCollapsed}
+              onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            />
+
+            {/* Main View Router Container */}
+            <main className={cn("flex-1 min-w-0 bg-transparent relative flex flex-col", currentView === 'cleaning' ? "overflow-hidden" : "overflow-y-auto custom-scrollbar")}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentView}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className={cn("flex-1 min-h-full flex flex-col", currentView === 'cleaning' && "h-full min-h-0 overflow-hidden")}
+                >
+                  {currentView === 'data-manager' ? (
+                    <DatasetManager 
+                      datasets={datasets}
+                      selectedDatasetId={selectedDatasetId}
+                      onSelectDataset={(id) => {
+                        setSelectedDatasetId(id);
+                        setIsUploading(false);
+                      }}
+                      onImport={handleImport}
+                      onRemove={handleRemove}
+                      onRename={(id) => setRenamingDatasetId(id)}
+                      onNavigateView={(view) => setCurrentView(view)}
+                      onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+                    />
+                  ) : currentView === 'cleaning' ? (
+                    <CleaningView 
+                      datasets={datasets}
+                      onApplyIssue={handleApplyIssue}
+                      onRejectIssue={handleRejectIssue}
+                      onUndoLog={handleUndoLog}
+                      onApproveAllSafe={handleApproveAllSafe}
+                      onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+                    />
+                  ) : currentView === 'explorer' ? (
+                    <DataExplorer 
+                      dataset={selectedDataset} 
+                      allDatasets={datasets}
+                      onSelectDataset={setSelectedDatasetId}
+                      onNavigateView={(view) => setCurrentView(view)}
+                    />
+                  ) : currentView === 'relationships' ? (
+                    <RelationshipView 
+                      datasets={datasets} 
+                      suggestions={suggestions} 
+                      setSuggestions={setSuggestions} 
+                      onOpenDataset={(datasetId) => {
+                        setSelectedDatasetId(datasetId);
+                        setCurrentView('data-manager');
+                      }}
+                      onNavigateView={(view) => setCurrentView(view)}
+                    />
+                  ) : currentView === 'kpi-builder' ? renderReportingOrGate(
+                    <KpiBuilderView 
+                      datasets={datasets} 
+                      selectedDatasetId={selectedDatasetId || undefined}
+                      onNavigateView={(view) => setCurrentView(view)}
+                      onAddToDashboard={(kpi) => {
+                        setPendingKpiToAdd(kpi);
+                        setCurrentView('dashboards');
+                      }}
+                    />
+                  ) : currentView === 'dashboards' ? renderReportingOrGate(
+                    <DashboardView 
+                      dashboards={dashboards} 
+                      datasets={datasets} 
+                      relationships={suggestions.filter(s => s.status === 'accepted')}
+                      selectedDashId={selectedDashId}
+                      selectedDatasetId={selectedDatasetId}
+                      onSelectDataset={setSelectedDatasetId}
+                      onSelectDashboard={setSelectedDashId}
+                      onUpdateDashboard={(id, update) => {
+                        setDashboards(prev => {
+                          const exists = prev.some(d => d.id === id);
+                          if (exists) {
+                            return prev.map(d => d.id === id ? { ...d, ...update } : d);
+                          } else {
+                            const newDash: Dashboard = {
+                              id,
+                              title: update.title || 'New Dashboard',
+                              createdAt: Date.now(),
+                              updatedAt: Date.now(),
+                              widgets: update.widgets || [],
+                              filters: update.filters || [],
+                              ...update
+                            };
+                            return [newDash, ...prev];
+                          }
+                        });
+                      }}
+                      onDeleteDashboard={(id) => {
+                        setDashboards(prev => prev.filter(d => d.id !== id));
+                        if (selectedDashId === id) setSelectedDashId(null);
+                      }}
+                      pendingKpiToAdd={pendingKpiToAdd}
+                      onClearPendingKpi={() => setPendingKpiToAdd(null)}
+                    />
+                  ) : currentView === 'mis-report' ? renderReportingOrGate(
+                    <MisReportView datasets={datasets} dashboards={dashboards} />
+                  ) : currentView === 'data-dictionary' ? (
+                    <DataDictionaryView datasets={datasets} dashboards={dashboards} />
+                  ) : null}
+                </motion.div>
+              </AnimatePresence>
+            </main>
+            
+            {/* Collapsible AI Copilot Panel */}
+            <RightPanel 
+              isOpen={isCopilotOpen}
+              onClose={() => setIsCopilotOpen(false)}
+              currentView={currentView} 
+              onViewChange={setCurrentView}
+              datasets={datasets}
+              suggestions={suggestions}
+              dashboards={dashboards}
+              activeDashboardId={selectedDashId}
+              onBuildDashboard={handleBuildDashboard}
+              onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+            />
+          </div>
+
+          {/* Dataset Rename Modal */}
+          <RenameModal 
+            isOpen={renamingDatasetId !== null}
+            dataset={renamingTargetDataset}
+            onClose={() => setRenamingDatasetId(null)}
+            onSave={handleSaveDatasetName}
           />
+
+          <style>{`
+            .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
+            .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+            .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+          `}</style>
         </div>
-
-        {/* Dataset Rename Modal */}
-        <RenameModal 
-          isOpen={renamingDatasetId !== null}
-          dataset={renamingTargetDataset}
-          onClose={() => setRenamingDatasetId(null)}
-          onSave={handleSaveDatasetName}
-        />
-
-        <style>{`
-          .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
-          .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
-          .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
-        `}</style>
-      </div>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </DatasetStoreContext.Provider>
   );
 }

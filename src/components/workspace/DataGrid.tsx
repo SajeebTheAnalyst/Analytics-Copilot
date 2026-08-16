@@ -541,6 +541,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
   const gridRef = useRef<HTMLDivElement>(null);
   const columnsDropdownRef = useRef<HTMLDivElement>(null);
   const cellInputRef = useRef<HTMLInputElement>(null);
+  const lastDatasetIdRef = useRef<string | null>(null);
 
   // Sync working copy when active dataset changes or is saved
   useEffect(() => {
@@ -555,17 +556,24 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     setWorkingColumnTypes({ ...(dataset.columnTypes || {}) });
     setWorkingColumnFormats({ ...(dataset.columnFormats || {}) });
     setWorkingFormulas({ ...(dataset.formulas || {}) });
+    setCellFormatting(dataset.cellFormatting || {});
+    setColumnWidths(dataset.columnWidths || {});
 
     setIsDirty(false);
     setEditedCells(new Set());
     setAddedRowIds(new Set());
     setAddedColumns(new Set());
 
-    setSelectedCell({ row: 0, col: 0 });
-    setSelectionRange({ startRow: 0, startCol: 0, endRow: 0, endCol: 0 });
-    setEditingCell(null);
-    setSortConfig(null);
-    setSearchQuery('');
+    const isNewDataset = lastDatasetIdRef.current !== dataset.id;
+    lastDatasetIdRef.current = dataset.id;
+
+    if (isNewDataset) {
+      setSelectedCell({ row: 0, col: 0 });
+      setSelectionRange({ startRow: 0, startCol: 0, endRow: 0, endCol: 0 });
+      setEditingCell(null);
+      setSortConfig(null);
+      setSearchQuery('');
+    }
   }, [dataset.id, dataset.updatedAt]);
 
   // Recalculate all formulas over working copy
@@ -1573,6 +1581,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       columnTypes: workingColumnTypes,
       columnFormats: workingColumnFormats,
       formulas: workingFormulas,
+      cellFormatting: cellFormatting,
+      columnWidths: columnWidths,
       rowCount: cleanData.length,
       colCount: workingHeaders.length,
       data: cleanData.slice(0, 100),
@@ -1593,6 +1603,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     setTimeout(() => setSaveFeedback(null), 3000);
   };
 
+  // Auto-save changes immediately to centralized store when isDirty becomes true
+  useEffect(() => {
+    if (isDirty) {
+      handleSaveChanges();
+    }
+  }, [isDirty]);
+
   // Discard Changes
   const handleConfirmDiscardChanges = () => {
     const sourceRows = dataset.fullData && dataset.fullData.length > 0 ? dataset.fullData : dataset.data || [];
@@ -1606,6 +1623,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     setWorkingColumnTypes({ ...(dataset.columnTypes || {}) });
     setWorkingColumnFormats({ ...(dataset.columnFormats || {}) });
     setWorkingFormulas({ ...(dataset.formulas || {}) });
+    setCellFormatting(dataset.cellFormatting || {});
+    setColumnWidths(dataset.columnWidths || {});
 
     setIsDirty(false);
     setEditedCells(new Set());

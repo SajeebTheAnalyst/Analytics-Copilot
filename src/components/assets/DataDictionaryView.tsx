@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Dataset, KpiDefinition, Dashboard } from '@/types';
+import { useDatasetStore } from '@/lib/datasetStore';
 import { getSavedKpis } from '@/lib/kpiStorage';
 import { getSavedMisReports, MisReportConfig } from '@/lib/misReportStorage';
 import { calculateDatasetHealth } from '@/lib/profiler';
@@ -38,9 +39,19 @@ interface DataDictionaryViewProps {
 
 const PRESET_TAGS = ['Financial', 'KPI', 'Customer', 'Dimension', 'Identifier', 'Date', 'Operations', 'Compliance'];
 
-export function DataDictionaryView({ datasets, dashboards = [] }: DataDictionaryViewProps) {
+export function DataDictionaryView({ datasets: propDatasets, dashboards = [] }: DataDictionaryViewProps) {
+  const { currentDataset: globalActiveDataset, allDatasets: storeDatasets } = useDatasetStore();
+  const datasets = storeDatasets && storeDatasets.length > 0 ? storeDatasets : propDatasets || [];
+
   // State
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('all');
+
+  // Set default selected dataset id on mount if available
+  useEffect(() => {
+    if (globalActiveDataset?.id) {
+      setSelectedDatasetId(globalActiveDataset.id);
+    }
+  }, [globalActiveDataset?.id]);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Filters

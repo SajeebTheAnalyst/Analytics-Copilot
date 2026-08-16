@@ -52,9 +52,9 @@ export function KPIWidget({ widget, kpiDefinition, datasets, savedKpis }: KPIWid
         )}
       </div>
 
-      {kpiDefinition.status !== 'active' && (
+      {(kpiDefinition.status !== 'active' || result.status === 'invalid' || (result.errors && result.errors.length > 0)) && (
         <div className="mt-2 text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-950/30 p-1.5 rounded border border-rose-100 dark:border-rose-900/50">
-          ⚠️ KPI Unavailable: {kpiDefinition.statusReason || 'Invalid'}
+          ⚠️ KPI Needs Attention: {result.errors?.[0] || kpiDefinition.statusReason || 'Metric column or dataset missing'}
         </div>
       )}
     </div>
