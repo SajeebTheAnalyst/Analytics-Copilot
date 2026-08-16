@@ -8,7 +8,7 @@ import {
   Calendar, Clock, Database, Copy, ClipboardPaste, Edit3,
   Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
   Hash, Percent, DollarSign, Layers, FileText, Printer, Download, Maximize2,
-  ChevronDown, Grid, Lock, EyeOff, Wand2, ListOrdered, ArrowUp,
+  ChevronDown, ChevronLeft, ChevronRight, Grid, Lock, EyeOff, Wand2, ListOrdered, ArrowUp,
   ArrowDownAZ, ArrowUpAZ, Filter, FilterX, ArrowDown, ArrowRight,
   ShieldCheck, AlertTriangle, FolderPlus, FolderMinus, Eye, Columns,
   Calculator, Sigma, Sliders, Tag, GitMerge, CheckCircle2, Binary, Variable
@@ -225,6 +225,10 @@ export function CleaningRibbon({
   onUnhideAllColumns
 }: CleaningRibbonProps) {
   const ribbonRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
 
   // Unified Dropdown State
   const [activeDropdown, setActiveDropdown] = useState<
@@ -247,6 +251,44 @@ export function CleaningRibbon({
     | null
   >(null);
 
+  const updateScrollState = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  };
+
+  useEffect(() => {
+    updateScrollState();
+    const timer = setTimeout(updateScrollState, 100);
+    window.addEventListener('resize', updateScrollState);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [activeTab]);
+
+  const handleScrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -240, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 240, behavior: 'smooth' });
+    }
+  };
+
+  const handleWheelScroll = (e: React.WheelEvent) => {
+    if (!scrollContainerRef.current) return;
+    if (e.deltaX !== 0) return;
+    if (Math.abs(e.deltaY) > 0) {
+      scrollContainerRef.current.scrollLeft += e.deltaY;
+      updateScrollState();
+    }
+  };
+
   const toggleDropdown = (
     dropdownName: 
       | 'fontSize' 
@@ -264,9 +306,23 @@ export function CleaningRibbon({
       | 'standardizeMenu'
       | 'formulaColumnMenu'
       | 'calculateColumnMenu'
-      | 'conditionalTransformMenu'
+      | 'conditionalTransformMenu',
+    e?: React.MouseEvent
   ) => {
-    setActiveDropdown(prev => prev === dropdownName ? null : dropdownName);
+    setActiveDropdown(prev => {
+      if (prev === dropdownName) {
+        setDropdownPos(null);
+        return null;
+      }
+      if (e && e.currentTarget) {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setDropdownPos({
+          top: rect.bottom + 2,
+          left: Math.min(rect.left, (window.innerWidth || 1024) - 230),
+        });
+      }
+      return dropdownName;
+    });
   };
 
   // Close any open dropdowns when clicking outside of any dropdown container
@@ -276,6 +332,7 @@ export function CleaningRibbon({
       const isInsideDropdown = target.closest('.dropdown-container');
       if (!isInsideDropdown) {
         setActiveDropdown(null);
+        setDropdownPos(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -288,6 +345,7 @@ export function CleaningRibbon({
   useEffect(() => {
     const handleScroll = () => {
       setActiveDropdown(null);
+      setDropdownPos(null);
     };
     window.addEventListener('scroll', handleScroll, true);
     return () => {
@@ -365,7 +423,32 @@ export function CleaningRibbon({
       </div>
 
       {/* Ribbon Toolbar Content Area */}
-      <div className="bg-white dark:bg-zinc-950 px-2 py-1 flex items-center min-h-[62px] h-[62px] text-xs relative z-40 overflow-visible">
+      <div className="bg-white dark:bg-zinc-950 py-1 flex items-center min-h-[62px] h-[62px] text-xs relative z-40">
+        {/* Subtle Compact Left Scroll Chevron */}
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={handleScrollLeft}
+            className="absolute left-0 top-0 bottom-0 z-30 w-7 flex items-center justify-center bg-gradient-to-r from-white via-white/95 dark:from-zinc-950 dark:via-zinc-950/95 to-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-opacity cursor-pointer shadow-xs"
+            title="Scroll ribbon left"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Scrollable Ribbon Groups Container */}
+        <div 
+          ref={scrollContainerRef}
+          onScroll={() => {
+            updateScrollState();
+            if (activeDropdown) {
+              setActiveDropdown(null);
+              setDropdownPos(null);
+            }
+          }}
+          onWheel={handleWheelScroll}
+          className="w-full h-full flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2.5"
+        >
         {activeTab === 'home' && (
           <div className="flex items-center h-full">
             {/* 1. Clipboard Group */}
@@ -983,7 +1066,7 @@ export function CleaningRibbon({
                 {/* Standardize Values Dropdown */}
                 <div className="dropdown-container relative">
                   <button
-                    onClick={() => toggleDropdown('standardizeMenu')}
+                    onClick={(e) => toggleDropdown('standardizeMenu', e)}
                     className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-emerald-700 dark:text-emerald-400"
                     title="Standardize and Normalize Formats across Column"
                   >
@@ -992,7 +1075,10 @@ export function CleaningRibbon({
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
                   {activeDropdown === 'standardizeMenu' && (
-                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                    <div 
+                      className="fixed z-[100] w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl py-1"
+                      style={dropdownPos ? { top: `${dropdownPos.top}px`, left: `${Math.max(8, dropdownPos.left)}px` } : undefined}
+                    >
                       <button
                         className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300 font-semibold"
                         onClick={() => {
@@ -1057,7 +1143,7 @@ export function CleaningRibbon({
                 {/* Formula Column Dropdown */}
                 <div className="dropdown-container relative">
                   <button
-                    onClick={() => toggleDropdown('formulaColumnMenu')}
+                    onClick={(e) => toggleDropdown('formulaColumnMenu', e)}
                     className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-indigo-700 dark:text-indigo-400"
                     title="Insert or Manage Formula Column"
                   >
@@ -1066,7 +1152,10 @@ export function CleaningRibbon({
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
                   {activeDropdown === 'formulaColumnMenu' && (
-                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                    <div 
+                      className="fixed z-[100] w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl py-1"
+                      style={dropdownPos ? { top: `${dropdownPos.top}px`, left: `${Math.max(8, dropdownPos.left)}px` } : undefined}
+                    >
                       <button
                         className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300 font-semibold"
                         onClick={() => {
@@ -1126,7 +1215,7 @@ export function CleaningRibbon({
                 {/* Calculate Column Dropdown */}
                 <div className="dropdown-container relative">
                   <button
-                    onClick={() => toggleDropdown('calculateColumnMenu')}
+                    onClick={(e) => toggleDropdown('calculateColumnMenu', e)}
                     className="h-7 px-2 flex items-center gap-1 border border-zinc-200 dark:border-zinc-800 rounded text-[11px] font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 bg-white dark:bg-zinc-900 cursor-pointer text-blue-700 dark:text-blue-400"
                     title="Calculate Derived Statistical / Math Columns"
                   >
@@ -1135,7 +1224,10 @@ export function CleaningRibbon({
                     <ChevronDown className="w-3 h-3 text-zinc-400" />
                   </button>
                   {activeDropdown === 'calculateColumnMenu' && (
-                    <div className="absolute left-0 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-50 py-1">
+                    <div 
+                      className="fixed z-[100] w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl py-1"
+                      style={dropdownPos ? { top: `${dropdownPos.top}px`, left: `${Math.max(8, dropdownPos.left)}px` } : undefined}
+                    >
                       <button
                         className="w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300"
                         onClick={() => {
@@ -1783,6 +1875,19 @@ export function CleaningRibbon({
               <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-medium tracking-wide pb-0.5 select-none">AutoFit</span>
             </div>
           </div>
+        )}
+        </div>
+
+        {/* Subtle Compact Right Scroll Chevron */}
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={handleScrollRight}
+            className="absolute right-0 top-0 bottom-0 z-30 w-7 flex items-center justify-center bg-gradient-to-l from-white via-white/95 dark:from-zinc-950 dark:via-zinc-950/95 to-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-opacity cursor-pointer shadow-xs"
+            title="Scroll ribbon right"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         )}
       </div>
     </div>

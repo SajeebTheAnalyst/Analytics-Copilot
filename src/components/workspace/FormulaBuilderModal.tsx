@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { 
-  Calculator, Plus, Check, AlertCircle, X, Sparkles, Code, Table as TableIcon, HelpCircle
+  Calculator, Plus, Check, AlertCircle, X, Table as TableIcon
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { validateFormula, evaluateAllFormulas, getFormulaTopologicalOrder } from '@/lib/formulaEngine';
@@ -48,7 +48,7 @@ export function FormulaBuilderModal({
     setSubmitError(null);
   }, [editingColName, isOpen]);
 
-  // Headers available for formula referencing (excluding the current column being edited to prevent immediate self-reference)
+  // Headers available for formula referencing
   const selectableHeaders = useMemo(() => {
     return availableHeaders.filter((h) => h !== colName);
   }, [availableHeaders, colName]);
@@ -122,7 +122,6 @@ export function FormulaBuilderModal({
 
   const handleInsertColumn = (col: string) => {
     if (!col) return;
-    // Safely wrap in single quotes if column name contains spaces
     const colRef = col.includes(' ') ? `'${col}'` : col;
     insertIntoFormula(colRef);
   };
@@ -160,39 +159,43 @@ export function FormulaBuilderModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent pointer-events-none p-4 animate-in fade-in duration-150">
+    <div 
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 p-4 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
       <div 
-        className="pointer-events-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50">
+        {/* Compact Header */}
+        <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/80">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50">
-              <Calculator className="w-5 h-5" />
+            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50">
+              <Calculator className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                {editingColName ? `Edit Formula Column: "${editingColName}"` : 'Add Formula Column'}
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                {editingColName ? `Edit Formula Column: "${editingColName}"` : 'Custom Formula Builder'}
               </h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
                 Create a calculated column evaluated across all dataset rows
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            type="button"
+            className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleApply} className="p-6 overflow-y-auto custom-scrollbar space-y-5">
+        {/* Compact Form Body */}
+        <form onSubmit={handleApply} className="p-5 overflow-y-auto custom-scrollbar space-y-4 text-xs">
           {/* Column Name Input */}
           <div>
-            <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">
+            <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
               Calculated Column Name
             </label>
             <input
@@ -200,14 +203,14 @@ export function FormulaBuilderModal({
               placeholder="e.g. Profit, Margin, TotalRevenue"
               value={colName}
               onChange={(e) => setColName(e.target.value)}
-              className="w-full px-3.5 py-2 text-xs font-semibold bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-full px-3 py-1.5 text-xs font-semibold bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               required
             />
           </div>
 
           {/* Formula Input */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300">
                 Formula Expression
               </label>
@@ -229,7 +232,7 @@ export function FormulaBuilderModal({
                 value={formulaInput}
                 onChange={(e) => setFormulaInput(e.target.value)}
                 placeholder="e.g. =Revenue - Cost or =SUM(Sales)"
-                className="w-full px-3.5 py-2.5 text-xs font-mono font-bold bg-zinc-900 text-indigo-300 border border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/40 shadow-inner"
+                className="w-full px-3 py-2 text-xs font-mono font-bold bg-zinc-950 text-indigo-300 border border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/40 shadow-inner"
               />
             </div>
             <p className="text-[10px] text-zinc-400 mt-1">
@@ -238,17 +241,17 @@ export function FormulaBuilderModal({
           </div>
 
           {/* Quick Insertion Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-zinc-50 dark:bg-zinc-950/60 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-zinc-50 dark:bg-zinc-950/60 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
             {/* Columns Helper */}
             <div>
-              <label className="block text-[11px] font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">
+              <label className="block text-[11px] font-bold text-zinc-700 dark:text-zinc-300 mb-1">
                 Available Columns
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <select
                   value={selectedColumn}
                   onChange={(e) => setSelectedColumn(e.target.value)}
-                  className="flex-1 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none"
+                  className="flex-1 px-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-800 dark:text-zinc-200 focus:outline-none"
                 >
                   <option value="">Select column...</option>
                   {selectableHeaders.map((h) => (
@@ -263,7 +266,7 @@ export function FormulaBuilderModal({
                   variant="outline"
                   onClick={() => handleInsertColumn(selectedColumn)}
                   disabled={!selectedColumn}
-                  className="h-8 text-xs font-bold gap-1 cursor-pointer"
+                  className="h-7 text-[11px] font-bold gap-1 px-2 cursor-pointer"
                 >
                   <Plus className="w-3 h-3" /> Insert
                 </Button>
@@ -272,14 +275,14 @@ export function FormulaBuilderModal({
 
             {/* Functions Helper */}
             <div>
-              <label className="block text-[11px] font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">
+              <label className="block text-[11px] font-bold text-zinc-700 dark:text-zinc-300 mb-1">
                 Functions & Operators
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <select
                   value={selectedFunc}
                   onChange={(e) => setSelectedFunc(e.target.value)}
-                  className="flex-1 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none font-mono"
+                  className="flex-1 px-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-800 dark:text-zinc-200 focus:outline-none font-mono"
                 >
                   <option value="SUM">SUM(col)</option>
                   <option value="AVERAGE">AVERAGE(col)</option>
@@ -292,7 +295,7 @@ export function FormulaBuilderModal({
                   size="sm"
                   variant="outline"
                   onClick={() => handleInsertFunction(selectedFunc)}
-                  className="h-8 text-xs font-bold gap-1 cursor-pointer"
+                  className="h-7 text-[11px] font-bold gap-1 px-2 cursor-pointer"
                 >
                   <Plus className="w-3 h-3" /> Insert
                 </Button>
@@ -302,41 +305,41 @@ export function FormulaBuilderModal({
 
           {/* Error Alert Banner */}
           {(!validation.isValid || submitError) && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl text-red-700 dark:text-red-300 text-xs flex items-start gap-2.5 animate-in fade-in duration-150">
+            <div className="p-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg text-red-700 dark:text-red-300 text-xs flex items-start gap-2 animate-in fade-in duration-150">
               <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
               <div className="space-y-0.5">
-                <span className="font-bold block">Validation Error</span>
-                <span className="font-mono text-[11px]">{submitError || validation.error}</span>
+                <span className="font-bold block text-[11px]">Validation Error</span>
+                <span className="font-mono text-[10px]">{submitError || validation.error}</span>
               </div>
             </div>
           )}
 
           {/* Live Preview Table */}
           {livePreview && livePreview.rows.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1 text-[11px]">
                   <TableIcon className="w-3.5 h-3.5 text-indigo-500" />
                   Live Preview (Top {livePreview.rows.length} rows)
                 </span>
                 <span className="text-[10px] font-mono text-zinc-400">Calculated in real-time</span>
               </div>
 
-              <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden font-mono text-xs">
+              <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden font-mono text-xs">
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase tracking-wider">
                     <tr>
-                      <th className="py-1.5 px-3 border-r border-zinc-200 dark:border-zinc-800 w-12 text-center">Row</th>
-                      <th className="py-1.5 px-3 border-r border-zinc-200 dark:border-zinc-800">Preview Value ({colName || 'Result'})</th>
+                      <th className="py-1 px-2.5 border-r border-zinc-200 dark:border-zinc-800 w-12 text-center">Row</th>
+                      <th className="py-1 px-2.5 border-r border-zinc-200 dark:border-zinc-800">Preview Value ({colName || 'Result'})</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 bg-white dark:bg-zinc-950">
                     {livePreview.rows.map((r) => (
                       <tr key={r.rowIdx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                        <td className="py-1.5 px-3 border-r border-zinc-200 dark:border-zinc-800 text-center font-bold text-zinc-400 text-[10px]">
+                        <td className="py-1 px-2.5 border-r border-zinc-200 dark:border-zinc-800 text-center font-bold text-zinc-400 text-[10px]">
                           #{r.rowIdx}
                         </td>
-                        <td className="py-1.5 px-3 text-indigo-600 dark:text-indigo-400 font-bold">
+                        <td className="py-1 px-2.5 text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">
                           {r.val === null ? <span className="text-zinc-400 italic">null</span> : String(r.val)}
                         </td>
                       </tr>
@@ -348,21 +351,21 @@ export function FormulaBuilderModal({
           )}
 
           {/* Dialog Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-zinc-200 dark:border-zinc-800">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="h-9 px-4 text-xs font-semibold cursor-pointer"
+              className="h-8 px-3.5 text-xs font-semibold cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={!validation.isValid || !colName.trim()}
-              className="h-9 px-5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-sm gap-1.5 disabled:opacity-50"
+              className="h-8 px-4 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-xs gap-1 disabled:opacity-50"
             >
-              <Check className="w-4 h-4" />
+              <Check className="w-3.5 h-3.5" />
               <span>Apply Formula</span>
             </Button>
           </div>
