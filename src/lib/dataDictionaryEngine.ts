@@ -42,6 +42,8 @@ export interface DictionaryColumnItem {
   isStale: boolean;
   statistics: ColumnStatistics;
   usedIn: ColumnUsageReference[];
+  detectedSemanticType?: string;
+  detectedGranularity?: string;
 }
 
 /**

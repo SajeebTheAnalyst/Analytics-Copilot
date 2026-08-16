@@ -2,6 +2,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { Dataset } from "../types";
 import { isValid, parseISO } from "date-fns";
+import { detectColumnSemantic } from "./dateIntelligence";
 
 export async function parseFile(file: File): Promise<{ data: Record<string, any>[], headers: string[], sheetName?: string }[]> {
   return new Promise((resolve, reject) => {
@@ -112,9 +113,23 @@ export function recalculateDatasetProfiles(dataset: Dataset): Dataset {
   
   const columnTypes: Record<string, Dataset['columnTypes'][string]> = {};
   const columnProfiles: Record<string, Dataset['columnProfiles'][string]> = {};
+  const columnSemanticTypes: Record<string, string> = {};
+  const columnGranularities: Record<string, string> = {};
 
   for (const header of headers) {
-    columnTypes[header] = determineColumnType(data, header);
+    const rawType = determineColumnType(data, header);
+    const semanticRes = detectColumnSemantic(data, header, rawType);
+    
+    columnSemanticTypes[header] = semanticRes.type;
+    if (semanticRes.granularity) {
+      columnGranularities[header] = semanticRes.granularity;
+    }
+
+    if (['date', 'dateTime', 'time', 'month_year', 'year', 'quarter', 'month', 'day'].includes(semanticRes.type)) {
+      columnTypes[header] = 'date';
+    } else {
+      columnTypes[header] = rawType;
+    }
     
     let nullCount = 0;
     const uniqueValues = new Set<any>();
@@ -154,7 +169,9 @@ export function recalculateDatasetProfiles(dataset: Dataset): Dataset {
       return newRow;
     }),
     columnTypes,
-    columnProfiles
+    columnProfiles,
+    columnSemanticTypes,
+    columnGranularities
   };
 }
 
@@ -164,42 +181,11 @@ export async function processDataset(file: File): Promise<Dataset[]> {
   const datasets: Dataset[] = [];
   
   for (const { data, headers, sheetName } of parsedResults) {
-    const columnTypes: Record<string, Dataset['columnTypes'][string]> = {};
-    const columnProfiles: Record<string, Dataset['columnProfiles'][string]> = {};
-
-    for (const header of headers) {
-      columnTypes[header] = determineColumnType(data, header);
-      
-      let nullCount = 0;
-      const uniqueValues = new Set<any>();
-      let exampleValue: any = null;
-      
-      for (const row of data) {
-        const val = row[header];
-        if (val === null || val === undefined || val === "") {
-          nullCount++;
-        } else {
-          uniqueValues.add(val);
-          if (exampleValue === null) {
-            exampleValue = val;
-          }
-        }
-      }
-      
-      columnProfiles[header] = {
-        name: header,
-        type: columnTypes[header],
-        nullCount,
-        uniqueCount: uniqueValues.size,
-        exampleValue: exampleValue instanceof Date ? exampleValue.toISOString() : exampleValue,
-      };
-    }
-    
     // Fallback names for TXT/JSON/CSV vs EXCEL
     const baseName = file.name.replace(/\.[^/.]+$/, "");
     const name = sheetName ? `${baseName} - ${sheetName}` : baseName;
 
-    datasets.push({
+    const skeleton: Dataset = {
       id: crypto.randomUUID(),
       name,
       filename: file.name,
@@ -210,23 +196,18 @@ export async function processDataset(file: File): Promise<Dataset[]> {
       rowCount: data.length,
       colCount: headers.length,
       headers,
-      data: data.slice(0, 100).map(row => {
-        const newRow = { ...row };
-        for (const key of Object.keys(newRow)) {
-          if (newRow[key] instanceof Date) {
-            newRow[key] = newRow[key].toISOString();
-          }
-        }
-        return newRow;
-      }),
+      data: [],
       fullData: data,
       originalData: data.map(r => ({ ...r })),
-      columnTypes,
-      columnProfiles,
+      columnTypes: {},
+      columnProfiles: {},
       cleaningStatus: 'original',
       cleaningLogs: [],
       issues: []
-    });
+    };
+
+    const profiled = recalculateDatasetProfiles(skeleton);
+    datasets.push(profiled);
   }
 
   return datasets;

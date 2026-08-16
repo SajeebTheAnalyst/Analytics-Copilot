@@ -188,7 +188,9 @@ export function DataDictionaryView({ datasets: propDatasets, dashboards = [] }: 
           tags: storedMeta?.tags || [],
           isStale: false,
           statistics,
-          usedIn
+          usedIn,
+          detectedSemanticType: dataset.columnSemanticTypes?.[header],
+          detectedGranularity: dataset.columnGranularities?.[header]
         });
       }
     }
@@ -1110,6 +1112,22 @@ The field **"${selectedColumn.columnName}"** serves as a **${selectedColumn.sema
                       </select>
                     </div>
                   </div>
+
+                  {/* DETECTED SEMANTIC AND GRANULARITY METADATA */}
+                  {selectedColumn.detectedSemanticType && (
+                    <div className="bg-blue-50/20 dark:bg-blue-950/10 p-3.5 rounded-xl border border-blue-100/50 dark:border-blue-900/20 grid grid-cols-2 gap-4 animate-fade-in">
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-500 dark:text-blue-400 block mb-1">Detected Semantic</span>
+                        <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 capitalize">{selectedColumn.detectedSemanticType}</span>
+                      </div>
+                      {selectedColumn.detectedGranularity && (
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-500 dark:text-blue-400 block mb-1">Time Granularity</span>
+                          <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{selectedColumn.detectedGranularity}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* METRIC OVERVIEW GRID */}
                   <div className="grid grid-cols-4 gap-2 text-center">

@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { 
   ColumnFormatConfig, 
   DateFormatOption, 
+  TimeFormatOption,
   NumberFormatType, 
   formatColumnValue 
 } from '@/lib/typeStandardizer';
@@ -32,10 +33,15 @@ export function ColumnFormattingModal({
 
   const isNumericType = ['numeric', 'decimal', 'integer'].includes(String(colType).toLowerCase());
   const isDateType = ['date', 'datetime'].includes(String(colType).toLowerCase());
+  const isTimeType = ['time'].includes(String(colType).toLowerCase());
 
   // Default state from existing config or standard defaults
   const [dateFormat, setDateFormat] = useState<DateFormatOption>(
     currentConfig?.dateFormat || 'YYYY-MM-DD'
+  );
+
+  const [timeFormat, setTimeFormat] = useState<TimeFormatOption>(
+    currentConfig?.timeFormat || 'HH:mm:ss'
   );
 
   const [numberFormat, setNumberFormat] = useState<NumberFormatType>(
@@ -56,6 +62,7 @@ export function ColumnFormattingModal({
 
   const activeConfig: ColumnFormatConfig = {
     dateFormat: isDateType ? dateFormat : undefined,
+    timeFormat: isTimeType ? timeFormat : undefined,
     numberFormat: isNumericType ? numberFormat : undefined,
     currencySymbol: isNumericType && numberFormat === 'currency' ? currencySymbol : undefined,
     decimals: isNumericType ? decimals : undefined,
@@ -217,9 +224,39 @@ export function ColumnFormattingModal({
             </div>
           )}
 
-          {!isNumericType && !isDateType && (
+          {/* Time Formatting Options */}
+          {isTimeType && (
+            <div className="space-y-3">
+              <label className="block font-bold text-zinc-700 dark:text-zinc-300">
+                Time Display Format
+              </label>
+              <div className="space-y-2">
+                {[
+                  { id: 'HH:mm', label: 'HH:mm (e.g. 14:35)' },
+                  { id: 'HH:mm:ss', label: 'HH:mm:ss (e.g. 14:35:20)' },
+                  { id: 'hh:mm AM/PM', label: 'hh:mm AM/PM (e.g. 02:35 PM)' },
+                ].map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setTimeFormat(option.id as TimeFormatOption)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left font-bold transition-all cursor-pointer ${
+                      timeFormat === option.id
+                        ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                        : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+                    }`}
+                  >
+                    <span>{option.label}</span>
+                    {timeFormat === option.id && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!isNumericType && !isDateType && !isTimeType && (
             <p className="text-zinc-500 italic text-center py-4">
-              Display formatting controls are available for Numeric, Date, and DateTime columns.
+              Display formatting controls are available for Numeric, Date, DateTime, and Time columns.
             </p>
           )}
 

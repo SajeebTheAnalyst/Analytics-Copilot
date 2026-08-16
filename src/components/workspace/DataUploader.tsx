@@ -2,7 +2,7 @@ import React, { useCallback, useState, useRef } from 'react';
 import { UploadCloud, FileSpreadsheet, Loader2, Database, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { processDataset } from '@/lib/analyzer';
-import { createDemoDataset } from '@/lib/demoData';
+import { createDemoDataset, createDateTimeTestDataset } from '@/lib/demoData';
 import { Dataset } from '@/types';
 import { Button } from '../ui/button';
 
@@ -78,6 +78,38 @@ export function DataUploader({ onDatasetsImported, existingDatasets = [], compac
     } catch (error: any) {
       console.error(error);
       setErrorMessage(error.message || 'Failed to generate demo dataset.');
+      setIsUploading(false);
+      setProcessingFile(null);
+    }
+  };
+
+  const handleDateTimeTestData = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsUploading(true);
+    setErrorMessage(null);
+    setProcessingFile({
+      filename: 'datetime_semantic_test.csv',
+      type: 'CSV',
+      size: 512,
+      progress: 45
+    });
+
+    try {
+      setTimeout(() => {
+        setProcessingFile(prev => prev ? { ...prev, progress: 85 } : null);
+      }, 300);
+
+      const dataset = await createDateTimeTestDataset();
+      setProcessingFile(prev => prev ? { ...prev, progress: 100 } : null);
+      
+      setTimeout(() => {
+        onDatasetsImported([dataset]);
+        setIsUploading(false);
+        setProcessingFile(null);
+      }, 200);
+    } catch (error: any) {
+      console.error(error);
+      setErrorMessage(error.message || 'Failed to generate Date/Time test dataset.');
       setIsUploading(false);
       setProcessingFile(null);
     }
@@ -445,19 +477,34 @@ export function DataUploader({ onDatasetsImported, existingDatasets = [], compac
       )}
 
       {!compact && !isUploading && (
-        <div className="flex items-center justify-center gap-2.5 text-xs py-3.5 border border-zinc-200/60 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl px-4 text-zinc-500">
-          <Database className="w-4 h-4 text-blue-500 shrink-0" />
-          <span>Want to test-drive the suite first?</span>
-          <button 
-            type="button"
-            onClick={handleDemoData}
-            className="text-blue-600 dark:text-blue-400 font-bold hover:underline transition-all cursor-pointer flex items-center gap-1"
-          >
-            Load Demo Sales Analytics Dataset
-            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-widest ml-0.5">
-              DEMO
-            </span>
-          </button>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-xs py-3.5 border border-zinc-200/60 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl px-4 text-zinc-500">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-blue-500 shrink-0" />
+            <span>Want to test-drive the suite first?</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button 
+              type="button"
+              onClick={handleDemoData}
+              className="text-blue-600 dark:text-blue-400 font-bold hover:underline transition-all cursor-pointer flex items-center gap-1"
+            >
+              Load Demo Sales
+              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-widest ml-0.5">
+                DEMO
+              </span>
+            </button>
+            <span className="text-zinc-300 dark:text-zinc-700">|</span>
+            <button 
+              type="button"
+              onClick={handleDateTimeTestData}
+              className="text-blue-600 dark:text-blue-400 font-bold hover:underline transition-all cursor-pointer flex items-center gap-1"
+            >
+              Load Date/Time Test Data
+              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 uppercase tracking-widest ml-0.5">
+                SEMANTIC
+              </span>
+            </button>
+          </div>
         </div>
       )}
     </div>

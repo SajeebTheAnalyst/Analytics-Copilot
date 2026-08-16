@@ -66,3 +66,23 @@ export async function createDemoDataset(): Promise<Dataset> {
     filename: DEMO_FILENAME,
   };
 }
+
+export const DATE_TIME_TEST_DATASET_NAME = "Date/Time Semantic Detection Test Data";
+export const DATE_TIME_TEST_FILENAME = "datetime_semantic_test.csv";
+
+const DATE_TIME_TEST_CSV = `ID,Full Date ISO,Full Date European,Full Date Written Long,Full Date Written Short,Month Year Word,Month Year Num,Year Column,DateTime 24h,DateTime 12h,Time 24h,Time 12h,Normal Text,Mixed Dates
+1,2026-08-16,16/08/2026,"April 12, 2020",Apr 12 2020,March 2020,2020-03,2020,2026-08-16 14:35:20,Apr 12 2020 02:35 PM,14:35:20,02:35 PM,Hello world,2026-08-16
+2,2026-08-17,17/08/2026,"April 13, 2020",Apr 13 2020,April 2021,2020-04,2021,2026-08-17 15:35:20,Apr 13 2020 03:35 PM,15:35:20,03:35 PM,Test phrase,not-a-date
+3,2026-08-18,18/08/2026,"April 14, 2020",Apr 14 2020,May 2020,2020-05,2022,2026-08-18 16:35:20,Apr 14 2020 04:35 PM,16:35:20,04:35 PM,Semantic tag,16/08/2026
+4,2026-08-19,19/08/2026,"April 15, 2020",Apr 15 2020,June 2020,2020-06,2020,2026-08-19 17:35:20,Apr 15 2020 05:35 PM,17:35:20,05:35 PM,Date detection,invalid-entry
+5,2026-08-20,20/08/2026,"April 16, 2020",Apr 16 2020,July 2020,2020-07,2021,2026-08-20 18:35:20,Apr 16 2020 06:35 PM,18:35:20,06:35 PM,Excel like engine,"April 12, 2020"`;
+
+export async function createDateTimeTestDataset(): Promise<Dataset> {
+  const file = new File([DATE_TIME_TEST_CSV], DATE_TIME_TEST_FILENAME, { type: "text/csv" });
+  const datasets = await processDataset(file);
+  return {
+    ...datasets[0],
+    name: DATE_TIME_TEST_DATASET_NAME,
+    filename: DATE_TIME_TEST_FILENAME,
+  };
+}

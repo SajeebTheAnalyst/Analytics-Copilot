@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { evaluateAllFormulas } from '@/lib/formulaEngine';
+import { recalculateDatasetProfiles } from '@/lib/analyzer';
 import { FormulaBuilderModal } from './FormulaBuilderModal';
 import { FindReplaceModal, MatchItem } from './FindReplaceModal';
 import { BulkOperationsBar } from './BulkOperationsBar';
@@ -558,6 +559,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     setWorkingFormulas({ ...(dataset.formulas || {}) });
     setCellFormatting(dataset.cellFormatting || {});
     setColumnWidths(dataset.columnWidths || {});
+    setCleaningHistory(dataset.cleaningHistory || []);
+    setRedoStack(dataset.redoStack || []);
 
     setIsDirty(false);
     setEditedCells(new Set());
@@ -1575,7 +1578,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       return rest;
     });
 
-    const updatedDataset: Dataset = {
+    const baseDataset: Dataset = {
       ...dataset,
       headers: workingHeaders,
       columnTypes: workingColumnTypes,
@@ -1583,12 +1586,16 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       formulas: workingFormulas,
       cellFormatting: cellFormatting,
       columnWidths: columnWidths,
+      cleaningHistory: cleaningHistory,
+      redoStack: redoStack,
       rowCount: cleanData.length,
       colCount: workingHeaders.length,
       data: cleanData.slice(0, 100),
       fullData: cleanData,
       updatedAt: Date.now(),
     };
+
+    const updatedDataset = recalculateDatasetProfiles(baseDataset);
 
     if (onUpdateDataset) {
       onUpdateDataset(updatedDataset);
@@ -1625,6 +1632,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     setWorkingFormulas({ ...(dataset.formulas || {}) });
     setCellFormatting(dataset.cellFormatting || {});
     setColumnWidths(dataset.columnWidths || {});
+    setCleaningHistory(dataset.cleaningHistory || []);
+    setRedoStack(dataset.redoStack || []);
 
     setIsDirty(false);
     setEditedCells(new Set());
@@ -4322,7 +4331,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
           isOpen={!!formatModalCol}
           onClose={() => setFormatModalCol(null)}
           header={formatModalCol}
-          colType={workingColumnTypes[formatModalCol] || 'text'}
+          colType={dataset.columnSemanticTypes?.[formatModalCol] || workingColumnTypes[formatModalCol] || 'text'}
           currentConfig={workingColumnFormats[formatModalCol]}
           sampleValues={workingData.slice(0, 50).map(r => r[formatModalCol])}
           onApplyFormat={(hdr, config) => {

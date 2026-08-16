@@ -76,6 +76,10 @@ export interface Dataset {
   formulas?: Record<string, string>; // { [calculatedColumnHeader]: formulaString }
   cellFormatting?: Record<string, any>;
   columnWidths?: Record<string, number>;
+  cleaningHistory?: any[];
+  redoStack?: any[];
+  columnSemanticTypes?: Record<string, string>;
+  columnGranularities?: Record<string, string>;
   
   cleaningStatus?: DatasetCleaningStatus;
   cleaningLogs?: CleaningLog[];

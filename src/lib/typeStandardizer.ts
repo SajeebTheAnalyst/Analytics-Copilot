@@ -19,10 +19,13 @@ export type DateFormatOption =
   | 'YYYY'
   | 'DD MMM YYYY, HH:mm';
 
+export type TimeFormatOption = 'HH:mm' | 'HH:mm:ss' | 'hh:mm AM/PM';
+
 export type NumberFormatType = 'number' | 'decimal' | 'currency' | 'percentage';
 
 export interface ColumnFormatConfig {
   dateFormat?: DateFormatOption;
+  timeFormat?: TimeFormatOption;
   numberFormat?: NumberFormatType;
   currencySymbol?: string;
   decimals?: number;
@@ -467,7 +470,158 @@ export function formatColumnValue(
     return `${yr}-${moStr}-${dy}`;
   }
 
+  // Handle Time formatting
+  if (colTypeLower === 'time') {
+    const strVal = String(val).trim();
+    const timeMatch = strVal.match(/^([0-2]?\d):([0-5]\d)(?::([0-5]\d))?\s*(AM|PM)?$/i);
+    if (!timeMatch) return String(val);
+
+    let hr = parseInt(timeMatch[1], 10);
+    const min = parseInt(timeMatch[2], 10);
+    const sec = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+    const ampm = timeMatch[4] ? timeMatch[4].toUpperCase() : '';
+
+    let hr24 = hr;
+    if (ampm === 'PM' && hr < 12) hr24 += 12;
+    if (ampm === 'AM' && hr === 12) hr24 = 0;
+
+    const fmt = config.timeFormat || 'HH:mm:ss';
+
+    const hr24Str = String(hr24).padStart(2, '0');
+    const minStr = String(min).padStart(2, '0');
+    const secStr = String(sec).padStart(2, '0');
+
+    if (fmt === 'HH:mm') {
+      return `${hr24Str}:${minStr}`;
+    }
+    if (fmt === 'HH:mm:ss') {
+      return `${hr24Str}:${minStr}:${secStr}`;
+    }
+    if (fmt === 'hh:mm AM/PM') {
+      let hr12 = hr24 % 12;
+      if (hr12 === 0) hr12 = 12;
+      const ampmStr = hr24 >= 12 ? 'PM' : 'AM';
+      return `${String(hr12).padStart(2, '0')}:${minStr} ${ampmStr}`;
+    }
+
+    return String(val);
+  }
+
   return String(val);
+}
+
+export function extractDateValue(val: any): { extracted: string | null; semanticType: string; granularity: string | null } {
+  if (val === null || val === undefined) return { extracted: null, semanticType: 'text', granularity: null };
+  const str = String(val).trim();
+  if (!str) return { extracted: null, semanticType: 'text', granularity: null };
+
+  const monthWords = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec';
+  const monthYearNumRegex = /^(\d{4})[\/\-](0?[1-9]|1[0-2])$/;
+  const monthYearWordRegex = new RegExp(`^(${monthWords})\\s+(\\d{4})$`, 'i');
+
+  if (monthYearNumRegex.test(str)) {
+    const match = str.match(monthYearNumRegex);
+    if (match) {
+      const yr = parseInt(match[1], 10);
+      const mo = parseInt(match[2], 10);
+      if (yr >= 1900 && yr <= 2100 && mo >= 1 && mo <= 12) {
+        return { extracted: str, semanticType: 'month_year', granularity: 'Month' };
+      }
+    }
+  }
+  if (monthYearWordRegex.test(str)) {
+    return { extracted: str, semanticType: 'month_year', granularity: 'Month' };
+  }
+
+  if (/^\d{4}$/.test(str)) {
+    const yr = parseInt(str, 10);
+    if (yr >= 1900 && yr <= 2100) {
+      return { extracted: str, semanticType: 'year', granularity: 'Year' };
+    }
+  }
+
+  const timeRegex = /\b(?:[0-2]?\d):(?:[0-5]\d)(?::(?:[0-5]\d))?\s*(?:AM|PM|am|pm)?\b/i;
+  const datePartStr = str.replace(timeRegex, '').trim().replace(/,\s*$/, '').trim();
+
+  const ymdMatch = datePartStr.match(/^(\d{4})[\/\-](0?[1-9]|1[0-2])[\/\-](0?[1-9]|[12]\d|3[01])$/);
+  if (ymdMatch) {
+    const yr = ymdMatch[1];
+    const mo = String(parseInt(ymdMatch[2], 10)).padStart(2, '0');
+    const dy = String(parseInt(ymdMatch[3], 10)).padStart(2, '0');
+    return { extracted: `${yr}-${mo}-${dy}`, semanticType: 'date', granularity: 'Full Date' };
+  }
+
+  const parts = datePartStr.split(/[\/\-\.]+/);
+  if (parts.length === 3) {
+    const p1 = parseInt(parts[0], 10);
+    const p2 = parseInt(parts[1], 10);
+    const p3 = parseInt(parts[2], 10);
+    if (!isNaN(p1) && !isNaN(p2) && !isNaN(p3) && p3 >= 1900 && p3 <= 2100) {
+      let yr = p3;
+      let mo = p2;
+      let dy = p1;
+      if (p1 > 12 && p2 <= 12) {
+        mo = p2;
+        dy = p1;
+      } else if (p2 > 12 && p1 <= 12) {
+        mo = p1;
+        dy = p2;
+      } else {
+        mo = p1;
+        dy = p2;
+      }
+      return {
+        extracted: `${yr}-${String(mo).padStart(2, '0')}-${String(dy).padStart(2, '0')}`,
+        semanticType: 'date',
+        granularity: 'Full Date'
+      };
+    }
+  }
+
+  const parsed = new Date(datePartStr);
+  if (parsed && !isNaN(parsed.getTime())) {
+    const yr = parsed.getFullYear();
+    if (yr >= 1900 && yr <= 2100) {
+      const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+      const dy = String(parsed.getDate()).padStart(2, '0');
+      return { extracted: `${yr}-${mo}-${dy}`, semanticType: 'date', granularity: 'Full Date' };
+    }
+  }
+
+  return { extracted: null, semanticType: 'text', granularity: null };
+}
+
+export function extractTimeValue(val: any): { extracted: string | null; semanticType: string; granularity: string | null } {
+  if (val === null || val === undefined) return { extracted: null, semanticType: 'text', granularity: null };
+  const str = String(val).trim();
+  if (!str) return { extracted: null, semanticType: 'text', granularity: null };
+
+  const timeRegex = /([0-2]?\d):([0-5]\d)(?::([0-5]\d))?\s*(AM|PM)?/i;
+  const match = str.match(timeRegex);
+  if (match) {
+    const hr = parseInt(match[1], 10);
+    const min = String(parseInt(match[2], 10)).padStart(2, '0');
+    const sec = match[3] ? String(parseInt(match[3], 10)).padStart(2, '0') : '00';
+    const ampm = match[4] ? match[4].toUpperCase() : '';
+
+    if (ampm) {
+      const hrStr = String(hr).padStart(2, '0');
+      return {
+        extracted: `${hrStr}:${min}:${sec} ${ampm}`,
+        semanticType: 'time',
+        granularity: 'Time'
+      };
+    } else {
+      const hrStr = String(hr).padStart(2, '0');
+      return {
+        extracted: `${hrStr}:${min}:${sec}`,
+        semanticType: 'time',
+        granularity: 'Time'
+      };
+    }
+  }
+
+  return { extracted: null, semanticType: 'text', granularity: null };
 }
 
 /**
@@ -481,22 +635,9 @@ export function extractDateTimePart(
 ): Record<string, any>[] {
   return data.map(row => {
     const raw = row[sourceHeader];
-    const { date } = parseFlexibleDateTime(raw);
-    let extractedVal: string | null = null;
-
-    if (date) {
-      if (targetPart === 'date') {
-        const yr = date.getFullYear();
-        const mo = String(date.getMonth() + 1).padStart(2, '0');
-        const dy = String(date.getDate()).padStart(2, '0');
-        extractedVal = `${yr}-${mo}-${dy}`;
-      } else {
-        const hr = String(date.getHours()).padStart(2, '0');
-        const min = String(date.getMinutes()).padStart(2, '0');
-        const sec = String(date.getSeconds()).padStart(2, '0');
-        extractedVal = `${hr}:${min}:${sec}`;
-      }
-    }
+    const extractedVal = targetPart === 'date'
+      ? extractDateValue(raw).extracted
+      : extractTimeValue(raw).extracted;
 
     return {
       ...row,

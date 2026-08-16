@@ -1,4 +1,4 @@
-import { isBlankValue, parseFlexibleNumeric, parseFlexibleDateTime } from './typeStandardizer';
+import { isBlankValue, parseFlexibleNumeric, parseFlexibleDateTime, extractDateValue, extractTimeValue } from './typeStandardizer';
 
 export type CleaningActionType =
   | 'trim_whitespace'
@@ -824,19 +824,17 @@ export function previewExtractDate(
 
   const updatedData = data.map((row, rowIdx) => {
     const newRow = { ...row };
-    const val = String(newRow[targetCol] ?? '');
-    // Extract date match YYYY-MM-DD or DD/MM/YYYY
-    const dateMatch = val.match(/\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4}/);
-    const extracted = dateMatch ? dateMatch[0] : val.slice(0, 10);
+    const val = row[targetCol];
+    const { extracted } = extractDateValue(val);
 
     newRow[newCol] = extracted;
-    if (val) {
+    if (extracted !== null && extracted !== undefined) {
       affectedRows.add(rowIdx);
       diffCells.push({
         rowIdx,
         rowId: row._rowId || `r-${rowIdx}`,
         header: targetCol,
-        originalValue: val,
+        originalValue: val === null || val === undefined ? '' : String(val),
         newValue: `${newCol}: ${extracted}`,
       });
     }
@@ -872,19 +870,17 @@ export function previewExtractTime(
 
   const updatedData = data.map((row, rowIdx) => {
     const newRow = { ...row };
-    const val = String(newRow[targetCol] ?? '');
-    // Extract time match HH:mm:ss or HH:mm
-    const timeMatch = val.match(/\d{2}:\d{2}(?::\d{2})?/);
-    const extracted = timeMatch ? timeMatch[0] : '';
+    const val = row[targetCol];
+    const { extracted } = extractTimeValue(val);
 
     newRow[newCol] = extracted;
-    if (extracted) {
+    if (extracted !== null && extracted !== undefined) {
       affectedRows.add(rowIdx);
       diffCells.push({
         rowIdx,
         rowId: row._rowId || `r-${rowIdx}`,
         header: targetCol,
-        originalValue: val,
+        originalValue: val === null || val === undefined ? '' : String(val),
         newValue: `${newCol}: ${extracted}`,
       });
     }
