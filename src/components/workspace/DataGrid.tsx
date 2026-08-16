@@ -1140,7 +1140,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     setActiveMatchIndex(activeIdx);
   }, []);
 
-  // Handle Column Selection
+  // Handle Column Selection (Normal Left-Click)
   const handleHeaderClick = (header: string, cIndex: number) => {
     if (editingCell) return;
     setSelectedCell({ row: 0, col: cIndex });
@@ -1150,6 +1150,9 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
       endRow: Math.max(0, displayedRows.length - 1),
       endCol: cIndex,
     });
+    setContextMenu(null);
+    setColumnContextMenu(null);
+    setFilterPopoverCol(null);
   };
 
   // Format cell display value helper
@@ -2358,11 +2361,11 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     // 2. Dismiss any generic cell context menu
     setContextMenu(null);
 
-    // 3. Anchor Excel-style context menu right below/beside the clicked column header
+    // 3. Anchor Excel-style context menu right beside/at the clicked column header interaction point
     const targetEl = e.currentTarget as HTMLElement | null;
     const rect = targetEl?.getBoundingClientRect ? targetEl.getBoundingClientRect() : null;
 
-    const MENU_WIDTH = 250;
+    const MENU_WIDTH = 240;
     const MENU_HEIGHT = 480;
     const PADDING = 8;
     const GAP = 2;
@@ -2370,30 +2373,27 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
     const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
     const vh = window.innerHeight || document.documentElement.clientHeight || 768;
 
+    // Start directly at cursor X and header cell bottom Y (or click Y)
     let x = e.clientX;
-    let y = e.clientY;
+    let y = rect ? Math.min(e.clientY + GAP, rect.bottom + GAP) : e.clientY + GAP;
 
-    if (rect) {
-      // Excel-style anchoring: aligned directly below the clicked column header
-      y = rect.bottom + GAP;
-      x = Math.max(rect.left, Math.min(e.clientX - 10, rect.right - MENU_WIDTH));
-
-      // Viewport overflow bounds check
-      if (y + MENU_HEIGHT > vh - PADDING) {
-        if (rect.top - MENU_HEIGHT - GAP >= PADDING) {
-          y = rect.top - MENU_HEIGHT - GAP;
-        } else {
-          y = Math.max(PADDING, vh - MENU_HEIGHT - PADDING);
-        }
-      }
-
-      if (x + MENU_WIDTH > vw - PADDING) {
-        x = Math.max(PADDING, vw - MENU_WIDTH - PADDING);
-      }
-      x = Math.max(PADDING, x);
+    // Viewport boundary protection
+    if (x + MENU_WIDTH > vw - PADDING) {
+      x = Math.max(PADDING, vw - MENU_WIDTH - PADDING);
     } else {
-      x = Math.max(PADDING, Math.min(vw - MENU_WIDTH - PADDING, e.clientX));
-      y = Math.max(PADDING, Math.min(vh - MENU_HEIGHT - PADDING, e.clientY));
+      x = Math.max(PADDING, x);
+    }
+
+    if (y + MENU_HEIGHT > vh - PADDING) {
+      if (rect && rect.top - MENU_HEIGHT - GAP >= PADDING) {
+        y = rect.top - MENU_HEIGHT - GAP;
+      } else if (e.clientY - MENU_HEIGHT - PADDING >= PADDING) {
+        y = e.clientY - MENU_HEIGHT - PADDING;
+      } else {
+        y = Math.max(PADDING, vh - MENU_HEIGHT - PADDING);
+      }
+    } else {
+      y = Math.max(PADDING, y);
     }
 
     setColumnContextMenu({
@@ -2565,21 +2565,6 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
         break;
     }
 
-    if (header) {
-      return (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setTypeModalCol(header);
-          }}
-          className="hover:opacity-80 cursor-pointer"
-          title={`Click to analyze & convert data type for "${header}"`}
-        >
-          {content}
-        </button>
-      );
-    }
     return content;
   };
 
@@ -3745,11 +3730,11 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Title Bar */}
-          <div className="px-2.5 py-1 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
+          <div className="px-2.5 py-1 mb-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between text-[10px] font-bold text-zinc-500 dark:text-zinc-400 select-none">
             <span className="truncate max-w-[150px]">
               Column: {columnContextMenu.header} ({getColumnLetter(columnContextMenu.col)})
             </span>
-            <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-mono font-black">Column</span>
+            <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-mono font-black shrink-0">Column</span>
           </div>
 
           {/* Mini Formatting Toolbar (Excel Style) */}
