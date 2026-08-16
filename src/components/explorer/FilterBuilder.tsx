@@ -99,6 +99,7 @@ export function FilterBuilder({
       equals: '=',
       does_not_equal: '≠',
       contains: 'contains',
+      does_not_contain: 'does not contain',
       starts_with: 'starts with',
       ends_with: 'ends with',
       is_empty: 'is empty',
@@ -110,6 +111,7 @@ export function FilterBuilder({
       between: 'between',
       before: 'before',
       after: 'after',
+      on: 'on',
       in: 'in',
       not_in: 'not in',
     };

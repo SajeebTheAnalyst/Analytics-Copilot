@@ -165,6 +165,14 @@ export interface KpiLayoutConfig {
   h: number;
 }
 
+export interface KpiDisplayOptions {
+  showTarget?: boolean;
+  showAchievement?: boolean;
+  showTrend?: boolean;
+  showMiniTrend?: boolean;
+  showContext?: boolean;
+}
+
 export interface KpiDefinition {
   id: string;
   name: string;
@@ -181,6 +189,11 @@ export interface KpiDefinition {
   comparison?: ComparisonType;
   dateColumn?: string;
   timeGranularity?: 'year' | 'quarter' | 'month' | 'day';
+  dateRange?: {
+    type: 'all' | 'year' | 'quarter' | 'month' | 'last_30_days' | 'custom';
+    start?: string;
+    end?: string;
+  };
   targetValue?: number;
 
   // Calculated Metric Formula Tokens
@@ -196,6 +209,15 @@ export interface KpiDefinition {
   // Presentation Visuals
   layout?: KpiLayoutConfig;
   style?: KpiStyleConfig;
+  displayOptions?: KpiDisplayOptions;
+  
+  conditionalFormatting?: {
+    enabled: boolean;
+    aboveTargetColor?: string;
+    onTargetColor?: string;
+    belowTargetColor?: string;
+    onTargetThreshold?: number; // e.g. 95 (for 95%)
+  };
 
   // Status & Health
   status: KpiStatus;
@@ -457,6 +479,7 @@ export type FilterOperator =
   | 'equals' 
   | 'does_not_equal' 
   | 'contains' 
+  | 'does_not_contain'
   | 'starts_with' 
   | 'ends_with' 
   | 'is_empty' 
@@ -468,6 +491,7 @@ export type FilterOperator =
   | 'between'
   | 'before' 
   | 'after'
+  | 'on'
   | 'in'
   | 'not_in';
 

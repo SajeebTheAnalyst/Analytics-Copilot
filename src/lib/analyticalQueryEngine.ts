@@ -1,13 +1,18 @@
-import { Dataset, RelationshipSuggestion } from '@/types';
+import { Dataset, RelationshipSuggestion, FilterOperator } from '@/types';
 import { ModelIntegrityReport } from '@/lib/modelIntegrityEngine';
 
-export type AggregationType = 'SUM' | 'AVERAGE' | 'COUNT' | 'MIN' | 'MAX' | 'DISTINCT COUNT' | 'distinct_count';
+export type AggregationType = 
+  | 'SUM' | 'AVERAGE' | 'COUNT' | 'MIN' | 'MAX' | 'DISTINCT COUNT' 
+  | 'sum' | 'avg' | 'count' | 'min' | 'max' | 'distinct_count';
+
+// Simple global cache for queries
+const QUERY_CACHE = new Map<string, { result: AnalyticalResult; timestamp: number }>();
 
 export interface AnalyticalQuery {
   datasetId: string;
   metric: { column: string; aggregation: AggregationType };
   grouping?: { column: string; period?: 'Year' | 'Quarter' | 'Month' | 'Week' | 'Day' };
-  filters?: { column: string; operator: 'equals' | 'greater' | 'less'; value: any }[];
+  filters?: { column: string; operator: FilterOperator; value: any; secondaryValue?: any }[];
   relatedDatasetId?: string;
   relationshipId?: string;
 }
@@ -34,12 +39,23 @@ export function executeAnalyticalQuery(
   integrityReport: ModelIntegrityReport,
   query: AnalyticalQuery
 ): AnalyticalResult {
+  const dataset = datasets.find(d => d.id === query.datasetId);
+  const cacheKey = JSON.stringify({ 
+    query, 
+    datasetUpdate: dataset?.updatedAt || dataset?.rowCount
+  });
+
+  const cached = QUERY_CACHE.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < 300000)) { // 5 min cache
+    return cached.result;
+  }
+
   const startTime = performance.now();
   const errors: string[] = [];
   const warnings: string[] = [];
 
   // 1. Dataset Resolution
-  const primaryDataset = datasets.find(d => d.id === query.datasetId);
+  const primaryDataset = dataset;
   if (!primaryDataset) {
     return {
       rows: [],
@@ -65,16 +81,50 @@ export function executeAnalyticalQuery(
   // Reusing aggregation logic principles from analyticsEngine.ts
   const data = primaryDataset.fullData || [];
   
-  // Apply filtering (simplified)
+  // Apply filtering (expanded)
   let filteredData = data;
   if (query.filters) {
     filteredData = filteredData.filter(row => {
       return query.filters!.every(filter => {
         const value = row[filter.column];
-        if (filter.operator === 'equals') return value == filter.value;
-        if (filter.operator === 'greater') return Number(value) > Number(filter.value);
-        if (filter.operator === 'less') return Number(value) < Number(filter.value);
-        return true;
+        const targetValue = filter.value;
+        const secondaryValue = filter.secondaryValue;
+
+        // Date normalization if needed
+        const isDateColumn = value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)) && (value.includes('-') || value.includes('/')));
+        
+        switch (filter.operator) {
+          case 'equals': return String(value).toLowerCase() === String(targetValue).toLowerCase();
+          case 'does_not_equal': return String(value).toLowerCase() !== String(targetValue).toLowerCase();
+          case 'contains': return String(value).toLowerCase().includes(String(targetValue).toLowerCase());
+          case 'does_not_contain': return !String(value).toLowerCase().includes(String(targetValue).toLowerCase());
+          case 'greater_than': return Number(value) > Number(targetValue);
+          case 'less_than': return Number(value) < Number(targetValue);
+          case 'greater_than_or_equal': return Number(value) >= Number(targetValue);
+          case 'less_than_or_equal': return Number(value) <= Number(targetValue);
+          case 'between': {
+            const val = Number(value);
+            return val >= Number(targetValue) && val <= Number(secondaryValue);
+          }
+          case 'before': {
+            const d1 = new Date(value).getTime();
+            const d2 = new Date(targetValue).getTime();
+            return d1 < d2;
+          }
+          case 'after': {
+            const d1 = new Date(value).getTime();
+            const d2 = new Date(targetValue).getTime();
+            return d1 > d2;
+          }
+          case 'on': {
+            const d1 = new Date(value).toDateString();
+            const d2 = new Date(targetValue).toDateString();
+            return d1 === d2;
+          }
+          case 'is_empty': return value === null || value === undefined || value === '';
+          case 'is_not_empty': return value !== null && value !== undefined && value !== '';
+          default: return true;
+        }
       });
     });
   }
@@ -101,7 +151,7 @@ export function executeAnalyticalQuery(
     rows.push({ result: aggVal });
   }
 
-  return {
+  const result: AnalyticalResult = {
     rows,
     datasetId: query.datasetId,
     query,
@@ -112,6 +162,13 @@ export function executeAnalyticalQuery(
       rowCount: rows.length
     }
   };
+
+  // Cache the successful result
+  if (errors.length === 0) {
+    QUERY_CACHE.set(cacheKey, { result, timestamp: Date.now() });
+  }
+
+  return result;
 }
 
 function calculateAggregation(rows: any[], column: string, aggregation: AggregationType): number {
