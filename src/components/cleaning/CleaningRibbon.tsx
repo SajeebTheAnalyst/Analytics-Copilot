@@ -257,7 +257,40 @@ export function CleaningRibbon({
   onUnhideAllColumns
 }: CleaningRibbonProps) {
   const ribbonRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, a, [role="button"]')) {
+      return;
+    }
+    isDraggingRef.current = true;
+    startXRef.current = e.clientX;
+    scrollLeftRef.current = scrollContainerRef.current?.scrollLeft || 0;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current || !scrollContainerRef.current) return;
+    const dx = e.clientX - startXRef.current;
+    scrollContainerRef.current.scrollLeft = scrollLeftRef.current - dx;
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (scrollContainerRef.current) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        scrollContainerRef.current.scrollLeft += e.deltaY;
+      }
+    }
+  };
 
   // Unified Floating Dropdown State
   type DropdownType =
@@ -395,9 +428,17 @@ export function CleaningRibbon({
         })}
       </div>
 
-      {/* Ribbon Toolbar Content Area (Fixed Height 62px, No Horizontal Scrollbar) */}
-      <div className="bg-white dark:bg-zinc-950 py-1 flex items-center min-h-[62px] h-[62px] text-xs relative z-30 overflow-hidden">
-        <div className="w-full h-full flex items-center justify-start gap-0.5 px-2 select-none min-w-0 overflow-hidden">
+      {/* Ribbon Toolbar Content Area (Compact Single Row, Thin Horizontal Navigation) */}
+      <div className="bg-white dark:bg-zinc-950 flex items-center h-[62px] min-h-[62px] text-xs relative z-30 overflow-hidden">
+        <div 
+          ref={scrollContainerRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+          className="w-full h-full flex items-center justify-start gap-0.5 px-2 select-none min-w-0 overflow-x-auto ribbon-scrollbar cursor-grab active:cursor-grabbing"
+        >
         {activeTab === 'home' && (
           <div className="flex items-center h-full min-w-0 flex-nowrap shrink-0">
             {/* 1. Clipboard Group */}

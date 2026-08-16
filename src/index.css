@@ -41,6 +41,36 @@
   background: rgba(148, 163, 184, 0.28);
 }
 
+/* Ribbon Ultra-Thin Horizontal Scrollbar (4px) */
+.ribbon-scrollbar::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.ribbon-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ribbon-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.35);
+  border-radius: 99px;
+  transition: background 180ms ease;
+}
+.ribbon-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.65);
+}
+.dark .ribbon-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.25);
+}
+.dark .ribbon-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.55);
+}
+.ribbon-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(161, 161, 170, 0.35) transparent;
+}
+.dark .ribbon-scrollbar {
+  scrollbar-color: rgba(161, 161, 170, 0.25) transparent;
+}
+
 /* Glassmorphism Surface Tokens */
 .glass-surface {
   background: rgba(255, 255, 255, 0.55);
