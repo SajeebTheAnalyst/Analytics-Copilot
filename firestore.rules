@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validations ---
+    
+    function isValidUserProfile(data) {
+      return data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 256 &&
+             (data.get('displayName', '') is string) &&
+             (data.get('photoURL', '') is string);
+    }
+
+    function isValidDataset(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.rowCount is int &&
+             data.colCount is int;
+    }
+
+    function isValidDashboard(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 128 &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidSuggestion(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidKpi(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.datasetId is string;
+    }
+
+    function isValidMisReport(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.datasetId is string;
+    }
+
+    // --- Collection Matches ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+      
+      match /datasets/{datasetId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDataset(incoming()) && isValidId(datasetId);
+        allow update: if isOwner(userId) && isValidDataset(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'cleaningStatus', 'updatedAt']);
+        allow delete: if isOwner(userId);
+      }
+
+      match /dashboards/{dashboardId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDashboard(incoming()) && isValidId(dashboardId);
+        allow update: if isOwner(userId) && isValidDashboard(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'subtitle', 'widgets', 'filters', 'updatedAt']);
+        allow delete: if isOwner(userId);
+      }
+
+      match /suggestions/{suggestionId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSuggestion(incoming()) && isValidId(suggestionId);
+        allow update: if isOwner(userId) && isValidSuggestion(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+        allow delete: if isOwner(userId);
+      }
+
+      match /kpis/{kpiId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidKpi(incoming()) && isValidId(kpiId);
+        allow update: if isOwner(userId) && isValidKpi(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'aggregation', 'column', 'formulaTokens', 'filters', 'format', 'updatedAt']);
+        allow delete: if isOwner(userId);
+      }
+
+      match /misReports/{reportId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidMisReport(incoming()) && isValidId(reportId);
+        allow update: if isOwner(userId) && isValidMisReport(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'subtitle', 'preparedBy', 'organization', 'filters', 'topN', 'updatedAt']);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

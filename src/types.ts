@@ -468,6 +468,23 @@ export interface DashboardShareInfo {
   hasUnsavedChanges?: boolean;
 }
 
+export interface MisReportConfig {
+  id: string;
+  title: string;
+  subtitle: string;
+  preparedBy?: string;
+  organization?: string;
+  datasetId: string;
+  dashboardId?: string;
+  filters: ColumnFilter[];
+  topN: number;
+  dateColumn?: string;
+  startDate?: string;
+  endDate?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DashboardPlan {
   title: string;
   datasets: string[];

@@ -65,19 +65,24 @@ interface KpiBuilderViewProps {
     filters: ColumnFilter[];
     selectedColumn?: string;
   } | null;
+  savedKpis?: KpiDefinition[];
+  onSaveKpi?: (kpi: KpiDefinition) => Promise<void>;
+  onDeleteKpi?: (id: string) => Promise<void>;
 }
 
 export function KpiBuilderView({
   onNavigateView,
   onAddToDashboard,
   explorerContext,
+  savedKpis = [],
+  onSaveKpi,
+  onDeleteKpi,
 }: KpiBuilderViewProps) {
   const { currentDataset: activeDataset, allDatasets: datasets, setSelectedDatasetId } = useDatasetStore();
   const activeDatasetId = activeDataset?.id || '';
 
-  // Saved KPIs state
-  const [savedKpis, setSavedKpis] = useState<KpiDefinition[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Removed local savedKpis state
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Search & Filter state for KPI library
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -136,20 +141,12 @@ export function KpiBuilderView({
   // Explorer import confirmation prompt
   const [showExplorerPrompt, setShowExplorerPrompt] = useState<boolean>(!!explorerContext);
 
-  // Load saved KPIs on mount
+  // Load saved KPIs logic removed - now handled via props
   useEffect(() => {
-    async function load() {
-      setIsLoading(true);
-      if (activeDataset) {
-        const kpis = await seedInitialKpisForDataset(activeDataset);
-        setSavedKpis(kpis);
-      } else {
-        const kpis = await getSavedKpis();
-        setSavedKpis(kpis);
-      }
-      setIsLoading(false);
+    if (activeDataset && savedKpis.filter(k => k.datasetId === activeDataset.id).length === 0) {
+      // Potentially seed if empty, but seedInitialKpisForDataset needs to be adapted for Firestore
+      // For now we just let the user seed manually or rely on existing cloud data
     }
-    load();
   }, [activeDataset?.id]);
 
   // Sync default form dataset & column options when target dataset changes
@@ -181,17 +178,15 @@ export function KpiBuilderView({
 
   // Seed standard KPIs trigger
   const handleSeedStandardKpis = async () => {
-    if (!activeDataset) return;
+    if (!activeDataset || !onSaveKpi) return;
     const seeded = seedStandardKpis(
       activeDataset.id,
       activeDataset.name,
       activeDataset.headers
     );
-    // Merge with existing non-conflicting KPIs
-    const existingOther = savedKpis.filter((k) => k.datasetId !== activeDataset.id);
-    const updated = [...seeded, ...existingOther];
-    await saveKpis(updated);
-    setSavedKpis(updated);
+    for (const kpi of seeded) {
+      await onSaveKpi(kpi);
+    }
   };
 
   // Open Create Modal
@@ -246,6 +241,7 @@ export function KpiBuilderView({
 
   // Duplicate KPI
   const handleDuplicateKpi = async (kpi: KpiDefinition) => {
+    if (!onSaveKpi) return;
     const duplicated: KpiDefinition = {
       ...kpi,
       id: `kpi-${Date.now()}`,
@@ -253,15 +249,13 @@ export function KpiBuilderView({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    const updated = await addOrUpdateKpi(duplicated);
-    setSavedKpis(updated);
+    await onSaveKpi(duplicated);
   };
 
   // Delete KPI
   const handleConfirmDelete = async () => {
-    if (!kpiToDelete) return;
-    const updated = await deleteKpi(kpiToDelete.id);
-    setSavedKpis(updated);
+    if (!kpiToDelete || !onDeleteKpi) return;
+    await onDeleteKpi(kpiToDelete.id);
     setKpiToDelete(null);
   };
 
@@ -340,8 +334,9 @@ export function KpiBuilderView({
       createdAt: editingKpi?.createdAt || Date.now(),
     };
 
-    const updated = await addOrUpdateKpi(kpiToSave);
-    setSavedKpis(updated);
+    if (onSaveKpi) {
+      await onSaveKpi(kpiToSave);
+    }
     setIsModalOpen(false);
   };
 
@@ -370,8 +365,9 @@ export function KpiBuilderView({
       createdAt: editingKpi?.createdAt || Date.now(),
     };
 
-    const updated = await addOrUpdateKpi(kpiToSave);
-    setSavedKpis(updated);
+    if (onSaveKpi) {
+      await onSaveKpi(kpiToSave);
+    }
     setIsModalOpen(false);
 
     if (onAddToDashboard) {
@@ -381,8 +377,9 @@ export function KpiBuilderView({
 
   // Explicit user action to add an existing saved KPI to Dashboard
   const handleExplicitAddToDashboard = async (kpi: KpiDefinition) => {
-    const updated = await addOrUpdateKpi(kpi);
-    setSavedKpis(updated);
+    if (onSaveKpi) {
+      await onSaveKpi(kpi);
+    }
     if (onAddToDashboard) {
       onAddToDashboard(kpi);
     }

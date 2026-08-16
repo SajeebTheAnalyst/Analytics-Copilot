@@ -1,22 +1,5 @@
 import { get, set } from 'idb-keyval';
-import { ColumnFilter } from '@/types';
-
-export interface MisReportConfig {
-  id: string;
-  title: string;
-  subtitle: string;
-  preparedBy?: string;
-  organization?: string;
-  datasetId: string;
-  dashboardId?: string;
-  filters: ColumnFilter[];
-  topN: number;
-  dateColumn?: string;
-  startDate?: string;
-  endDate?: string;
-  createdAt: number;
-  updatedAt: number;
-}
+import { ColumnFilter, MisReportConfig } from '@/types';
 
 const MIS_STORAGE_KEY = 'ac_mis_reports';
 

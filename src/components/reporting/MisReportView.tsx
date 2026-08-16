@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Dataset, Dashboard, KpiDefinition, ColumnFilter } from '@/types';
+import { Dataset, Dashboard, KpiDefinition, ColumnFilter, MisReportConfig } from '@/types';
 import { getSavedKpis, seedInitialKpisForDataset } from '@/lib/kpiStorage';
 import { generateMisReportData, MisExecutiveReportData } from '@/lib/misEngine';
-import { getSavedMisReports, saveMisReport, deleteMisReport, MisReportConfig } from '@/lib/misReportStorage';
+import { getSavedMisReports, saveMisReport, deleteMisReport,  } from '@/lib/misReportStorage';
 import { 
   FileText, Printer, Download, RefreshCw, Sparkles, Filter, Check, X, 
   Layers, ShieldCheck, TrendingUp, TrendingDown, AlertCircle, Calendar, 
@@ -18,9 +18,19 @@ import { useDatasetStore } from '@/lib/datasetStore';
 interface MisReportViewProps {
   datasets?: Dataset[];
   dashboards: Dashboard[];
+  savedKpis?: KpiDefinition[];
+  savedConfigs?: MisReportConfig[];
+  onSaveConfig?: (config: MisReportConfig) => Promise<void>;
+  onDeleteConfig?: (id: string) => Promise<void>;
 }
 
-export function MisReportView({ dashboards }: MisReportViewProps) {
+export function MisReportView({ 
+  dashboards, 
+  savedKpis: syncedKpis = [], 
+  savedConfigs = [],
+  onSaveConfig,
+  onDeleteConfig
+}: MisReportViewProps) {
   const { currentDataset: activeDataset, allDatasets: datasets, setSelectedDatasetId: setGlobalDatasetId } = useDatasetStore();
   // Active Selections & Config
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
@@ -36,8 +46,7 @@ export function MisReportView({ dashboards }: MisReportViewProps) {
 
   // Filters & Saved State
   const [reportFilters, setReportFilters] = useState<ColumnFilter[]>([]);
-  const [savedKpis, setSavedKpis] = useState<KpiDefinition[]>([]);
-  const [savedConfigs, setSavedConfigs] = useState<MisReportConfig[]>([]);
+  const [localSavedKpis, setLocalSavedKpis] = useState<KpiDefinition[]>([]);
 
   // UI States
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -56,19 +65,22 @@ export function MisReportView({ dashboards }: MisReportViewProps) {
     }
   }, [activeDataset, datasets, selectedDatasetId]);
 
-  // Load Saved KPIs & Saved MIS Configurations
+  // Sync Saved KPIs from Props
   useEffect(() => {
-    async function loadInitialData() {
-      if (datasets.length > 0) {
-        const primary = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
-        const kpis = await seedInitialKpisForDataset(primary);
-        setSavedKpis(kpis);
+    if (syncedKpis.length > 0) {
+      setLocalSavedKpis(syncedKpis);
+    } else {
+      // Seed if absolutely nothing (fallback)
+      async function loadInitialData() {
+        if (datasets.length > 0) {
+          const primary = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
+          const kpis = await seedInitialKpisForDataset(primary);
+          setLocalSavedKpis(kpis);
+        }
       }
-      const configs = await getSavedMisReports();
-      setSavedConfigs(configs);
+      loadInitialData();
     }
-    loadInitialData();
-  }, [selectedDatasetId, datasets]);
+  }, [selectedDatasetId, datasets, syncedKpis]);
 
   // Active Dataset reference
   const primaryDataset = useMemo(() => {
@@ -102,12 +114,12 @@ export function MisReportView({ dashboards }: MisReportViewProps) {
     return generateMisReportData(
       primaryDataset,
       datasets,
-      savedKpis,
+      localSavedKpis,
       reportFilters,
       topN,
       dateColumnOverride || undefined
     );
-  }, [primaryDataset, datasets, savedKpis, reportFilters, topN, dateColumnOverride]);
+  }, [primaryDataset, datasets, localSavedKpis, reportFilters, topN, dateColumnOverride]);
 
   // Handle Save Toast feedback
   const triggerSaveToast = () => {
@@ -115,9 +127,9 @@ export function MisReportView({ dashboards }: MisReportViewProps) {
     setTimeout(() => setSaveToast(false), 2000);
   };
 
-  // Persist Current Snapshot to IndexedDB
+  // Persist Current Snapshot
   const handleSaveSnapshot = async () => {
-    if (!primaryDataset) return;
+    if (!primaryDataset || !onSaveConfig) return;
     const config: MisReportConfig = {
       id: `mis-${Date.now()}`,
       title: reportTitle,
@@ -132,8 +144,7 @@ export function MisReportView({ dashboards }: MisReportViewProps) {
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
-    const updated = await saveMisReport(config);
-    setSavedConfigs(updated);
+    await onSaveConfig(config);
     triggerSaveToast();
   };
 
@@ -155,8 +166,9 @@ export function MisReportView({ dashboards }: MisReportViewProps) {
   // Delete Saved Snapshot
   const handleDeleteSnapshot = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = await deleteMisReport(id);
-    setSavedConfigs(updated);
+    if (onDeleteConfig) {
+      await onDeleteConfig(id);
+    }
   };
 
   // Filter Handler

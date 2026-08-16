@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "User Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["uid", "email"]
+    },
+    "datasetMetadata": {
+      "title": "Dataset Metadata",
+      "description": "Metadata for an uploaded dataset",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "filename": { "type": "string" },
+        "type": { "type": "string" },
+        "size": { "type": "integer" },
+        "rowCount": { "type": "integer" },
+        "colCount": { "type": "integer" },
+        "uploadTime": { "type": "integer" },
+        "updatedAt": { "type": "integer" },
+        "headers": { "type": "array", "items": { "type": "string" } },
+        "columnTypes": { "type": "object" },
+        "cleaningStatus": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "name", "userId"]
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "description": "Analytics dashboard configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" },
+        "widgets": { "type": "array" },
+        "filters": { "type": "array" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "title", "userId"]
+    },
+    "suggestion": {
+      "title": "Relationship Suggestion",
+      "description": "Data relationship suggestion",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sourceDatasetId": { "type": "string" },
+        "targetDatasetId": { "type": "string" },
+        "status": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "userId"]
+    },
+    "kpi": {
+      "title": "KPI Definition",
+      "description": "Business metric definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "datasetId": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["id", "name", "datasetId", "userId"]
+    },
+    "misReport": {
+      "title": "MIS Report Configuration",
+      "description": "MIS report snapshot configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "datasetId": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["id", "title", "datasetId", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "User profile document"
+    },
+    "/users/{userId}/datasets/{datasetId}": {
+      "schema": "datasetMetadata",
+      "description": "Dataset metadata"
+    },
+    "/users/{userId}/dashboards/{dashboardId}": {
+      "schema": "dashboard",
+      "description": "User dashboards"
+    },
+    "/users/{userId}/suggestions/{suggestionId}": {
+      "schema": "suggestion",
+      "description": "Relationship suggestions"
+    },
+    "/users/{userId}/kpis/{kpiId}": {
+      "schema": "kpi",
+      "description": "Saved KPI definitions"
+    },
+    "/users/{userId}/misReports/{reportId}": {
+      "schema": "misReport",
+      "description": "MIS report snapshots"
+    }
+  }
+}

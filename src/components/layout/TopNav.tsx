@@ -11,12 +11,15 @@ import {
   CheckCircle2, 
   AlertCircle,
   FileSpreadsheet,
-  BarChart2
+  BarChart2,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ViewState, Dataset } from '@/types';
 import { cn } from '@/lib/utils';
 import { calculateDatasetHealth } from '@/lib/profiler';
+import { User } from 'firebase/auth';
 
 interface TopNavProps {
   currentView: ViewState;
@@ -27,6 +30,8 @@ interface TopNavProps {
   onSelectDataset: (id: string | null) => void;
   onToggleCopilot: () => void;
   isCopilotOpen?: boolean;
+  user?: User | null;
+  onLogout?: () => void;
 }
 
 export function TopNav({ 
@@ -37,10 +42,13 @@ export function TopNav({
   selectedDatasetId,
   onSelectDataset,
   onToggleCopilot,
-  isCopilotOpen
+  isCopilotOpen,
+  user,
+  onLogout
 }: TopNavProps) {
   const [showAbout, setShowAbout] = useState(false);
   const [showDatasetDropdown, setShowDatasetDropdown] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
@@ -240,6 +248,45 @@ export function TopNav({
             <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-zinc-400" />
             <span className="sr-only">Toggle theme</span>
           </Button>
+
+          {user && (
+            <div className="relative">
+              <button
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
+                className="w-8.5 h-8.5 rounded-full overflow-hidden border border-zinc-200 dark:border-zinc-800 transition-transform active:scale-95 cursor-pointer"
+              >
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || ''} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <UserIcon className="w-4 h-4" />
+                  </div>
+                )}
+              </button>
+
+              {showUserDropdown && (
+                <div 
+                  className="absolute top-full right-0 mt-2 w-56 glass-dropdown rounded-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/80 mb-1">
+                    <p className="text-xs font-bold text-zinc-900 dark:text-zinc-50 truncate">{user.displayName || 'Analytics User'}</p>
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-500 truncate">{user.email}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onLogout?.();
+                      setShowUserDropdown(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer text-left font-bold"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 

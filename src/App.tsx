@@ -1,6 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode, useState, useEffect, useMemo } from 'react';
-import { get, set } from 'idb-keyval';
 import { motion, AnimatePresence } from 'motion/react';
+import { useFirebase } from './components/auth/FirebaseProvider';
+import { useFirestoreWorkspace } from './lib/useFirestoreWorkspace';
+import { LoginView } from './components/auth/LoginView';
 import { TopNav } from './components/layout/TopNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { RightPanel } from './components/layout/RightPanel';
@@ -96,14 +98,33 @@ function ErrorFallback({ error, resetErrorBoundary }: any) {
 }
 
 export default function App() {
-  const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const { user, loading: authLoading, logout } = useFirebase();
+  const { 
+    datasets, 
+    dashboards, 
+    suggestions, 
+    kpis,
+    misReports,
+    loading: dataLoading,
+    saveDataset,
+    saveDashboard,
+    saveSuggestion,
+    saveKpi,
+    saveMisReport,
+    deleteDataset,
+    deleteDashboard,
+    deleteKpi,
+    deleteMisReport,
+    setDatasets,
+    setDashboards,
+    setSuggestions
+  } = useFirestoreWorkspace(user);
+
   const [pendingKpiToAdd, setPendingKpiToAdd] = useState<KpiDefinition | null>(null);
   const [selectedDashId, setSelectedDashId] = useState<string | null>(null);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('data-manager');
   const [isUploading, setIsUploading] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
   
   // Shell UX States
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
@@ -116,55 +137,12 @@ export default function App() {
   });
   const [renamingDatasetId, setRenamingDatasetId] = useState<string | null>(null);
 
-  const [suggestions, setSuggestions] = useState<RelationshipSuggestion[]>([]);
-
   // Auto-select first dataset if none selected
   useEffect(() => {
     if (datasets.length > 0 && !selectedDatasetId) {
       setSelectedDatasetId(datasets[0].id);
     }
   }, [datasets, selectedDatasetId]);
-
-  // Load from IDB on mount
-  useEffect(() => {
-    async function loadWorkspace() {
-      try {
-        const storedDatasets = await get('ac_datasets');
-        const storedDashboards = await get('ac_dashboards');
-        const storedSuggestions = await get('ac_suggestions');
-        if (storedDatasets && Array.isArray(storedDatasets)) setDatasets(storedDatasets);
-        if (storedDashboards && Array.isArray(storedDashboards)) setDashboards(storedDashboards);
-        if (storedSuggestions && Array.isArray(storedSuggestions)) setSuggestions(storedSuggestions);
-      } catch (err) {
-        console.error("Failed to load workspace from IndexedDB", err);
-      } finally {
-        setIsInitialized(true);
-      }
-    }
-    loadWorkspace();
-  }, []);
-
-  // Save to IDB on change, debounced to avoid excessive writes during rapid edits
-  useEffect(() => {
-    if (!isInitialized) return;
-    const handler = setTimeout(() => {
-      set('ac_datasets', datasets).catch(console.error);
-    }, 1000); // 1-second debounce
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [datasets, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    set('ac_dashboards', dashboards).catch(console.error);
-  }, [dashboards, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    set('ac_suggestions', suggestions).catch(console.error);
-  }, [suggestions, isInitialized]);
 
   useEffect(() => {
     localStorage.setItem('ac_sidebar_collapsed', isSidebarCollapsed.toString());
@@ -192,25 +170,29 @@ export default function App() {
       filters: []
     };
     
-    setDashboards(prev => [...prev, newDashboard]);
+    saveDashboard(newDashboard);
     setSelectedDashId(newId);
     setCurrentView('dashboards');
   };
 
   useEffect(() => {
     const newSuggestions = discoverRelationships(datasets);
-    setSuggestions(prev => {
-      const manualSuggestions = prev.filter(s => s.isManual);
-      const existingDiscovered = new Map<string, RelationshipSuggestion>(
-        prev.filter(s => !s.isManual).map(p => [p.id, p])
-      );
-      const mergedDiscovered = newSuggestions.map(ns => {
-        const ext = existingDiscovered.get(ns.id);
-        if (ext) return { ...ns, status: ext.status };
-        return ns;
-      });
-      return [...manualSuggestions, ...mergedDiscovered];
+    const manualSuggestions = suggestions.filter(s => s.isManual);
+    const existingDiscovered = new Map<string, RelationshipSuggestion>(
+      suggestions.filter(s => !s.isManual).map(p => [p.id, p])
+    );
+    const mergedDiscovered = newSuggestions.map(ns => {
+      const ext = existingDiscovered.get(ns.id);
+      if (ext) return { ...ns, status: ext.status };
+      return ns;
     });
+    const finalSuggestions = [...manualSuggestions, ...mergedDiscovered];
+    
+    // Only update if changed
+    if (JSON.stringify(finalSuggestions) !== JSON.stringify(suggestions)) {
+      setSuggestions(finalSuggestions);
+      finalSuggestions.forEach(s => saveSuggestion(s));
+    }
   }, [datasets]);
 
   const dataFingerprint = datasets.map(d => `${d.id}-${d.rowCount}-${d.cleaningLogs?.length || 0}`).join('|');
@@ -218,18 +200,23 @@ export default function App() {
 
   useEffect(() => {
     if (datasets.length > 0) {
-      setDatasets(prev => detectIssues(prev, suggestions));
+      const detected = detectIssues(datasets, suggestions);
+      if (JSON.stringify(detected) !== JSON.stringify(datasets)) {
+        setDatasets(detected);
+        detected.forEach(d => saveDataset(d));
+      }
     }
   }, [dataFingerprint, suggestionsFingerprint]);
 
   const handleImport = (newDatasets: Dataset[], replaceFilenames?: string[]) => {
-    setDatasets(prev => {
-      let next = [...prev];
-      if (replaceFilenames && replaceFilenames.length > 0) {
-        next = next.filter(d => !replaceFilenames.includes(d.filename));
-      }
-      return [...next, ...newDatasets];
-    });
+    let next = [...datasets];
+    if (replaceFilenames && replaceFilenames.length > 0) {
+      next = next.filter(d => !replaceFilenames.includes(d.filename));
+    }
+    const finalDatasets = [...next, ...newDatasets];
+    setDatasets(finalDatasets);
+    newDatasets.forEach(d => saveDataset(d));
+    
     if (newDatasets.length > 0) {
       setSelectedDatasetId(newDatasets[0].id);
     }
@@ -237,7 +224,7 @@ export default function App() {
   };
 
   const handleRemove = (id: string) => {
-    setDatasets(prev => prev.filter(d => d.id !== id));
+    deleteDataset(id);
     if (selectedDatasetId === id) {
       const remaining = datasets.filter(d => d.id !== id);
       setSelectedDatasetId(remaining.length > 0 ? remaining[0].id : null);
@@ -245,49 +232,54 @@ export default function App() {
   };
 
   const handleSaveDatasetName = (id: string, newName: string) => {
-    setDatasets(prev => prev.map(d => d.id === id ? { ...d, name: newName } : d));
+    const ds = datasets.find(d => d.id === id);
+    if (ds) {
+      saveDataset({ ...ds, name: newName });
+    }
   };
 
   const handleApplyIssue = (datasetId: string, issueId: string) => {
-    setDatasets(prev => prev.map(d => d.id === datasetId ? applyCleaningAction(d, issueId) : d));
+    const ds = datasets.find(d => d.id === datasetId);
+    if (ds) {
+      const updated = applyCleaningAction(ds, issueId);
+      saveDataset(updated);
+    }
   };
 
   const handleRejectIssue = (datasetId: string, issueId: string) => {
-    setDatasets(prev => prev.map(d => {
-      if (d.id === datasetId) {
-        return {
-          ...d,
-          issues: (d.issues || []).map(i => i.id === issueId ? { ...i, status: 'rejected' } : i)
-        };
-      }
-      return d;
-    }));
+    const ds = datasets.find(d => d.id === datasetId);
+    if (ds) {
+      const updated = {
+        ...ds,
+        issues: (ds.issues || []).map(i => i.id === issueId ? { ...i, status: 'rejected' } : i)
+      };
+      saveDataset(updated as Dataset);
+    }
   };
 
   const handleUndoLog = (datasetId: string, logId: string) => {
-    setDatasets(prev => prev.map(d => {
-      if (d.id === datasetId) {
-        if (logId === 'RESTORE_ALL') {
-          return restoreOriginal(d);
-        }
-        return undoCleaningAction(d, logId);
+    const ds = datasets.find(d => d.id === datasetId);
+    if (ds) {
+      let updated;
+      if (logId === 'RESTORE_ALL') {
+        updated = restoreOriginal(ds);
+      } else {
+        updated = undoCleaningAction(ds, logId);
       }
-      return d;
-    }));
+      saveDataset(updated);
+    }
   };
 
   const handleApproveAllSafe = (datasetId: string) => {
-    setDatasets(prev => prev.map(d => {
-      if (d.id === datasetId) {
-        let currentDataset = d;
-        const safeIssues = (currentDataset.issues || []).filter(i => i.status === 'pending' && i.riskLevel === 'low');
-        for (const issue of safeIssues) {
-          currentDataset = applyCleaningAction(currentDataset, issue.id);
-        }
-        return currentDataset;
+    const ds = datasets.find(d => d.id === datasetId);
+    if (ds) {
+      let currentDataset = ds;
+      const safeIssues = (currentDataset.issues || []).filter(i => i.status === 'pending' && i.riskLevel === 'low');
+      for (const issue of safeIssues) {
+        currentDataset = applyCleaningAction(currentDataset, issue.id);
       }
-      return d;
-    }));
+      saveDataset(currentDataset);
+    }
   };
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
@@ -319,13 +311,13 @@ export default function App() {
   }, [selectedDataset]);
 
   const updateCurrentDataset = (updated: Dataset) => {
-    setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d));
+    saveDataset(updated);
   };
 
   const recoverCurrentDataset = () => {
     if (selectedDataset) {
       const resetDs = restoreOriginal(selectedDataset);
-      updateCurrentDataset(resetDs);
+      saveDataset(resetDs);
     }
   };
 
@@ -564,8 +556,20 @@ export default function App() {
     return viewNode;
   };
 
-  if (!isInitialized) {
-    return <div className="h-full flex items-center justify-center bg-white dark:bg-[#050505] text-zinc-500 text-xs font-mono">Loading workspace session...</div>;
+  if (authLoading || dataLoading) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#09090b] space-y-6">
+        <div className="w-12 h-12 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+        <div className="space-y-1 text-center">
+          <p className="text-white font-bold tracking-tight">Syncing with Cloud</p>
+          <p className="text-zinc-500 text-[10px] font-mono">Connecting to secure instance...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView />;
   }
 
   return (
@@ -586,6 +590,8 @@ export default function App() {
             onSelectDataset={setSelectedDatasetId}
             onToggleCopilot={() => setIsCopilotOpen(!isCopilotOpen)}
             isCopilotOpen={isCopilotOpen}
+            user={user}
+            onLogout={logout}
           />
 
           {/* Workspace Body */}
@@ -632,7 +638,7 @@ export default function App() {
                       onRemove={handleRemove}
                       onRename={(id) => setRenamingDatasetId(id)}
                       onNavigateView={(view) => setCurrentView(view)}
-                      onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+                      onUpdateDataset={(updated) => saveDataset(updated)}
                     />
                   ) : currentView === 'cleaning' ? (
                     <CleaningView 
@@ -641,7 +647,7 @@ export default function App() {
                       onRejectIssue={handleRejectIssue}
                       onUndoLog={handleUndoLog}
                       onApproveAllSafe={handleApproveAllSafe}
-                      onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+                      onUpdateDataset={(updated) => saveDataset(updated)}
                     />
                   ) : currentView === 'explorer' ? (
                     <DataExplorer 
@@ -665,6 +671,9 @@ export default function App() {
                     <KpiBuilderView 
                       datasets={datasets} 
                       selectedDatasetId={selectedDatasetId || undefined}
+                      savedKpis={kpis}
+                      onSaveKpi={saveKpi}
+                      onDeleteKpi={deleteKpi}
                       onNavigateView={(view) => setCurrentView(view)}
                       onAddToDashboard={(kpi) => {
                         setPendingKpiToAdd(kpi);
@@ -681,33 +690,38 @@ export default function App() {
                       onSelectDataset={setSelectedDatasetId}
                       onSelectDashboard={setSelectedDashId}
                       onUpdateDashboard={(id, update) => {
-                        setDashboards(prev => {
-                          const exists = prev.some(d => d.id === id);
-                          if (exists) {
-                            return prev.map(d => d.id === id ? { ...d, ...update } : d);
-                          } else {
-                            const newDash: Dashboard = {
-                              id,
-                              title: update.title || 'New Dashboard',
-                              createdAt: Date.now(),
-                              updatedAt: Date.now(),
-                              widgets: update.widgets || [],
-                              filters: update.filters || [],
-                              ...update
-                            };
-                            return [newDash, ...prev];
-                          }
-                        });
+                        const exists = dashboards.find(d => d.id === id);
+                        if (exists) {
+                          saveDashboard({ ...exists, ...update });
+                        } else {
+                          const newDash: Dashboard = {
+                            id,
+                            title: update.title || 'New Dashboard',
+                            createdAt: Date.now(),
+                            updatedAt: Date.now(),
+                            widgets: update.widgets || [],
+                            filters: update.filters || [],
+                            ...update
+                          } as Dashboard;
+                          saveDashboard(newDash);
+                        }
                       }}
                       onDeleteDashboard={(id) => {
-                        setDashboards(prev => prev.filter(d => d.id !== id));
+                        deleteDashboard(id);
                         if (selectedDashId === id) setSelectedDashId(null);
                       }}
                       pendingKpiToAdd={pendingKpiToAdd}
                       onClearPendingKpi={() => setPendingKpiToAdd(null)}
                     />
                   ) : currentView === 'mis-report' ? renderReportingOrGate(
-                    <MisReportView datasets={datasets} dashboards={dashboards} />
+                    <MisReportView 
+                      datasets={datasets} 
+                      dashboards={dashboards} 
+                      savedKpis={kpis}
+                      savedConfigs={misReports}
+                      onSaveConfig={saveMisReport}
+                      onDeleteConfig={deleteMisReport}
+                    />
                   ) : currentView === 'data-dictionary' ? (
                     <DataDictionaryView datasets={datasets} dashboards={dashboards} />
                   ) : null}
@@ -726,7 +740,7 @@ export default function App() {
               dashboards={dashboards}
               activeDashboardId={selectedDashId}
               onBuildDashboard={handleBuildDashboard}
-              onUpdateDataset={(updated) => setDatasets(prev => prev.map(d => d.id === updated.id ? updated : d))}
+              onUpdateDataset={(updated) => saveDataset(updated)}
             />
           </div>
 
