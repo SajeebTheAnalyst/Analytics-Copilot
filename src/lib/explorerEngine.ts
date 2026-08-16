@@ -488,3 +488,90 @@ export function compileAiContext(
     } : null,
   };
 }
+
+/**
+ * Formats a number into compact reporting notation (e.g., 1K, 10.25K, 1.5M, 2B, $850K, ৳2.4M).
+ */
+export function formatCompactNumber(value: number | null | undefined, currencySymbol?: string | null): string {
+  if (value === null || value === undefined || isNaN(value)) return '0';
+
+  const symbol = currencySymbol || '';
+  const absVal = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+
+  let numStr = '';
+
+  if (absVal >= 1_000_000_000) {
+    const formatted = (absVal / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '');
+    numStr = `${formatted}B`;
+  } else if (absVal >= 1_000_000) {
+    const formatted = (absVal / 1_000_000).toFixed(2).replace(/\.?0+$/, '');
+    numStr = `${formatted}M`;
+  } else if (absVal >= 1_000) {
+    const formatted = (absVal / 1_000).toFixed(2).replace(/\.?0+$/, '');
+    numStr = `${formatted}K`;
+  } else {
+    if (Number.isInteger(absVal)) {
+      numStr = absVal.toLocaleString('en-US');
+    } else {
+      numStr = absVal.toFixed(2).replace(/\.?0+$/, '');
+    }
+  }
+
+  return `${sign}${symbol}${numStr}`;
+}
+
+/**
+ * Detects currency symbol ($ / ৳ / € / ₹) for a given metric column.
+ */
+export function detectCurrencySymbol(
+  metricColumn: string,
+  columnFormats?: Record<string, any>,
+  sampleData?: Record<string, any>[]
+): string | null {
+  if (!metricColumn) return null;
+
+  // 1. Explicit column format config
+  const colFmt = columnFormats?.[metricColumn];
+  if (colFmt) {
+    if (colFmt.currencySymbol) return colFmt.currencySymbol;
+    if (colFmt.numberFormat === 'currency' || colFmt.type === 'currency') {
+      return colFmt.currencySymbol || '$';
+    }
+  }
+
+  // 2. Explicit currency symbols or currency codes in column header name
+  const headerLower = metricColumn.toLowerCase();
+  if (metricColumn.includes('৳') || headerLower.includes('bdt') || headerLower.includes('taka')) return '৳';
+  if (metricColumn.includes('€') || headerLower.includes('eur') || headerLower.includes('euro')) return '€';
+  if (metricColumn.includes('₹') || headerLower.includes('inr') || headerLower.includes('rupee')) return '₹';
+  if (metricColumn.includes('$') || headerLower.includes('usd') || headerLower.includes('dollar')) return '$';
+  if (headerLower.includes('gbp') || headerLower.includes('pound') || metricColumn.includes('£')) return '£';
+
+  // 3. Inspect sample values in raw data for currency symbols
+  if (sampleData && sampleData.length > 0) {
+    for (let i = 0; i < Math.min(25, sampleData.length); i++) {
+      const val = sampleData[i]?.[metricColumn];
+      if (typeof val === 'string') {
+        if (val.includes('৳')) return '৳';
+        if (val.includes('€')) return '€';
+        if (val.includes('₹')) return '₹';
+        if (val.includes('$')) return '$';
+        if (val.includes('£')) return '£';
+      }
+    }
+  }
+
+  // 4. Keyword heuristic matching on column header
+  const currencyKeywords = [
+    'price', 'amount', 'revenue', 'profit', 'sales', 'cost', 'fee', 'tax', 
+    'total', 'margin', 'discount', 'budget', 'salary', 'earning', 'gdp',
+    'income', 'expense', 'tariff', 'charge', 'spend', 'val', 'aov', 'value'
+  ];
+  if (currencyKeywords.some(kw => headerLower.includes(kw))) {
+    return '$'; // Default currency symbol
+  }
+
+  return null;
+}
+

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { QuickMetricConfig, ColumnProfile } from '@/types';
-import { calculateQuickMetric } from '@/lib/explorerEngine';
-import { Calculator, Plus, X, BarChart3, TrendingUp } from 'lucide-react';
+import { calculateQuickMetric, formatCompactNumber, detectCurrencySymbol } from '@/lib/explorerEngine';
+import { Calculator, Plus, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 
@@ -42,16 +42,13 @@ export function QuickAggregationsBar({
     setIsOpen(false);
   };
 
-  const formatMetricValue = (val: number | string, agg: string) => {
+  const formatMetricValue = (val: number | string, colName: string, agg: string) => {
     if (typeof val === 'string') return val;
     if (agg === 'count' || agg === 'distinct_count') {
       return val.toLocaleString();
     }
-    // Currency / Decimal format
-    if (Math.abs(val) >= 1000) {
-      return `$${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-    }
-    return val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const sym = detectCurrencySymbol(colName, undefined, data);
+    return formatCompactNumber(val, sym);
   };
 
   return (
@@ -74,7 +71,7 @@ export function QuickAggregationsBar({
                 {m.column} • <span className="text-zinc-500 dark:text-zinc-450 font-medium">{res.label}</span>
               </span>
               <span className="text-xs font-bold text-zinc-900 dark:text-zinc-50 font-mono mt-0.5">
-                {formatMetricValue(res.value, m.aggregation)}
+                {formatMetricValue(res.value, m.column, m.aggregation)}
               </span>
             </div>
 

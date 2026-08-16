@@ -282,6 +282,7 @@ export function DataExplorer({
         columnTypes={dataset.columnTypes}
         groupingConfig={groupingConfig}
         onChangeGrouping={setGroupingConfig}
+        columnFormats={dataset.columnFormats}
       />
 
       {/* 4. Quick Aggregation Metrics Summary Bar */}
