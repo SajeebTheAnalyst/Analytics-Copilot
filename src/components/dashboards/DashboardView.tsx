@@ -114,9 +114,8 @@ export function DashboardView({
         layout: { x: pos.x, y: pos.y, w: defaultW, h: defaultH }
       };
       const updatedWidgets = [...currentDash.widgets, newWidgetWithLayout];
-      const compacted = compactLayout(updatedWidgets, newWidgetWithLayout.id, 12);
       
-      onUpdateDashboard(currentDash.id, { widgets: compacted, updatedAt: Date.now() });
+      onUpdateDashboard(currentDash.id, { widgets: updatedWidgets, updatedAt: Date.now() });
       onClearPendingKpi?.();
     }
   }, [pendingKpiToAdd, currentDash, onUpdateDashboard, onClearPendingKpi]);

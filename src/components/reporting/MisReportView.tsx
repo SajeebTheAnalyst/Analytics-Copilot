@@ -477,8 +477,8 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                 className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2.5 py-1 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="">Auto Detect Date Column</option>
-                {primaryDataset?.headers.map(h => (
-                  <option key={h} value={h}>{h}</option>
+                {primaryDataset?.headers.map((h, i) => (
+                  <option key={`${h}-${i}`} value={h}>{h}</option>
                 ))}
               </select>
             </div>
@@ -499,13 +499,20 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
           {categoricalCols.length === 0 ? (
             <span className="text-xs text-zinc-400 italic">No filterable columns in dataset.</span>
           ) : (
-            categoricalCols.slice(0, 5).map(col => {
+            categoricalCols.slice(0, 5).map((col, colIdx) => {
               const sourceRows = primaryDataset.fullData || primaryDataset.data || [];
-              const uniqueVals = Array.from(new Set(sourceRows.map(r => r[col]).filter(v => v !== null && v !== undefined && v !== ''))).slice(0, 40);
+              const uniqueVals = Array.from(
+                new Set(
+                  sourceRows
+                    .map(r => r[col])
+                    .filter(v => v !== null && v !== undefined && v !== '')
+                    .map(v => String(v))
+                )
+              ).slice(0, 40);
               const activeFilter = reportFilters.find(f => f.column === col);
 
               return (
-                <div key={col} className="flex items-center gap-2 bg-white/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 rounded-md px-2.5 py-1 shadow-sm">
+                <div key={`${col}-${colIdx}`} className="flex items-center gap-2 bg-white/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 rounded-md px-2.5 py-1 shadow-sm">
                   <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{col}:</label>
                   <select
                     value={activeFilter?.value ?? 'all'}
@@ -518,8 +525,8 @@ ${reportData.managementInsights.map(i => `- ${i}`).join('\n')}
                     )}
                   >
                     <option value="all">All</option>
-                    {uniqueVals.map(val => (
-                      <option key={String(val)} value={String(val)}>{String(val)}</option>
+                    {uniqueVals.map((valStr, valIdx) => (
+                      <option key={`${valStr}-${valIdx}`} value={valStr}>{valStr}</option>
                     ))}
                   </select>
                 </div>

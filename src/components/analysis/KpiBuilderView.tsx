@@ -48,6 +48,7 @@ import {
   RefreshCw,
   Table,
   SlidersHorizontal,
+  LayoutGrid,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -310,7 +311,7 @@ export function KpiBuilderView({
     return evaluateKpi(livePreviewDefinition, datasets, savedKpis);
   }, [livePreviewDefinition, datasets, savedKpis, currentFormDataset]);
 
-  // Save KPI Form Submit
+  // Save KPI Form Submit (Saves inside KPI Builder only)
   const handleSaveKpiSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -338,11 +339,49 @@ export function KpiBuilderView({
 
     const updated = await addOrUpdateKpi(kpiToSave);
     setSavedKpis(updated);
-    
+    setIsModalOpen(false);
+  };
+
+  // Optional explicit action: Save & Add to Dashboard
+  const handleSaveAndAddToDashboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const validation = validateKpiDefinition(
+      livePreviewDefinition,
+      datasets,
+      savedKpis
+    );
+    if (!validation.isValid) {
+      setFormErrors(validation.errors);
+      return;
+    }
+
+    const evalRes = evaluateKpi(livePreviewDefinition, datasets, savedKpis);
+
+    const kpiToSave: KpiDefinition = {
+      ...livePreviewDefinition,
+      id: editingKpi?.id || `kpi-${Date.now()}`,
+      status: evalRes.status,
+      statusReason: evalRes.statusReason,
+      updatedAt: Date.now(),
+      createdAt: editingKpi?.createdAt || Date.now(),
+    };
+
+    const updated = await addOrUpdateKpi(kpiToSave);
+    setSavedKpis(updated);
+    setIsModalOpen(false);
+
     if (onAddToDashboard) {
       onAddToDashboard(kpiToSave);
-    } else {
-      setIsModalOpen(false);
+    }
+  };
+
+  // Explicit user action to add an existing saved KPI to Dashboard
+  const handleExplicitAddToDashboard = async (kpi: KpiDefinition) => {
+    const updated = await addOrUpdateKpi(kpi);
+    setSavedKpis(updated);
+    if (onAddToDashboard) {
+      onAddToDashboard(kpi);
     }
   };
 
@@ -727,7 +766,18 @@ export function KpiBuilderView({
                       </td>
 
                       <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="flex items-center justify-end gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleExplicitAddToDashboard(kpi)}
+                            className="text-[11px] h-7 gap-1 text-blue-600 dark:text-blue-400 border-blue-200/80 dark:border-blue-900/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-medium"
+                            title="Add KPI to Dashboard"
+                          >
+                            <LayoutGrid className="w-3 h-3" />
+                            <span>Add to Dashboard</span>
+                          </Button>
+
                           <button
                             onClick={() => setViewingKpi(kpi)}
                             className="p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -1324,12 +1374,22 @@ export function KpiBuilderView({
               </Button>
               <Button
                 type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSaveAndAddToDashboard}
+                className="text-xs gap-1.5 border-blue-200 dark:border-blue-900/60 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-medium"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Save & Add to Dashboard
+              </Button>
+              <Button
+                type="button"
                 size="sm"
                 onClick={handleSaveKpiSubmit}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5 font-semibold"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Save Business Metric
+                Save KPI
               </Button>
             </div>
           </div>
@@ -1355,7 +1415,7 @@ export function KpiBuilderView({
               </button>
             </div>
 
-            <div className="p-5 space-y-4 text-xs">
+            <div className="p-5 space-y-4 text-xs overflow-y-auto max-h-[70vh]">
               <div>
                 <label className="text-zinc-400 uppercase text-[10px] font-bold block mb-0.5">
                   KPI Name
@@ -1433,6 +1493,28 @@ export function KpiBuilderView({
                   </p>
                 </div>
               </div>
+            </div>
+
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center justify-end gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewingKpi(null)}
+                className="text-xs"
+              >
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  handleExplicitAddToDashboard(viewingKpi);
+                  setViewingKpi(null);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5 font-semibold"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Add to Dashboard
+              </Button>
             </div>
           </div>
         </div>
