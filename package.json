@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/react-grid-layout": "^2.1.0",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
@@ -28,6 +29,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-error-boundary": "^6.1.2",
+    "react-grid-layout": "^2.2.4",
     "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
     "simple-statistics": "^7.9.3",

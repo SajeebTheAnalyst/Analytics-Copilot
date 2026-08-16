@@ -1,4 +1,5 @@
 import { Dataset } from '@/types';
+import { parseFlexibleDateTime } from './typeStandardizer';
 
 export type DateGranularity = 'auto' | 'day' | 'week' | 'month' | 'quarter' | 'year';
 
@@ -352,4 +353,279 @@ export function detectColumnSemantic(
   }
 
   return { type: 'text', granularity: null };
+}
+
+export function getTemporalSubdivisionsForColumn(colName: string, semanticType: string): string[] {
+  const typeLower = String(semanticType).toLowerCase();
+  if (typeLower === 'year') {
+    return [`${colName} (Year)`];
+  }
+  if (typeLower === 'month_year') {
+    return [
+      `${colName} (Year)`,
+      `${colName} (Month Name)`,
+      `${colName} (Month Number)`
+    ];
+  }
+  if (typeLower === 'date') {
+    return [
+      `${colName} (Year)`,
+      `${colName} (Quarter)`,
+      `${colName} (Month Name)`,
+      `${colName} (Month Number)`,
+      `${colName} (Day)`,
+      `${colName} (Day of Week)`,
+      `${colName} (Week Number)`
+    ];
+  }
+  if (typeLower === 'datetime') {
+    return [
+      `${colName} (Year)`,
+      `${colName} (Quarter)`,
+      `${colName} (Month Name)`,
+      `${colName} (Month Number)`,
+      `${colName} (Day)`,
+      `${colName} (Day of Week)`,
+      `${colName} (Week Number)`,
+      `${colName} (Date)`,
+      `${colName} (Hour)`,
+      `${colName} (Minute)`,
+      `${colName} (Time)`
+    ];
+  }
+  if (typeLower === 'time') {
+    return [
+      `${colName} (Hour)`,
+      `${colName} (Minute)`,
+      `${colName} (Time)`
+    ];
+  }
+  return [];
+}
+
+export function parseVirtualColumn(colName: string, headers: string[]): { baseColumn: string; field: string } | null {
+  const match = colName.match(/^(.+) \((Year|Quarter|Month Name|Month Number|Day|Day of Week|Week Number|Date|Hour|Minute|Time)\)$/);
+  if (!match) return null;
+  const [_, baseColumn, field] = match;
+  if (headers && headers.includes(baseColumn)) {
+    return { baseColumn, field };
+  }
+  return null;
+}
+
+export function getVirtualColumnValue(
+  row: Record<string, any>,
+  colName: string,
+  headers: string[],
+  semanticType?: string
+): any {
+  if (!row) return null;
+  if (row[colName] !== undefined && row[colName] !== null) {
+    return row[colName];
+  }
+
+  const parsed = parseVirtualColumn(colName, headers);
+  if (!parsed) return row[colName];
+
+  const { baseColumn, field } = parsed;
+  const rawVal = row[baseColumn];
+  if (rawVal === null || rawVal === undefined || String(rawVal).trim() === '') {
+    return null;
+  }
+
+  const { date } = parseFlexibleDateTime(rawVal);
+  if (!date || isNaN(date.getTime())) {
+    return null;
+  }
+
+  const yr = date.getFullYear();
+
+  if (field === 'Year') {
+    return yr;
+  }
+
+  const semTypeLower = String(semanticType || '').toLowerCase();
+  if (semTypeLower === 'year') {
+    return null;
+  }
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  if (field === 'Month Name') {
+    return monthNames[date.getMonth()];
+  }
+  if (field === 'Month Number') {
+    return date.getMonth() + 1;
+  }
+
+  if (semTypeLower === 'month_year') {
+    return null;
+  }
+
+  if (field === 'Quarter') {
+    const q = Math.floor(date.getMonth() / 3) + 1;
+    return `Q${q}`;
+  }
+
+  if (field === 'Day') {
+    return date.getDate();
+  }
+
+  const dayOfWeekNames = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+  ];
+
+  if (field === 'Day of Week') {
+    return dayOfWeekNames[date.getDay()];
+  }
+
+  if (field === 'Week Number') {
+    const firstJan = new Date(yr, 0, 1);
+    const dayOfYear = Math.floor((date.getTime() - firstJan.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    return Math.ceil(dayOfYear / 7);
+  }
+
+  if (field === 'Date') {
+    const moStr = String(date.getMonth() + 1).padStart(2, '0');
+    const dyStr = String(date.getDate()).padStart(2, '0');
+    return `${yr}-${moStr}-${dyStr}`;
+  }
+
+  if (field === 'Hour') {
+    return date.getHours();
+  }
+
+  if (field === 'Minute') {
+    return date.getMinutes();
+  }
+
+  if (field === 'Time') {
+    const hrStr = String(date.getHours()).padStart(2, '0');
+    const minStr = String(date.getMinutes()).padStart(2, '0');
+    const secStr = String(date.getSeconds()).padStart(2, '0');
+    return `${hrStr}:${minStr}:${secStr}`;
+  }
+
+  return null;
+}
+
+export function getRowValue(
+  row: Record<string, any>,
+  colName: string,
+  headers: string[],
+  columnSemanticTypes?: Record<string, string>
+): any {
+  if (!row) return null;
+  if (row[colName] !== undefined && row[colName] !== null) {
+    return row[colName];
+  }
+
+  const parsed = parseVirtualColumn(colName, headers);
+  if (!parsed) return row[colName];
+
+  const { baseColumn } = parsed;
+  const semanticType = columnSemanticTypes?.[baseColumn] || '';
+  return getVirtualColumnValue(row, colName, headers, semanticType);
+}
+
+export function getExtendedHeadersForDataset(dataset: Dataset | null | undefined): string[] {
+  if (!dataset) return [];
+  const list: string[] = [];
+  for (const h of dataset.headers || []) {
+    list.push(h);
+    const semType = dataset.columnSemanticTypes?.[h] || dataset.columnTypes?.[h] || '';
+    if (['date', 'datetime', 'month_year', 'year', 'time'].includes(String(semType).toLowerCase())) {
+      list.push(...getTemporalSubdivisionsForColumn(h, semType));
+    }
+  }
+  return list;
+}
+
+export function getExtendedColumnTypesForDataset(dataset: Dataset | null | undefined): Record<string, string> {
+  if (!dataset) return {};
+  const types: Record<string, string> = { ...(dataset.columnTypes || {}) };
+  for (const h of dataset.headers || []) {
+    const semType = dataset.columnSemanticTypes?.[h] || dataset.columnTypes?.[h] || '';
+    if (['date', 'datetime', 'month_year', 'year', 'time'].includes(String(semType).toLowerCase())) {
+      const subs = getTemporalSubdivisionsForColumn(h, semType);
+      for (const sub of subs) {
+        if (sub.endsWith('(Year)')) types[sub] = 'numeric';
+        else if (sub.endsWith('(Quarter)')) types[sub] = 'categorical';
+        else if (sub.endsWith('(Month Name)')) types[sub] = 'categorical';
+        else if (sub.endsWith('(Month Number)')) types[sub] = 'numeric';
+        else if (sub.endsWith('(Day)')) types[sub] = 'numeric';
+        else if (sub.endsWith('(Day of Week)')) types[sub] = 'categorical';
+        else if (sub.endsWith('(Week Number)')) types[sub] = 'numeric';
+        else if (sub.endsWith('(Date)')) types[sub] = 'date';
+        else if (sub.endsWith('(Hour)')) types[sub] = 'numeric';
+        else if (sub.endsWith('(Minute)')) types[sub] = 'numeric';
+        else if (sub.endsWith('(Time)')) types[sub] = 'text';
+      }
+    }
+  }
+  return types;
+}
+
+export function sortTemporalGroups(groupRows: any[], field: string): any[] {
+  const monthOrder = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'
+  ];
+  const dayOfWeekOrder = [
+    'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'
+  ];
+
+  return [...groupRows].sort((a, b) => {
+    const valA = String(a.groupValue).trim();
+    const valB = String(b.groupValue).trim();
+
+    // Push blank/null to the end
+    const isABlank = valA === '(Blank / Null)' || valA === '';
+    const isBBlank = valB === '(Blank / Null)' || valB === '';
+    if (isABlank && isBBlank) return 0;
+    if (isABlank) return 1;
+    if (isBBlank) return -1;
+
+    if (field === 'Year' || field === 'Month Number' || field === 'Day' || field === 'Week Number' || field === 'Hour' || field === 'Minute') {
+      const numA = parseInt(valA, 10);
+      const numB = parseInt(valB, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+    }
+
+    if (field === 'Quarter') {
+      const qA = parseInt(valA.replace(/[^0-9]/g, ''), 10);
+      const qB = parseInt(valB.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(qA) && !isNaN(qB)) {
+        return qA - qB;
+      }
+    }
+
+    if (field === 'Month Name') {
+      const idxA = monthOrder.indexOf(valA.toLowerCase());
+      const idxB = monthOrder.indexOf(valB.toLowerCase());
+      if (idxA !== -1 && idxB !== -1) {
+        return idxA - idxB;
+      }
+    }
+
+    if (field === 'Day of Week') {
+      const idxA = dayOfWeekOrder.indexOf(valA.toLowerCase());
+      const idxB = dayOfWeekOrder.indexOf(valB.toLowerCase());
+      if (idxA !== -1 && idxB !== -1) {
+        return idxA - idxB;
+      }
+    }
+
+    if (field === 'Date' || field === 'Time') {
+      return valA.localeCompare(valB);
+    }
+
+    // Default string sort
+    return valA.localeCompare(valB);
+  });
 }

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { KpiDefinition, KpiFormatConfig, WidgetConfig } from '@/types';
-import { evaluateKpi, formatKpiValue } from '@/lib/kpiEngine';
+import { evaluateKpi, formatKpiResult } from '@/lib/kpiEngine';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

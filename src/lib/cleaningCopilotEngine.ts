@@ -207,10 +207,27 @@ export async function queryCleaningCopilot(
     return generateLocalGroundedResponse(message, context, err.message);
   }
 }
-
 /**
- * Maps raw action string to valid Phase 8J CleaningActionType
+ * Analyzes dataset suitability for various workspaces
  */
+function analyzeSuitability(context: CleaningCopilotContext): string {
+  const numericCols = Object.entries(context.columnProfiles)
+    .filter(([_, prof]) => prof.detectedType === 'numeric')
+    .map(([col]) => col);
+  const temporalCols = Object.entries(context.columnProfiles)
+    .filter(([_, prof]) => prof.detectedType === 'date' || prof.detectedType === 'datetime')
+    .map(([col]) => col);
+  
+  let analysis = '### Workspace Suitability Analysis\n\n';
+  
+  const suitableForKpi = numericCols.length > 0 && temporalCols.length > 0;
+  analysis += `- **KPI Builder**: ${suitableForKpi ? '✅ Suitable' : '⚠️ Requires at least one numeric measure and one temporal dimension'}\n`;
+  analysis += `- **Dashboard**: ${context.totalColumns > 3 ? '✅ Suitable' : '⚠️ Consider adding more dimensions'}\n`;
+  analysis += `- **Data Explorer**: ✅ Highly Suitable\n`;
+  analysis += `- **MIS Report**: ${context.qualityScore >= 80 ? '✅ Suitable' : '⚠️ Requires higher quality score (>80)'}\n`;
+  
+  return analysis;
+}
 function mapToCleaningActionType(rawAction: string): CleaningActionType {
   const normalized = (rawAction || '').toLowerCase().trim();
 
@@ -244,33 +261,32 @@ function generateLocalGroundedResponse(
   const mentionedColumn = context.headers.find(h => queryLower.includes(h.toLowerCase()));
 
   // 2. Query Intent Classification
-  if (queryLower.includes('mis') || queryLower.includes('ready') || queryLower.includes('report')) {
-    // MIS Readiness query
+  if (queryLower.includes('mis') || queryLower.includes('ready') || queryLower.includes('report') || queryLower.includes('analysis')) {
+    // MIS Readiness & Suitability query
     const isReady = context.qualityScore >= 90 && context.criticalIssuesCount === 0;
     
     responseMarkdown = `### MIS Report Readiness Assessment for **${context.datasetName}**\n\n`;
     responseMarkdown += `**Current Quality Score**: **${context.qualityScore}/100** ${isReady ? '✅ Ready' : '⚠️ Action Required'}\n\n`;
-    responseMarkdown += `#### **Evidence & Health Summary**:\n`;
-    responseMarkdown += `- **Total Dataset Scale**: ${context.totalRows.toLocaleString()} rows × ${context.totalColumns} columns\n`;
+    
+    // Readiness Breakdown
+    responseMarkdown += `#### **Readiness Breakdown**:\n`;
     responseMarkdown += `- **Critical Quality Blockers**: **${context.criticalIssuesCount}** critical issue(s)\n`;
-    responseMarkdown += `- **Total Detected Issues**: **${context.totalIssues}** total issue(s)\n`;
+    responseMarkdown += `- **Moderate Warnings**: **${context.warningIssuesCount}** warning(s)\n`;
     
     const missingCats = Object.entries(context.issuesByCategory);
     if (missingCats.length > 0) {
-      responseMarkdown += `- **Issues Breakdown by Category**:\n`;
+      responseMarkdown += `\n**Top Issues by Category**:\n`;
       missingCats.forEach(([cat, count]) => {
         responseMarkdown += `  - **${cat}**: ${count} issue(s)\n`;
       });
     }
-
-    if (context.formulaColumns.length > 0) {
-      responseMarkdown += `- **Formula Columns Protected**: \`${context.formulaColumns.join('`, `')}\` (${context.formulaColumns.length} calculated field(s))\n`;
-    }
+    
+    responseMarkdown += `\n${analyzeSuitability(context)}\n`;
 
     if (isReady) {
-      responseMarkdown += `\n\n**Verdict**: This dataset demonstrates high overall cleanliness and consistency suitable for executive MIS reporting.`;
+      responseMarkdown += `\n**Verdict**: This dataset demonstrates high overall cleanliness and consistency suitable for executive MIS reporting.`;
     } else {
-      responseMarkdown += `\n\n**Verdict**: **Not fully clean yet for executive MIS reporting.** Please resolve the recommended Phase 8J cleaning operations below to standardize records before export.`;
+      responseMarkdown += `\n**Verdict**: **Not fully clean yet.** Please resolve the recommended cleaning operations below to standardize records before export.`;
     }
 
   } else if (mentionedColumn) {
@@ -318,11 +334,19 @@ function generateLocalGroundedResponse(
   } else {
     // General overview / how should I clean
     responseMarkdown = `### AI Data Cleaning Strategy for **${context.datasetName}**\n\n`;
-    responseMarkdown += `I have analyzed your dataset (**${context.totalRows.toLocaleString()}** rows, **${context.totalColumns}** columns) using Phase 8I quality heuristics.\n\n`;
-    responseMarkdown += `**Current Quality Health Score**: **${context.qualityScore}/100**\n`;
-    responseMarkdown += `- **Critical Issues**: ${context.criticalIssuesCount}\n`;
-    responseMarkdown += `- **Warning Issues**: ${context.warningIssuesCount}\n\n`;
-    responseMarkdown += `Below are the recommended deterministic cleaning actions to resolve these issues safely with full Before → After review.`;
+    responseMarkdown += `I have analyzed your dataset (**${context.totalRows.toLocaleString()}** rows, **${context.totalColumns}** columns).\n\n`;
+    responseMarkdown += `**Current Quality Health Score**: **${context.qualityScore}/100**\n\n`;
+    
+    if (context.topIssues.length === 0) {
+      responseMarkdown += `✅ The dataset appears clean. No major issues detected.`;
+    } else {
+      responseMarkdown += `#### **Recommended Cleaning Plan**:\n\n`;
+      context.topIssues.slice(0, 5).forEach((iss, idx) => {
+        responseMarkdown += `${idx + 1}. **${iss.column || 'Dataset'}**: ${iss.title}\n`;
+        responseMarkdown += `   - *Why it matters*: ${iss.whatIsWrong}\n`;
+      });
+      responseMarkdown += `\nI recommend resolving these issues using the deterministic actions below.`;
+    }
   }
 
   // Generate Recommendations corresponding to top issues

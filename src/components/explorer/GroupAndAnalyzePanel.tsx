@@ -1,19 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { GroupingConfig, ColumnProfile } from '@/types';
 import { 
   calculateGroupAndAnalyze, 
   GroupAnalysisResult, 
   formatCompactNumber, 
   detectCurrencySymbol 
 } from '@/lib/explorerEngine';
+import { getExtendedHeadersForDataset, getExtendedColumnTypesForDataset } from '@/lib/dateIntelligence';
 import { Layers, BarChart2, Table as TableIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList, CartesianGrid } from 'recharts';
 import { cn } from '@/lib/utils';
+import { Dataset, GroupingConfig, ColumnProfile } from '@/types';
 
 interface GroupAndAnalyzePanelProps {
   data: Record<string, any>[];
-  headers: string[];
-  columnTypes: Record<string, ColumnProfile['type']>;
+  dataset: Dataset;
   groupingConfig: GroupingConfig | null;
   onChangeGrouping: (config: GroupingConfig | null) => void;
   columnFormats?: Record<string, any>;
@@ -99,8 +99,7 @@ function CustomTooltip({
 
 export function GroupAndAnalyzePanel({
   data,
-  headers,
-  columnTypes,
+  dataset,
   groupingConfig,
   onChangeGrouping,
   columnFormats,
@@ -110,23 +109,34 @@ export function GroupAndAnalyzePanel({
 
   // Find categorical/text columns for Group By, and numeric columns for Metric
   const categoricalHeaders = useMemo(() => {
-    return headers.filter(h => columnTypes[h] === 'categorical' || columnTypes[h] === 'text' || columnTypes[h] === 'date' || columnTypes[h] === 'boolean');
-  }, [headers, columnTypes]);
+    const extendedHeaders = getExtendedHeadersForDataset(dataset);
+    const extendedTypes = getExtendedColumnTypesForDataset(dataset);
+    return extendedHeaders.filter(h => 
+      extendedTypes[h] === 'categorical' || 
+      extendedTypes[h] === 'text' || 
+      extendedTypes[h] === 'date' || 
+      extendedTypes[h] === 'boolean'
+    );
+  }, [dataset]);
 
   const numericHeaders = useMemo(() => {
-    const numCols = headers.filter(h => columnTypes[h] === 'numeric');
-    return numCols.length > 0 ? numCols : headers;
-  }, [headers, columnTypes]);
+    const extendedHeaders = getExtendedHeadersForDataset(dataset);
+    const extendedTypes = getExtendedColumnTypesForDataset(dataset);
+    const numCols = extendedHeaders.filter(h => extendedTypes[h] === 'numeric');
+    return numCols.length > 0 ? numCols : extendedHeaders;
+  }, [dataset]);
+
+  const extendedHeaders = useMemo(() => getExtendedHeadersForDataset(dataset), [dataset]);
 
   // Initial fallback config if null
   const currentConfig: GroupingConfig = useMemo(() => {
     if (groupingConfig) return groupingConfig;
     return {
-      groupByColumn: categoricalHeaders[0] || headers[0] || '',
-      metricColumn: numericHeaders[0] || headers[0] || '',
+      groupByColumn: categoricalHeaders[0] || extendedHeaders[0] || '',
+      metricColumn: numericHeaders[0] || extendedHeaders[0] || '',
       aggregation: 'sum',
     };
-  }, [groupingConfig, categoricalHeaders, numericHeaders, headers]);
+  }, [groupingConfig, categoricalHeaders, numericHeaders, extendedHeaders]);
 
   // Detect currency symbol ($ / ৳ / € / ₹) if applicable
   const currencySymbol = useMemo(() => {
@@ -141,9 +151,10 @@ export function GroupAndAnalyzePanel({
       data,
       currentConfig.groupByColumn,
       currentConfig.metricColumn,
-      currentConfig.aggregation
+      currentConfig.aggregation,
+      dataset
     );
-  }, [data, currentConfig]);
+  }, [data, currentConfig, dataset]);
 
   const chartData = useMemo(() => {
     return analysisResult.groups.slice(0, 10).map(g => ({

@@ -85,6 +85,163 @@ export function DataQualityPanel({
     });
   }, [report, selectedColumnFilter, selectedCategoryFilter, severityFilter, searchQuery]);
 
+  // Helper to determine if an action is safe
+  const isSafeAction = (issue: QualityIssue) => {
+    return issue.severity !== 'critical' && 
+           ['Formatting', 'Missing Data', 'Duplicates'].includes(issue.category);
+  };
+
+  const safeIssues = useMemo(() => filteredIssues.filter(isSafeAction), [filteredIssues]);
+  const reviewIssues = useMemo(() => filteredIssues.filter(i => !isSafeAction(i)), [filteredIssues]);
+
+  // Helper to render issue card
+  const renderIssueCard = (issue: QualityIssue) => (
+    <div
+      key={issue.id}
+      className={cn(
+        "p-4 rounded-xl border transition-all space-y-3 bg-white dark:bg-zinc-950 shadow-xs",
+        issue.severity === 'critical'
+          ? "border-red-200 dark:border-red-900/50 hover:border-red-300 dark:hover:border-red-800"
+          : issue.severity === 'warning'
+          ? "border-amber-200 dark:border-amber-900/50 hover:border-amber-300 dark:hover:border-amber-800"
+          : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
+      )}
+    >
+      {/* Issue Headline */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <div className={cn(
+            "p-1.5 rounded-lg shrink-0 mt-0.5",
+            issue.severity === 'critical'
+              ? "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400"
+              : issue.severity === 'warning'
+              ? "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
+              : "bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
+          )}>
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                {issue.title}
+              </h4>
+              <span className="px-2 py-0.2 rounded text-[10px] font-bold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                {issue.category}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
+              <strong className="text-zinc-800 dark:text-zinc-200">Why it matters:</strong> {issue.whatIsWrong}
+            </p>
+          </div>
+        </div>
+
+        <span className={cn(
+          "px-2 py-0.5 rounded text-[10px] font-extrabold uppercase shrink-0",
+          issue.severity === 'critical' ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" : issue.severity === 'warning' ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+        )}>
+          {issue.severity}
+        </span>
+      </div>
+
+      {/* Issue Details: Where is it & Affected Count */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-zinc-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-zinc-200/60 dark:border-zinc-800/60">
+        <div>
+          <span className="font-bold text-zinc-500 text-[10px] uppercase block">Column</span>
+          <span className="font-medium text-zinc-800 dark:text-zinc-200">{issue.column || 'N/A'}</span>
+        </div>
+        <div>
+          <span className="font-bold text-zinc-500 text-[10px] uppercase block">Affected Records</span>
+          <span className="font-bold text-zinc-800 dark:text-zinc-200 font-mono">{issue.affectedRowsCount} row{issue.affectedRowsCount === 1 ? '' : 's'}</span>
+        </div>
+      </div>
+
+      {/* Sample Affected Values */}
+      {issue.affectedValues && issue.affectedValues.length > 0 && (
+        <div className="space-y-1">
+          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+            Sample Affected:
+          </span>
+          <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+            {issue.affectedValues.map((val, idx) => (
+              <span key={idx} className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60">
+                {val}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Suggested Action & Buttons */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-zinc-100 dark:border-zinc-800/60">
+        <div className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-300 font-medium">
+          <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <span><strong>Recommended:</strong> {issue.suggestedAction}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onOpenFixModal && (
+            (() => {
+              let fixAction: CleaningActionType | null = null;
+              let btnLabel = "Fix Issue";
+
+              if (issue.title.toLowerCase().includes('whitespace')) {
+                fixAction = 'trim_whitespace';
+                btnLabel = 'Trim Spaces';
+              } else if (issue.category === 'Duplicates' || issue.title.toLowerCase().includes('duplicate')) {
+                fixAction = 'remove_duplicates';
+                btnLabel = 'Remove Duplicates';
+              } else if (issue.category === 'Missing Data') {
+                fixAction = 'fill_missing';
+                btnLabel = 'Fill Missing';
+              } else if (issue.title.toLowerCase().includes('similar') || issue.title.toLowerCase().includes('casing') || issue.category === 'Inconsistent Values') {
+                fixAction = 'merge_categorical';
+                btnLabel = 'Review & Merge';
+              } else if (issue.title.toLowerCase().includes('empty rows')) {
+                fixAction = 'remove_empty_rows';
+                btnLabel = 'Remove Empty Rows';
+              } else if (issue.category === 'Formatting') {
+                fixAction = 'text_capitalization';
+                btnLabel = 'Standardize Case';
+              } else if (issue.title.toLowerCase().includes('constant')) {
+                fixAction = 'delete_columns';
+                btnLabel = 'Delete Column';
+              }
+
+              if (!fixAction) return null;
+
+              return (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => onOpenFixModal(fixAction!, issue.column, issue.affectedValues)}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer shadow-xs gap-1"
+                >
+                  <Wrench className="w-3 h-3" />
+                  <span>Preview Fix</span>
+                </Button>
+              );
+            })()
+          )}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (issue.column) {
+                setSelectedColumnFilter(issue.column);
+                if (onSelectColumnForInspection) onSelectColumnForInspection(issue.column);
+              }
+            }}
+            className="text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer"
+          >
+            Review Details
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   // Get score color
   const getScoreColor = (score: number) => {
     if (score >= 85) return 'text-emerald-600 dark:text-emerald-400 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40';
@@ -353,175 +510,47 @@ export function DataQualityPanel({
         {filteredIssues.length === 0 ? (
           <div className="p-8 text-center bg-zinc-50/50 dark:bg-zinc-950/30 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
             <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-            <h4 className="font-bold text-sm text-zinc-800 dark:text-zinc-200">No Issues Found</h4>
+            <h4 className="font-bold text-sm text-zinc-800 dark:text-zinc-200">Data looks clean</h4>
             <p className="text-xs text-zinc-500">
-              {selectedColumnFilter
-                ? `No quality issues detected for column "${selectedColumnFilter}".`
-                : 'Selected category filters returned 0 matching quality warnings.'}
+              No major cleaning issues detected.
             </p>
           </div>
         ) : (
-          <div className="space-y-3.5">
-            {filteredIssues.map((issue) => (
-              <div
-                key={issue.id}
-                className={cn(
-                  "p-4 rounded-xl border transition-all space-y-3 bg-white dark:bg-zinc-950 shadow-xs",
-                  issue.severity === 'critical'
-                    ? "border-red-200 dark:border-red-900/50 hover:border-red-300 dark:hover:border-red-800"
-                    : issue.severity === 'warning'
-                    ? "border-amber-200 dark:border-amber-900/50 hover:border-amber-300 dark:hover:border-amber-800"
-                    : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
-                )}
-              >
-                {/* Issue Headline */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5">
-                    <div className={cn(
-                      "p-1.5 rounded-lg shrink-0 mt-0.5",
-                      issue.severity === 'critical'
-                        ? "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400"
-                        : issue.severity === 'warning'
-                        ? "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
-                        : "bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
-                    )}>
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                          {issue.title}
-                        </h4>
-                        <span className="px-2 py-0.2 rounded text-[10px] font-bold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-                          {issue.category}
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
-                        <strong className="text-zinc-800 dark:text-zinc-200">What is wrong?</strong> {issue.whatIsWrong}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-extrabold uppercase shrink-0",
-                    issue.severity === 'critical' ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" : issue.severity === 'warning' ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
-                  )}>
-                    {issue.severity}
-                  </span>
+          <div className="space-y-6">
+            {/* Safe Fixes Group */}
+            {safeIssues.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    Safe Fixes Available ({safeIssues.length})
+                  </h4>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                        // TODO: Implement batch apply
+                        alert("Batch apply safe fixes not yet implemented.");
+                    }}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer shadow-xs gap-1"
+                  >
+                    <span>Apply {safeIssues.length} Safe Fixes ({safeIssues.reduce((acc, curr) => acc + curr.affectedRowsCount, 0)} cells)</span>
+                  </Button>
                 </div>
-
-                {/* Issue Details: Where is it & Affected Count */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-zinc-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-zinc-200/60 dark:border-zinc-800/60">
-                  <div>
-                    <span className="font-bold text-zinc-500 text-[10px] uppercase block">Where is it?</span>
-                    <span className="font-medium text-zinc-800 dark:text-zinc-200">{issue.whereIsIt}</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-zinc-500 text-[10px] uppercase block">Affected Records</span>
-                    <span className="font-bold text-zinc-800 dark:text-zinc-200 font-mono">{issue.affectedRowsCount} value{issue.affectedRowsCount === 1 ? '' : 's'} affected</span>
-                  </div>
-                </div>
-
-                {/* Sample Affected Values */}
-                {issue.affectedValues && issue.affectedValues.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
-                      Sample Affected Values:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
-                      {issue.affectedValues.map((val, idx) => (
-                        <span key={idx} className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60">
-                          {val}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Suggested Action & Non-Executing Action Buttons */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-zinc-100 dark:border-zinc-800/60">
-                  <div className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-300 font-medium">
-                    <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                    <span><strong>Suggested action:</strong> {issue.suggestedAction}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Direct Fix Action Button if fixable */}
-                    {onOpenFixModal && (
-                      (() => {
-                        let fixAction: CleaningActionType | null = null;
-                        let btnLabel = "Fix Issue";
-
-                        if (issue.title.toLowerCase().includes('whitespace')) {
-                          fixAction = 'trim_whitespace';
-                          btnLabel = 'Trim Spaces';
-                        } else if (issue.category === 'Duplicates' || issue.title.toLowerCase().includes('duplicate')) {
-                          fixAction = 'remove_duplicates';
-                          btnLabel = 'Remove Duplicates';
-                        } else if (issue.category === 'Missing Data') {
-                          fixAction = 'fill_missing';
-                          btnLabel = 'Fill Missing';
-                        } else if (issue.title.toLowerCase().includes('similar') || issue.title.toLowerCase().includes('casing') || issue.category === 'Inconsistent Values') {
-                          fixAction = 'merge_categorical';
-                          btnLabel = 'Review & Merge';
-                        } else if (issue.title.toLowerCase().includes('empty rows')) {
-                          fixAction = 'remove_empty_rows';
-                          btnLabel = 'Remove Empty Rows';
-                        } else if (issue.category === 'Formatting') {
-                          fixAction = 'text_capitalization';
-                          btnLabel = 'Standardize Case';
-                        } else if (issue.title.toLowerCase().includes('constant')) {
-                          fixAction = 'delete_columns';
-                          btnLabel = 'Delete Column';
-                        }
-
-                        if (!fixAction) return null;
-
-                        return (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => onOpenFixModal(fixAction!, issue.column, issue.affectedValues)}
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer shadow-xs gap-1"
-                          >
-                            <Wrench className="w-3 h-3" />
-                            <span>{btnLabel}</span>
-                          </Button>
-                        );
-                      })()
-                    )}
-
-                    {onNavigateView && !onOpenFixModal && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onNavigateView('cleaning')}
-                        className="text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer"
-                      >
-                        Fix in next step →
-                      </Button>
-                    )}
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        if (issue.column) {
-                          setSelectedColumnFilter(issue.column);
-                          if (onSelectColumnForInspection) onSelectColumnForInspection(issue.column);
-                        }
-                      }}
-                      className="text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer"
-                    >
-                      Review
-                    </Button>
-                  </div>
-                </div>
-
+                {safeIssues.map(renderIssueCard)}
               </div>
-            ))}
+            )}
+
+            {/* Review Required Group */}
+            {reviewIssues.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  Review Required ({reviewIssues.length})
+                </h4>
+                {reviewIssues.map(renderIssueCard)}
+              </div>
+            )}
           </div>
         )}
 

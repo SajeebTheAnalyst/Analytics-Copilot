@@ -146,6 +146,27 @@ export function recalculateDatasetProfiles(dataset: Dataset): Dataset {
         }
       }
     }
+
+    let temporalHierarchy: any = null;
+    const typeLower = String(semanticRes.type).toLowerCase();
+    if (['date', 'datetime', 'month_year', 'year', 'time'].includes(typeLower)) {
+      let availableLevels: string[] = [];
+      if (typeLower === 'year') {
+        availableLevels = ['Year'];
+      } else if (typeLower === 'month_year') {
+        availableLevels = ['Year', 'Month Name', 'Month Number'];
+      } else if (typeLower === 'date') {
+        availableLevels = ['Year', 'Quarter', 'Month Name', 'Month Number', 'Day', 'Day of Week', 'Week Number'];
+      } else if (typeLower === 'datetime') {
+        availableLevels = ['Year', 'Quarter', 'Month Name', 'Month Number', 'Day', 'Day of Week', 'Week Number', 'Date', 'Hour', 'Minute', 'Time'];
+      } else if (typeLower === 'time') {
+        availableLevels = ['Hour', 'Minute', 'Time'];
+      }
+
+      temporalHierarchy = {
+        availableLevels,
+      };
+    }
     
     columnProfiles[header] = {
       name: header,
@@ -153,6 +174,7 @@ export function recalculateDatasetProfiles(dataset: Dataset): Dataset {
       nullCount,
       uniqueCount: uniqueValues.size,
       exampleValue: exampleValue instanceof Date ? exampleValue.toISOString() : exampleValue,
+      temporalHierarchy,
     };
   }
 

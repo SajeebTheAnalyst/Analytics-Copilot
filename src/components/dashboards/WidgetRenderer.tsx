@@ -3,7 +3,7 @@ import {
   WidgetConfig, Dataset, DashboardFilter, DashboardCrossFilter, RelationshipSuggestion, 
   KpiDefinition, ColumnFilter, WidgetDrillState, DrillPathStep, DrillHierarchy 
 } from '@/types';
-import { evaluateKpi, formatKpiValue, evaluateSimpleAggregation } from '@/lib/kpiEngine';
+import { evaluateKpi, formatKpiResult, evaluateSimpleAggregation } from '@/lib/kpiEngine';
 import { filterDataset } from '@/lib/explorerEngine';
 import { isDateColumn, parseFlexibleDate, getPeriodStart, formatPeriodLabel, determineAutoGranularity } from '@/lib/dateIntelligence';
 import { 
@@ -32,7 +32,7 @@ const CustomTooltip = ({ active, payload, label, formatConfig, yAxisColumn }: an
         <div className="space-y-1.5 pt-0.5">
           {payload.map((item: any, idx: number) => {
             const val = Number(item.value) || 0;
-            const formatted = formatKpiValue(val, formatConfig || { type: 'number', decimals: 2, useThousandsSeparator: true, compactNotation: false });
+            const formatted = formatKpiResult(val, formatConfig || { type: 'number', decimals: 2, useThousandsSeparator: true, compactNotation: false });
             return (
               <div key={idx} className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-1.5 truncate">
@@ -54,7 +54,7 @@ const CustomTooltip = ({ active, payload, label, formatConfig, yAxisColumn }: an
   return null;
 };
 
-export function formatKpiValueWithConfig(value: number, widget: WidgetConfig): string {
+export function formatKpiResultWithConfig(value: number, widget: WidgetConfig): string {
   if (value === null || value === undefined || isNaN(value) || !isFinite(value)) {
     return '0';
   }
@@ -502,10 +502,10 @@ function HeatmapVisualRenderer({
                           isDimmed && "opacity-35"
                         )}
                         style={{ backgroundColor: bg }}
-                        title={`${rowCol}: ${r}\n${colCol}: ${c}\n${metricCol}: ${val !== undefined ? formatKpiValue(val, formatConfig) : 'N/A'}`}
+                        title={`${rowCol}: ${r}\n${colCol}: ${c}\n${metricCol}: ${val !== undefined ? formatKpiResult(val, formatConfig) : 'N/A'}`}
                       >
                         {val !== undefined ? (
-                          <span>{formatKpiValue(val, formatConfig)}</span>
+                          <span>{formatKpiResult(val, formatConfig)}</span>
                         ) : (
                           <span className="text-zinc-300 dark:text-zinc-700 text-[10px]">-</span>
                         )}
@@ -514,7 +514,7 @@ function HeatmapVisualRenderer({
                   })}
                   {showTotals && (
                     <td className="p-2.5 text-center font-mono font-bold text-zinc-900 dark:text-zinc-100 bg-zinc-50/80 dark:bg-zinc-900/60 border-l border-zinc-200 dark:border-zinc-800">
-                      {formatKpiValue(rowTotals[r] || 0, formatConfig)}
+                      {formatKpiResult(rowTotals[r] || 0, formatConfig)}
                     </td>
                   )}
                 </tr>
@@ -527,11 +527,11 @@ function HeatmapVisualRenderer({
                 </td>
                 {colKeys.map(c => (
                   <td key={c} className="p-2.5 text-center font-mono font-bold text-zinc-900 dark:text-zinc-100">
-                    {formatKpiValue(colTotals[c] || 0, formatConfig)}
+                    {formatKpiResult(colTotals[c] || 0, formatConfig)}
                   </td>
                 ))}
                 <td className="p-2.5 text-center font-mono font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/60">
-                  {formatKpiValue(grandTotal, formatConfig)}
+                  {formatKpiResult(grandTotal, formatConfig)}
                 </td>
               </tr>
             )}
@@ -548,7 +548,7 @@ function HeatmapVisualRenderer({
           </div>
           <div className="flex items-center gap-3">
             <span className="text-zinc-400">{metricCol} ({agg}):</span>
-            <span className="font-mono font-bold text-white text-xs">{formatKpiValue(hoveredCell.value, formatConfig)}</span>
+            <span className="font-mono font-bold text-white text-xs">{formatKpiResult(hoveredCell.value, formatConfig)}</span>
             {grandTotal > 0 && (
               <span className="text-[10px] text-zinc-400 font-mono bg-zinc-800 px-1.5 py-0.5 rounded">
                 {((hoveredCell.value / grandTotal) * 100).toFixed(1)}% of Total
@@ -942,13 +942,13 @@ function MatrixVisualRenderer({
                         >
                           {condFormat === 'databars' && val ? (
                             <div className="space-y-1">
-                              <span>{formatKpiValue(val, formatConfig)}</span>
+                              <span>{formatKpiResult(val, formatConfig)}</span>
                               <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-1 rounded-full overflow-hidden">
                                 <div className="bg-blue-600 h-full rounded-full" style={{ width: `${ratio * 100}%` }} />
                               </div>
                             </div>
                           ) : (
-                            formatKpiValue(val, formatConfig)
+                            formatKpiResult(val, formatConfig)
                           )}
                         </td>
                       );
@@ -956,7 +956,7 @@ function MatrixVisualRenderer({
 
                     {showTotals && (
                       <td className="p-2.5 text-center font-mono font-extrabold text-zinc-900 dark:text-zinc-100 bg-zinc-100/80 dark:bg-zinc-850 border-l border-zinc-200 dark:border-zinc-800">
-                        {formatKpiValue(group.totalPrimaryVal, formatConfig)}
+                        {formatKpiResult(group.totalPrimaryVal, formatConfig)}
                       </td>
                     )}
                   </tr>
@@ -995,13 +995,13 @@ function MatrixVisualRenderer({
                                 isChildDimmed && "opacity-35"
                               )}
                             >
-                              {val !== undefined ? formatKpiValue(val, formatConfig) : '-'}
+                              {val !== undefined ? formatKpiResult(val, formatConfig) : '-'}
                             </td>
                           );
                         })}
                         {showTotals && (
                           <td className="p-2 text-center font-mono font-semibold text-zinc-700 dark:text-zinc-300 bg-zinc-50/50 dark:bg-zinc-900/30 border-l border-zinc-200 dark:border-zinc-800">
-                            {formatKpiValue(child.totalChildVal, formatConfig)}
+                            {formatKpiResult(child.totalChildVal, formatConfig)}
                           </td>
                         )}
                       </tr>
@@ -1018,11 +1018,11 @@ function MatrixVisualRenderer({
                 </td>
                 {colKeys.map(cKey => (
                   <td key={cKey} className="p-2.5 text-center font-mono font-extrabold text-zinc-900 dark:text-zinc-100">
-                    {formatKpiValue(colTotals[cKey] || 0, formatConfig)}
+                    {formatKpiResult(colTotals[cKey] || 0, formatConfig)}
                   </td>
                 ))}
                 <td className="p-2.5 text-center font-mono font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/70">
-                  {formatKpiValue(grandTotalPrimary, formatConfig)}
+                  {formatKpiResult(grandTotalPrimary, formatConfig)}
                 </td>
               </tr>
             )}
@@ -1404,14 +1404,14 @@ export function WidgetRenderer({
         );
         const result = evaluateKpi(referencedKpi, contextualDatasets, savedKpis);
         rawVal = result.rawResult || 0;
-        valueFormatted = formatKpiValueWithConfig(rawVal, widget);
+        valueFormatted = formatKpiResultWithConfig(rawVal, widget);
         aggFn = referencedKpi.aggregation || 'sum';
         colToAggregate = referencedKpi.column || yAxisColumn;
         formatConfig = referencedKpi.format;
         formulaSummaryText = result.formulaSummary;
       } else {
         rawVal = evaluateSimpleAggregation(drillFilteredRows, yAxisColumn, aggFn as any) || 0;
-        valueFormatted = formatKpiValueWithConfig(rawVal, widget);
+        valueFormatted = formatKpiResultWithConfig(rawVal, widget);
         formulaSummaryText = `Direct ${aggFn} of ${colToAggregate || 'rows'}`;
       }
 
@@ -1766,7 +1766,7 @@ export function WidgetRenderer({
         ...(lineMetKey ? { [lineMetKey]: rawLineMetric } : {}),
         timestamp: key,
         rowCount: group.rows.length,
-        formattedMetric: formatKpiValue(rawMetric, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true, compactNotation: true })
+        formattedMetric: formatKpiResult(rawMetric, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true, compactNotation: true })
       };
     });
 
@@ -1807,7 +1807,7 @@ export function WidgetRenderer({
         [yAxisColumn]: rawMetric,
         ...(lineMetKey ? { [lineMetKey]: rawLineMetric } : {}),
         rowCount: groupRows.length,
-        formattedMetric: formatKpiValue(rawMetric, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true, compactNotation: true })
+        formattedMetric: formatKpiResult(rawMetric, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true, compactNotation: true })
       };
     });
 
@@ -2623,8 +2623,8 @@ export function WidgetRenderer({
         height: height,
         runningTotal: runningTotal,
         type: isPositive ? 'positive' : 'negative',
-        formattedChange: formatKpiValue(val, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true }),
-        formattedRunning: formatKpiValue(runningTotal, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true })
+        formattedChange: formatKpiResult(val, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true }),
+        formattedRunning: formatKpiResult(runningTotal, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true })
       };
     });
 
@@ -2724,7 +2724,7 @@ export function WidgetRenderer({
         stageConversion,
         overallConversion,
         widthPct,
-        formattedValue: formatKpiValue(val, widget.format || { type: 'number', decimals: 0, useThousandsSeparator: true })
+        formattedValue: formatKpiResult(val, widget.format || { type: 'number', decimals: 0, useThousandsSeparator: true })
       };
     });
 
@@ -2792,9 +2792,9 @@ export function WidgetRenderer({
     const achievementPct = targetVal > 0 ? (actualVal / targetVal) * 100 : 0;
     const variance = actualVal - targetVal;
 
-    const formattedActual = formatKpiValue(actualVal, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true });
-    const formattedTarget = formatKpiValue(targetVal, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true });
-    const formattedVariance = formatKpiValue(Math.abs(variance), widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true });
+    const formattedActual = formatKpiResult(actualVal, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true });
+    const formattedTarget = formatKpiResult(targetVal, widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true });
+    const formattedVariance = formatKpiResult(Math.abs(variance), widget.format || { type: 'number', decimals: 2, useThousandsSeparator: true });
 
     let stateLabel = 'Poor (<60%)';
     let stateColor = 'text-rose-500 bg-rose-500/10 border-rose-500/20';

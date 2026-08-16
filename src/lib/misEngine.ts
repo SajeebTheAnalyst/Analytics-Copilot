@@ -1,5 +1,5 @@
 import { Dataset, KpiDefinition, ColumnFilter } from '@/types';
-import { evaluateKpi, evaluateSimpleAggregation, formatKpiValue, generateFormulaSummary } from './kpiEngine';
+import { evaluateKpi, evaluateSimpleAggregation, formatKpiResult, generateFormulaSummary } from './kpiEngine';
 import { filterDataset } from './explorerEngine';
 import { calculateDatasetHealth } from './profiler';
 
@@ -246,27 +246,27 @@ export function generateMisReportData(
     totalRevenue: {
       label: 'Total Revenue',
       raw: revCol ? rawRev : null,
-      formatted: revCol ? formatKpiValue(rawRev, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
+      formatted: revCol ? formatKpiResult(rawRev, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
       status: revCol ? 'active' : 'needs_attention',
       warning: revCol ? undefined : 'Revenue column not detected in active dataset'
     },
     totalProfit: {
       label: 'Total Profit',
       raw: profitCol ? rawProfit : null,
-      formatted: profitCol ? formatKpiValue(rawProfit, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
+      formatted: profitCol ? formatKpiResult(rawProfit, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
       status: profitCol ? 'active' : 'needs_attention',
       warning: profitCol ? undefined : 'Profit column not detected in active dataset'
     },
     totalOrders: {
       label: 'Total Orders',
       raw: rawOrders,
-      formatted: formatKpiValue(rawOrders, { type: 'number', decimals: 0 }),
+      formatted: formatKpiResult(rawOrders, { type: 'number', decimals: 0 }),
       status: 'active'
     },
     uniqueCustomers: {
       label: 'Unique Customers',
       raw: custCol ? rawCustomers : null,
-      formatted: custCol ? formatKpiValue(rawCustomers, { type: 'number', decimals: 0 }) : 'Needs Attention',
+      formatted: custCol ? formatKpiResult(rawCustomers, { type: 'number', decimals: 0 }) : 'Needs Attention',
       status: custCol ? 'active' : 'needs_attention',
       warning: custCol ? undefined : 'Customer column not detected'
     },
@@ -280,7 +280,7 @@ export function generateMisReportData(
     avgOrderValue: {
       label: 'Average Order Value (AOV)',
       raw: (revCol && rawOrders > 0) ? rawAov : null,
-      formatted: (revCol && rawOrders > 0) ? formatKpiValue(rawAov, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
+      formatted: (revCol && rawOrders > 0) ? formatKpiResult(rawAov, { type: 'currency', currencySymbol: '$', decimals: 2 }) : 'Needs Attention',
       status: revCol ? 'active' : 'needs_attention',
       warning: revCol ? undefined : 'Requires Revenue column'
     }
@@ -320,8 +320,8 @@ export function generateMisReportData(
       avg: revNums.length > 0 ? rawRev / revNums.length : 0,
       max: revNums.length > 0 ? Math.max(...revNums) : 0,
       min: revNums.length > 0 ? Math.min(...revNums) : 0,
-      formattedTotal: formatKpiValue(rawRev, { type: 'currency', currencySymbol: '$', decimals: 2 }),
-      formattedAvg: formatKpiValue(revNums.length > 0 ? rawRev / revNums.length : 0, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+      formattedTotal: formatKpiResult(rawRev, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+      formattedAvg: formatKpiResult(revNums.length > 0 ? rawRev / revNums.length : 0, { type: 'currency', currencySymbol: '$', decimals: 2 }),
       topCategory: topCat ? {
         name: topCat.name,
         value: topCat.primary,
@@ -333,8 +333,8 @@ export function generateMisReportData(
       avg: profitNums.length > 0 ? rawProfit / profitNums.length : 0,
       max: profitNums.length > 0 ? Math.max(...profitNums) : 0,
       min: profitNums.length > 0 ? Math.min(...profitNums) : 0,
-      formattedTotal: formatKpiValue(rawProfit, { type: 'currency', currencySymbol: '$', decimals: 2 }),
-      formattedAvg: formatKpiValue(profitNums.length > 0 ? rawProfit / profitNums.length : 0, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+      formattedTotal: formatKpiResult(rawProfit, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+      formattedAvg: formatKpiResult(profitNums.length > 0 ? rawProfit / profitNums.length : 0, { type: 'currency', currencySymbol: '$', decimals: 2 }),
       marginPercent: rawMargin
     },
     orders: {
@@ -361,8 +361,8 @@ export function generateMisReportData(
     primaryValue: item.primary,
     secondaryValue: item.secondary,
     orderCount: item.count,
-    formattedPrimary: formatKpiValue(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
-    formattedSecondary: formatKpiValue(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
+    formattedPrimary: formatKpiResult(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+    formattedSecondary: formatKpiResult(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
   }));
 
   // Regions by Revenue
@@ -376,8 +376,8 @@ export function generateMisReportData(
     primaryValue: item.primary,
     secondaryValue: item.secondary,
     orderCount: item.count,
-    formattedPrimary: formatKpiValue(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
-    formattedSecondary: formatKpiValue(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
+    formattedPrimary: formatKpiResult(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+    formattedSecondary: formatKpiResult(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
   }));
 
   // Products by Profit (Top N)
@@ -390,8 +390,8 @@ export function generateMisReportData(
     primaryValue: item.primary,
     secondaryValue: item.secondary,
     orderCount: item.count,
-    formattedPrimary: formatKpiValue(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
-    formattedSecondary: formatKpiValue(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
+    formattedPrimary: formatKpiResult(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+    formattedSecondary: formatKpiResult(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
   }));
 
   // Products by Profit (Bottom N)
@@ -404,8 +404,8 @@ export function generateMisReportData(
     primaryValue: item.primary,
     secondaryValue: item.secondary,
     orderCount: item.count,
-    formattedPrimary: formatKpiValue(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
-    formattedSecondary: formatKpiValue(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
+    formattedPrimary: formatKpiResult(item.primary, { type: 'currency', currencySymbol: '$', decimals: 2 }),
+    formattedSecondary: formatKpiResult(item.secondary, { type: 'currency', currencySymbol: '$', decimals: 2 })
   }));
 
   // 5. Trend Analysis
@@ -459,8 +459,8 @@ export function generateMisReportData(
           revenue: stats.revenue,
           profit: stats.profit,
           orders: stats.orders,
-          formattedRevenue: formatKpiValue(stats.revenue, { type: 'currency', currencySymbol: '$', decimals: 0 }),
-          formattedProfit: formatKpiValue(stats.profit, { type: 'currency', currencySymbol: '$', decimals: 0 })
+          formattedRevenue: formatKpiResult(stats.revenue, { type: 'currency', currencySymbol: '$', decimals: 0 }),
+          formattedProfit: formatKpiResult(stats.profit, { type: 'currency', currencySymbol: '$', decimals: 0 })
         };
       });
     } else {
@@ -496,9 +496,9 @@ export function generateMisReportData(
         previousValue: prev,
         variance: diff,
         variancePercent: pct,
-        formattedCurrent: isCurrency ? formatKpiValue(curr, { type: 'currency', currencySymbol: '$', decimals: 0 }) : formatKpiValue(curr, { type: 'number', decimals: 0 }),
-        formattedPrevious: isCurrency ? formatKpiValue(prev, { type: 'currency', currencySymbol: '$', decimals: 0 }) : formatKpiValue(prev, { type: 'number', decimals: 0 }),
-        formattedVariance: (diff >= 0 ? '+' : '') + (isCurrency ? formatKpiValue(diff, { type: 'currency', currencySymbol: '$', decimals: 0 }) : formatKpiValue(diff, { type: 'number', decimals: 0 })),
+        formattedCurrent: isCurrency ? formatKpiResult(curr, { type: 'currency', currencySymbol: '$', decimals: 0 }) : formatKpiResult(curr, { type: 'number', decimals: 0 }),
+        formattedPrevious: isCurrency ? formatKpiResult(prev, { type: 'currency', currencySymbol: '$', decimals: 0 }) : formatKpiResult(prev, { type: 'number', decimals: 0 }),
+        formattedVariance: (diff >= 0 ? '+' : '') + (isCurrency ? formatKpiResult(diff, { type: 'currency', currencySymbol: '$', decimals: 0 }) : formatKpiResult(diff, { type: 'number', decimals: 0 })),
         formattedPercent: (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%',
         isPositive: isPos
       };
@@ -532,7 +532,7 @@ export function generateMisReportData(
   if (performanceOverview.revenue.topCategory) {
     const c = performanceOverview.revenue.topCategory;
     managementInsights.push(
-      `Top Performing Category: "${c.name}" generated ${formatKpiValue(c.value, { type: 'currency', currencySymbol: '$', decimals: 0 })}, representing ${c.sharePercent.toFixed(1)}% of total revenue.`
+      `Top Performing Category: "${c.name}" generated ${formatKpiResult(c.value, { type: 'currency', currencySymbol: '$', decimals: 0 })}, representing ${c.sharePercent.toFixed(1)}% of total revenue.`
     );
   }
 
@@ -545,7 +545,7 @@ export function generateMisReportData(
 
   if (rawRev > 0) {
     managementInsights.push(
-      `Profitability & Margin: Overall profit margin reached ${rawMargin.toFixed(1)}% on $${(rawRev / 1000).toFixed(1)}K revenue with an Average Order Value of ${formatKpiValue(rawAov, { type: 'currency', currencySymbol: '$', decimals: 2 })}.`
+      `Profitability & Margin: Overall profit margin reached ${rawMargin.toFixed(1)}% on $${(rawRev / 1000).toFixed(1)}K revenue with an Average Order Value of ${formatKpiResult(rawAov, { type: 'currency', currencySymbol: '$', decimals: 2 })}.`
     );
   }
 

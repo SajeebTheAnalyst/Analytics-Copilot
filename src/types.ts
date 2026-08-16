@@ -13,6 +13,7 @@ export interface CleaningIssue {
     | 'invalid_dates' 
     | 'mixed_dates' 
     | 'numeric_as_text' 
+    | 'percentage_as_text'
     | 'whitespace' 
     | 'inconsistent_case' 
     | 'outliers' 
@@ -51,6 +52,7 @@ export interface ColumnProfile {
   nullCount: number;
   uniqueCount: number;
   exampleValue: string | number | boolean | null;
+  temporalHierarchy?: any;
 }
 
 export type ColumnType = ColumnProfile['type'];
@@ -141,6 +143,28 @@ export interface FormulaToken {
 
 export type ComparisonType = 'None' | 'MoM' | 'YoY';
 
+export interface KpiStyleConfig {
+  bgColor?: string;
+  textColor?: string;
+  titleColor?: string;
+  valueColor?: string;
+  accentColor?: string;
+  fontSize?: 'sm' | 'md' | 'lg' | 'xl';
+  titleSize?: 'sm' | 'md' | 'lg';
+  textAlign?: 'left' | 'center' | 'right';
+  iconName?: string;
+  iconPosition?: 'left' | 'top';
+  borderRadius?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
+  shadow?: 'none' | 'sm' | 'md' | 'lg';
+}
+
+export interface KpiLayoutConfig {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface KpiDefinition {
   id: string;
   name: string;
@@ -156,6 +180,7 @@ export interface KpiDefinition {
   // Comparison
   comparison?: ComparisonType;
   dateColumn?: string;
+  timeGranularity?: 'year' | 'quarter' | 'month' | 'day';
   targetValue?: number;
 
   // Calculated Metric Formula Tokens
@@ -167,6 +192,10 @@ export interface KpiDefinition {
 
   // Presentation Formatting
   format: KpiFormatConfig;
+  
+  // Presentation Visuals
+  layout?: KpiLayoutConfig;
+  style?: KpiStyleConfig;
 
   // Status & Health
   status: KpiStatus;

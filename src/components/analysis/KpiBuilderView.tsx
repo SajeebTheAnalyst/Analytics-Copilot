@@ -16,7 +16,7 @@ import {
   validateKpiDefinition,
   generateFormulaSummary,
   seedStandardKpis,
-  formatKpiValue,
+  formatKpiResult,
 } from '@/lib/kpiEngine';
 import {
   getSavedKpis,
@@ -53,6 +53,7 @@ import {
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 import { useDatasetStore } from '@/lib/datasetStore';
+import { getExtendedHeadersForDataset, getExtendedColumnTypesForDataset } from '@/lib/dateIntelligence';
 
 interface KpiBuilderViewProps {
   datasets?: Dataset[];
@@ -123,7 +124,7 @@ export function KpiBuilderView({
 
   // Dynamic formatting preview helper
   const sampleFormattedValue = useMemo(() => {
-    return formatKpiValue(124582.45, {
+    return formatKpiResult(124582.45, {
       type: formFormatType,
       currencySymbol: formCurrencySymbol,
       decimals: formDecimals,
@@ -157,16 +158,26 @@ export function KpiBuilderView({
     [datasets, formDatasetId, activeDataset]
   );
 
+  const extendedHeaders = useMemo(
+    () => currentFormDataset ? getExtendedHeadersForDataset(currentFormDataset) : [],
+    [currentFormDataset]
+  );
+  
+  const extendedTypes = useMemo(
+    () => currentFormDataset ? getExtendedColumnTypesForDataset(currentFormDataset) : {},
+    [currentFormDataset]
+  );
+
   useEffect(() => {
-    if (currentFormDataset && currentFormDataset.headers.length > 0) {
-      if (!formColumn || !currentFormDataset.headers.includes(formColumn)) {
-        setFormColumn(currentFormDataset.headers[0]);
+    if (currentFormDataset && extendedHeaders.length > 0) {
+      if (!formColumn || !extendedHeaders.includes(formColumn)) {
+        setFormColumn(extendedHeaders[0]);
       }
-      if (!newTermCol || !currentFormDataset.headers.includes(newTermCol)) {
-        setNewTermCol(currentFormDataset.headers[0]);
+      if (!newTermCol || !extendedHeaders.includes(newTermCol)) {
+        setNewTermCol(extendedHeaders[0]);
       }
     }
-  }, [currentFormDataset]);
+  }, [currentFormDataset, extendedHeaders]);
 
   // Seed standard KPIs trigger
   const handleSeedStandardKpis = async () => {
@@ -995,9 +1006,9 @@ export function KpiBuilderView({
                         onChange={(e) => setFormColumn(e.target.value)}
                         className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
                       >
-                        {currentFormDataset?.headers.map((h) => (
+                        {extendedHeaders.map((h) => (
                           <option key={h} value={h}>
-                            {h} ({currentFormDataset.columnTypes[h] || 'text'})
+                            {h} ({extendedTypes[h] || 'text'})
                           </option>
                         ))}
                       </select>
@@ -1111,7 +1122,7 @@ export function KpiBuilderView({
                               onChange={(e) => setNewTermCol(e.target.value)}
                               className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-250 focus:ring-1 focus:ring-blue-500"
                             >
-                              {currentFormDataset?.headers.map((h) => (
+                              {extendedHeaders.map((h) => (
                                 <option key={h} value={h}>
                                   {h}
                                 </option>

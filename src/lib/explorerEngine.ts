@@ -1,5 +1,6 @@
 import { ColumnFilter, SortRule, GroupingConfig, ColumnProfile, Dataset } from '@/types';
 import { isValid, parseISO } from 'date-fns';
+import { getRowValue, sortTemporalGroups } from './dateIntelligence';
 
 export interface ColumnStatsResult {
   column: string;
@@ -46,11 +47,14 @@ export function filterDataset(
   data: Record<string, any>[],
   filters: ColumnFilter[],
   searchTerm: string,
-  visibleColumns?: string[]
+  visibleColumns?: string[],
+  dataset?: Dataset | null
 ): Record<string, any>[] {
   if (!data || data.length === 0) return [];
 
   let result = data;
+  const headers = dataset?.headers || (data.length > 0 ? Object.keys(data[0]) : []);
+  const semanticTypes = dataset?.columnSemanticTypes || {};
 
   // 1. Global Search across text-compatible / visible columns
   if (searchTerm && searchTerm.trim() !== '') {
@@ -58,7 +62,7 @@ export function filterDataset(
     result = result.filter(row => {
       const keys = visibleColumns && visibleColumns.length > 0 ? visibleColumns : Object.keys(row);
       return keys.some(key => {
-        const val = row[key];
+        const val = getRowValue(row, key, headers, semanticTypes);
         if (val === null || val === undefined) return false;
         return String(val).toLowerCase().includes(term);
       });
@@ -69,7 +73,7 @@ export function filterDataset(
   if (filters && filters.length > 0) {
     result = result.filter(row => {
       return filters.every(f => {
-        const val = row[f.column];
+        const val = getRowValue(row, f.column, headers, semanticTypes);
         const valStr = val !== null && val !== undefined ? String(val).trim() : '';
         const lowerValStr = valStr.toLowerCase();
         const filterValStr = (f.value || '').toLowerCase().trim();
@@ -134,7 +138,7 @@ export function filterDataset(
             const dLow = new Date(f.value);
             const dHigh = new Date(f.secondaryValue || '');
             if (isValid(dVal) && isValid(dLow) && isValid(dHigh)) {
-              return dVal.getTime() >= dLow.getTime() && dVal.getTime() <= dHigh.getTime();
+               return dVal.getTime() >= dLow.getTime() && dVal.getTime() <= dHigh.getTime();
             }
 
             return false;
@@ -169,18 +173,21 @@ export function filterDataset(
  */
 export function sortDataset(
   data: Record<string, any>[],
-  sortRules: SortRule[]
+  sortRules: SortRule[],
+  dataset?: Dataset | null
 ): Record<string, any>[] {
   if (!data || data.length === 0 || !sortRules || sortRules.length === 0) {
     return data;
   }
 
   const sorted = [...data];
+  const headers = dataset?.headers || (data.length > 0 ? Object.keys(data[0]) : []);
+  const semanticTypes = dataset?.columnSemanticTypes || {};
 
   sorted.sort((a, b) => {
     for (const rule of sortRules) {
-      const aVal = a[rule.column];
-      const bVal = b[rule.column];
+      const aVal = getRowValue(a, rule.column, headers, semanticTypes);
+      const bVal = getRowValue(b, rule.column, headers, semanticTypes);
 
       // Handle nulls / undefined (push nulls to end regardless of direction)
       const aIsNull = aVal === null || aVal === undefined || aVal === '';
@@ -333,13 +340,15 @@ export function calculateColumnStats(
   };
 }
 
+
 /**
  * Calculates a single quick metric aggregation over filtered data.
  */
 export function calculateQuickMetric(
   data: Record<string, any>[],
   column: string,
-  aggregation: 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max'
+  aggregation: 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max',
+  dataset?: Dataset | null
 ): { value: number | string; label: string } {
   if (!data || data.length === 0 || !column) {
     return { value: 0, label: aggregation.toUpperCase() };
@@ -347,9 +356,11 @@ export function calculateQuickMetric(
 
   const validValues: any[] = [];
   const nums: number[] = [];
+  const headers = dataset?.headers || (data.length > 0 ? Object.keys(data[0]) : []);
+  const semanticTypes = dataset?.columnSemanticTypes || {};
 
   for (const row of data) {
-    const val = row[column];
+    const val = getRowValue(row, column, headers, semanticTypes);
     if (val !== null && val !== undefined && val !== '') {
       validValues.push(val);
       const num = Number(val);
@@ -396,7 +407,8 @@ export function calculateGroupAndAnalyze(
   data: Record<string, any>[],
   groupByColumn: string,
   metricColumn: string,
-  aggregation: 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max'
+  aggregation: 'sum' | 'avg' | 'count' | 'distinct_count' | 'min' | 'max',
+  dataset?: Dataset | null
 ): GroupAnalysisResult {
   if (!data || data.length === 0 || !groupByColumn) {
     return {
@@ -410,9 +422,11 @@ export function calculateGroupAndAnalyze(
   }
 
   const groupMap: Record<string, any[]> = {};
+  const headers = dataset?.headers || (data.length > 0 ? Object.keys(data[0]) : []);
+  const semanticTypes = dataset?.columnSemanticTypes || {};
 
   for (const row of data) {
-    const keyVal = row[groupByColumn];
+    const keyVal = getRowValue(row, groupByColumn, headers, semanticTypes);
     const groupKey = keyVal !== null && keyVal !== undefined && String(keyVal).trim() !== '' 
       ? String(keyVal) 
       : '(Blank / Null)';
@@ -423,11 +437,11 @@ export function calculateGroupAndAnalyze(
     groupMap[groupKey].push(row);
   }
 
-  const groupRows: GroupResultRow[] = [];
+  let groupRows: GroupResultRow[] = [];
   let totalMetricValue = 0;
 
   for (const [groupValue, rows] of Object.entries(groupMap)) {
-    const metricRes = calculateQuickMetric(rows, metricColumn, aggregation);
+    const metricRes = calculateQuickMetric(rows, metricColumn, aggregation, dataset);
     const metricVal = typeof metricRes.value === 'number' ? metricRes.value : 0;
     totalMetricValue += metricVal;
 
@@ -439,8 +453,15 @@ export function calculateGroupAndAnalyze(
     });
   }
 
-  // Calculate percentage of total and sort descending by metricValue
-  groupRows.sort((a, b) => b.metricValue - a.metricValue);
+  // Check if we are grouping by a virtual temporal field
+  const match = groupByColumn.match(/^.+ \((Year|Quarter|Month Name|Month Number|Day|Day of Week|Week Number|Date|Hour|Minute|Time)\)$/);
+  if (match) {
+    const field = match[1];
+    groupRows = sortTemporalGroups(groupRows, field);
+  } else {
+    // Default sorting for categorical: sort descending by metricValue
+    groupRows.sort((a, b) => b.metricValue - a.metricValue);
+  }
 
   const finalGroups = groupRows.map(g => ({
     ...g,

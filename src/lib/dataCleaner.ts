@@ -228,15 +228,20 @@ export function detectIssues(datasets: Dataset[], relationships: RelationshipSug
           });
         }
 
-        // 5. Numeric values stored as text
+        // 5. Numeric values stored as text and Percentage values stored as text
         let numericStringsCount = 0;
+        let percentageStringsCount = 0;
         let totalNonEmpty = 0;
         for (const row of data) {
           const val = row[header];
           if (val !== null && val !== undefined && String(val).trim() !== '') {
             totalNonEmpty++;
-            if (typeof val === 'string' && !isNaN(Number(val))) {
-              numericStringsCount++;
+            if (typeof val === 'string') {
+                if (!isNaN(Number(val))) {
+                    numericStringsCount++;
+                } else if (val.includes('%') && !isNaN(Number(val.replace('%', '')))) {
+                    percentageStringsCount++;
+                }
             }
           }
         }
@@ -257,6 +262,43 @@ export function detectIssues(datasets: Dataset[], relationships: RelationshipSug
             sampleAfter: ['1250.00', '299.00'],
             status: 'pending'
           });
+        }
+        
+        if (totalNonEmpty > 5 && (percentageStringsCount / totalNonEmpty) > 0.8) {
+          issues.push({
+            id: `${dataset.id}-pcttext-${header}`,
+            datasetId: dataset.id,
+            column: header,
+            type: 'percentage_as_text',
+            title: `Percentage values stored as text in "${header}"`,
+            description: `${percentageStringsCount} out of ${totalNonEmpty} non-empty values are percentage values stored as text strings.`,
+            affectedRowCount: percentageStringsCount,
+            affectedCellCount: percentageStringsCount,
+            suggestedAction: `Convert "${header}" to Numeric`,
+            riskLevel: 'low',
+            sampleBefore: ['"12.5%"', '"29.9%"'],
+            sampleAfter: ['0.125', '0.299'],
+            status: 'pending'
+          });
+        }
+
+        // 5.5. High number of duplicate values in categorical columns (Potential Identifier)
+        if (colType === 'categorical' && totalNonEmpty > 10 && (valueMap.size / totalNonEmpty) < 0.2) {
+             issues.push({
+               id: `${dataset.id}-high-dups-${header}`,
+               datasetId: dataset.id,
+               column: header,
+               type: 'inconsistent_categorical',
+               title: `High number of duplicate values in "${header}"`,
+               description: `Column "${header}" has a high frequency of duplicate values (${valueMap.size} unique out of ${totalNonEmpty} non-empty).`,
+               affectedRowCount: totalNonEmpty - valueMap.size,
+               affectedCellCount: totalNonEmpty - valueMap.size,
+               suggestedAction: `Review categorical consistency`,
+               riskLevel: 'low',
+               sampleBefore: Array.from(valueMap.keys()).slice(0, 3),
+               sampleAfter: [],
+               status: 'pending'
+             });
         }
       }
 
@@ -563,6 +605,23 @@ export function applyCleaningAction(dataset: Dataset, issueId: string): Dataset 
               rowsAffected++;
               cellsAffected++;
               return { ...row, [issue.column!]: num };
+            }
+          }
+          return row;
+        });
+      }
+      break;
+
+    case 'percentage_as_text':
+      if (issue.column) {
+        newData = newData.map(row => {
+          const val = row[issue.column!];
+          if (typeof val === 'string' && val.includes('%')) {
+            const num = Number(val.replace('%', ''));
+            if (!isNaN(num)) {
+              rowsAffected++;
+              cellsAffected++;
+              return { ...row, [issue.column!]: num / 100 };
             }
           }
           return row;

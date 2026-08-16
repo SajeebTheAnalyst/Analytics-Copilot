@@ -551,6 +551,56 @@ export function scanDatasetQuality(
       }
     }
 
+    // F. Duplicate Values in Important Columns (e.g. Primary Key candidates)
+    if (uniqueCount / totalRows > 0.9 && totalRows > 10) {
+      // Potentially an identifier column
+    } else if (uniqueCount / totalRows < 0.2 && totalRows > 10 && ['text', 'categorical'].includes(String(colType).toLowerCase())) {
+        // High frequency of duplicate values in categorical column
+        const issue: QualityIssue = {
+            id: `${dataset.id}-col-high-dups-${header}`,
+            category: 'Inconsistent Values',
+            severity: 'info',
+            column: header,
+            title: `High number of duplicate values in "${header}"`,
+            whatIsWrong: `Column "${header}" has many repeated categorical values, which is expected if categorical, but check if it's meant to be unique.`,
+            whereIsIt: `Column "${header}" (${uniqueCount} unique values out of ${totalRows} rows)`,
+            affectedRowsCount: totalRows - uniqueCount,
+            affectedValues: [`${((1 - uniqueCount / totalRows) * 100).toFixed(1)}% duplicate rate`],
+            suggestedAction: 'Review categorical consistency',
+        };
+        colIssues.push(issue);
+    }
+
+    // G. Percentage values stored as text
+    let percentageCount = 0;
+    const percentageSamples: string[] = [];
+    rawStringValues.forEach(str => {
+        if (str.includes('%')) {
+            percentageCount++;
+            if (percentageSamples.length < 3) percentageSamples.push(`"${str}"`);
+        }
+    });
+    if (percentageCount > 0 && percentageCount / nonBlankTotal > 0.5) {
+        const issue: QualityIssue = {
+            id: `${dataset.id}-col-percentage-${header}`,
+            category: 'Type Problems',
+            severity: 'warning',
+            column: header,
+            title: `Percentage values stored as text in "${header}"`,
+            whatIsWrong: `Column "${header}" contains percentage values formatted as text strings.`,
+            whereIsIt: `Column "${header}" (${percentageCount} values)`,
+            affectedRowsCount: percentageCount,
+            affectedValues: percentageSamples,
+            suggestedAction: 'Convert to Numeric Percentage',
+        };
+        // Need to add this to the scanner issue type mapping, but for now I'll just change the type property
+        // Wait, QualityIssue interface doesn't have a 'type' property that matches CleaningIssue 'type'.
+        // Let me check CleaningIssue vs QualityIssue.
+        // QualityIssue: id, category, severity, column, title, whatIsWrong, whereIsIt, affectedRowsCount, affectedValues, suggestedAction
+        // Ah, QualityIssue in qualityScanner.ts and CleaningIssue in types.ts (which dataCleaner uses) might be different.
+        colIssues.push(issue);
+    }
+
     // Column Quality Score Calculation
     let colPenalty = 0;
     colIssues.forEach(i => {

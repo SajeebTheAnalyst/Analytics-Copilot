@@ -277,8 +277,7 @@ export function DataExplorer({
       {/* 3. Group & Analyze Collapsible Panel */}
       <GroupAndAnalyzePanel
         data={filteredData}
-        headers={dataset.headers}
-        columnTypes={dataset.columnTypes}
+        dataset={dataset}
         groupingConfig={groupingConfig}
         onChangeGrouping={setGroupingConfig}
         columnFormats={dataset.columnFormats}
