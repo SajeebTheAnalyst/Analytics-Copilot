@@ -53,7 +53,7 @@ app.get("/api/health", (_req, res) => {
 app.post("/api/analyze", async (req, res) => {
   console.log("[API_REQUEST] /api/analyze started");
   try {
-    const keyExists = !!process.env.GEMINI_API_KEY;
+    const keyExists = !!(process.env.GEMINI_API_KEY || process.env.Gemini_API_Key);
     console.log(`[API_REQUEST] /api/analyze - KEY_PRESENT: ${keyExists}`);
     
     if (!keyExists) {
@@ -96,7 +96,7 @@ Return your analysis in JSON format matching this schema exactly:
       
       const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ 
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: process.env.GEMINI_API_KEY || process.env.Gemini_API_Key,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -164,7 +164,7 @@ Return your analysis in JSON format matching this schema exactly:
 app.post("/api/chat", async (req, res) => {
   console.log("[API_REQUEST] /api/chat started with body:", JSON.stringify(req.body).substring(0, 200) + "...");
   try {
-    const keyExists = !!process.env.GEMINI_API_KEY;
+    const keyExists = !!(process.env.GEMINI_API_KEY || process.env.Gemini_API_Key);
     if (!keyExists) {
       console.log("[API_REQUEST] /api/chat - ERROR: NOT_CONFIGURED");
       return res.status(401).json({ error: "NOT_CONFIGURED", message: "AI Copilot is not configured yet. Please provide a GEMINI_API_KEY in the Secrets panel." });
@@ -230,7 +230,7 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
       
       const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ 
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: process.env.GEMINI_API_KEY || process.env.Gemini_API_Key,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -290,7 +290,7 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
 app.post("/api/cleaning-copilot", async (req, res) => {
   console.log("[API_REQUEST] /api/cleaning-copilot started");
   try {
-    const geminiKey = process.env.GEMINI_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.Gemini_API_Key;
 
     if (!geminiKey) {
       console.log("[API_REQUEST] /api/cleaning-copilot - ERROR: NOT_CONFIGURED");
