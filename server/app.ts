@@ -85,7 +85,7 @@ Return your analysis in JSON format matching this schema exactly:
     
     const inputChars = systemInstruction.length + prompt.length;
     const estimatedTokens = Math.ceil(inputChars / 4);
-    const selectedModel = "gemini-2.5-flash";
+    const selectedModel = "gemini-3.6-flash";
 
     console.log(`[COPILOT_AUDIT] Request (Analyze) -> Model: ${selectedModel}, Input Chars: ${inputChars}, Estimated Tokens: ${estimatedTokens}`);
 
@@ -230,7 +230,7 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
 
     const inputChars = systemInstruction.length + contents.reduce((acc: number, msg: any) => acc + (msg.parts[0].text ? msg.parts[0].text.length : 0), 0);
     const estimatedTokens = Math.ceil(inputChars / 4);
-    const selectedModel = "gemini-2.5-flash";
+    const selectedModel = "gemini-3.6-flash";
     
     console.log(`[COPILOT_AUDIT] Request -> Model: ${selectedModel}, Input Chars: ${inputChars}, Estimated Tokens: ${estimatedTokens}`);
 
@@ -395,7 +395,7 @@ ${JSON.stringify(context || {}, null, 2)}`;
     });
 
     const geminiResponse = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.6-flash",
       contents,
       config: {
         systemInstruction: systemInstruction,
