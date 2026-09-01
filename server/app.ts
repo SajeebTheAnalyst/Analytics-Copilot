@@ -85,7 +85,7 @@ Return your analysis in JSON format matching this schema exactly:
     
     const inputChars = systemInstruction.length + prompt.length;
     const estimatedTokens = Math.ceil(inputChars / 4);
-    const selectedModel = "gemini-3.7-flash";
+    const selectedModel = "gemini-2.5-flash";
 
     console.log(`[COPILOT_AUDIT] Request (Analyze) -> Model: ${selectedModel}, Input Chars: ${inputChars}, Estimated Tokens: ${estimatedTokens}`);
 
@@ -145,10 +145,21 @@ Return your analysis in JSON format matching this schema exactly:
     else if (typeof error.status === 'string' && !isNaN(parseInt(error.status))) statusCode = parseInt(error.status);
     else if (typeof error.code === 'string' && !isNaN(parseInt(error.code))) statusCode = parseInt(error.code);
 
-    let friendlyMessage = error.message;
-    if (error.status === 429) {
+    
+    let friendlyMessage = error.message || "An unexpected error occurred.";
+    try {
+      const parsed = JSON.parse(friendlyMessage);
+      if (parsed.error && parsed.error.message) {
+        friendlyMessage = parsed.error.message;
+      }
+    } catch(e) {}
+    
+    if (error.status === 429 || statusCode === 429) {
       friendlyMessage = "Gemini API rate limit exceeded. Please try again in a few seconds.";
-    } else {
+    } else if (error.status === 503 || statusCode === 503) {
+      friendlyMessage = "Gemini API is currently experiencing high demand. Please try again in a few moments.";
+    }
+ else {
       console.error("Error analyzing data:", error.message || "Unknown error");
     }
 
@@ -219,7 +230,7 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
 
     const inputChars = systemInstruction.length + contents.reduce((acc: number, msg: any) => acc + (msg.parts[0].text ? msg.parts[0].text.length : 0), 0);
     const estimatedTokens = Math.ceil(inputChars / 4);
-    const selectedModel = "gemini-3.7-flash";
+    const selectedModel = "gemini-2.5-flash";
     
     console.log(`[COPILOT_AUDIT] Request -> Model: ${selectedModel}, Input Chars: ${inputChars}, Estimated Tokens: ${estimatedTokens}`);
 
@@ -271,10 +282,21 @@ ${JSON.stringify(evidence || { note: "No specific analytical query matched. Defa
     else if (typeof error.status === 'string' && !isNaN(parseInt(error.status))) statusCode = parseInt(error.status);
     else if (typeof error.code === 'string' && !isNaN(parseInt(error.code))) statusCode = parseInt(error.code);
 
-    let friendlyMessage = error.message;
-    if (error.status === 429) {
+    
+    let friendlyMessage = error.message || "An unexpected error occurred.";
+    try {
+      const parsed = JSON.parse(friendlyMessage);
+      if (parsed.error && parsed.error.message) {
+        friendlyMessage = parsed.error.message;
+      }
+    } catch(e) {}
+    
+    if (error.status === 429 || statusCode === 429) {
       friendlyMessage = "Gemini API rate limit exceeded. Please try again in a few seconds.";
-    } else {
+    } else if (error.status === 503 || statusCode === 503) {
+      friendlyMessage = "Gemini API is currently experiencing high demand. Please try again in a few moments.";
+    }
+ else {
       console.error("Error in AI chat:", error.message || "Unknown error", error.stack);
     }
 
@@ -373,7 +395,7 @@ ${JSON.stringify(context || {}, null, 2)}`;
     });
 
     const geminiResponse = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+      model: "gemini-2.5-flash",
       contents,
       config: {
         systemInstruction: systemInstruction,
@@ -407,10 +429,21 @@ ${JSON.stringify(context || {}, null, 2)}`;
     if (typeof error.status === 'number') statusCode = error.status;
     else if (error.status === 429) statusCode = 429;
 
-    let friendlyMessage = error.message || "An error occurred in AI Copilot service.";
-    if (error.status === 429) {
-      friendlyMessage = "Gemini API rate limit exceeded. Please wait a few seconds and try again.";
+    
+    let friendlyMessage = error.message || "An unexpected error occurred.";
+    try {
+      const parsed = JSON.parse(friendlyMessage);
+      if (parsed.error && parsed.error.message) {
+        friendlyMessage = parsed.error.message;
+      }
+    } catch(e) {}
+    
+    if (error.status === 429 || statusCode === 429) {
+      friendlyMessage = "Gemini API rate limit exceeded. Please try again in a few seconds.";
+    } else if (error.status === 503 || statusCode === 503) {
+      friendlyMessage = "Gemini API is currently experiencing high demand. Please try again in a few moments.";
     }
+
 
     res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
       error: "AI_ERROR",
