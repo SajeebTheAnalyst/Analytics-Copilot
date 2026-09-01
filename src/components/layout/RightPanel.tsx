@@ -739,7 +739,7 @@ export function RightPanel({
                             )}
 
                             {/* Evidence/Grounded Panel */}
-                            {ev && (
+                            {ev && !ev.note && (
                               <div className="border border-emerald-500/20 rounded-2xl overflow-hidden bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05]">
                                 <button
                                   onClick={() => toggleEvidence(msg.id)}
@@ -1006,7 +1006,7 @@ export function RightPanel({
                             )}
 
                             {/* Actions */}
-                            {(ev?.recommendedWidget || inlineChart) && (
+                            {(ev?.recommendedWidget || (inlineChart && ev && !ev.note)) && (
                               <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-600/5 to-violet-600/5 dark:from-blue-600/10 dark:to-violet-600/10 border border-blue-500/20 flex items-center justify-between gap-4">
                                 <div className="space-y-1">
                                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block">Smart Visual</span>

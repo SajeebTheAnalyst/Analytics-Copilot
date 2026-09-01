@@ -35,7 +35,8 @@ export async function queryCopilot(
         message,
         history: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.text })),
         metadata,
-        evidence
+        // Only send evidence to the AI if it's an actual computation, not just a "don't compute" note.
+        evidence: evidence?.note ? null : evidence
       })
     });
 
