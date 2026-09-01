@@ -20,7 +20,6 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^12.17.1",
-    "groq-sdk": "^1.5.0",
     "html2canvas": "^1.4.1",
     "idb-keyval": "^6.3.0",
     "jspdf": "^4.2.1",
