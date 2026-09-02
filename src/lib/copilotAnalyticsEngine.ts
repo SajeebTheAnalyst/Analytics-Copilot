@@ -163,7 +163,7 @@ export function findMatchingColumns(dataset: Dataset, text: string): {
       (colLower.includes('category') && (textLower.includes('categor') || textLower.includes('group') || textLower.includes('segment'))) ||
       (colLower.includes('customer') && (textLower.includes('customer') || textLower.includes('client') || textLower.includes('user')));
 
-    if (hasDirectMatch || hasAliasMatch) {
+    if (hasDirectMatch || hasAliasMatch || (isDate && (textLower.includes('trend') || textLower.includes('time') || textLower.includes('over time')))) {
       if (isDate) dateCols.push(h);
       else if (isNum) measureCols.push(h);
       else dimensionCols.push(h);
@@ -239,6 +239,22 @@ export async function generateAnalyticsEvidence(
   const isWorkspaceKnowledge = 
     /(what can i do in|how do i (create|build|make|use|generate|add)|what does .+ (do|mean)|how does .+ work|difference between|which chart (should|can) i use|what chart (should|to) use|what is (the )?workflow|what is (a )?(kpi builder|data cleaning|data explorer|data dictionary|mis report|dashboard|data model|relationships|data profile))\b/i.test(lower) &&
     !/(calculate|sum|avg|average|total|count|rank|top \d+|bottom \d+|breakdown by)\b/i.test(lower);
+
+  // 4. Dataset Access / Availability Query
+  const isDatasetAccess = 
+    /(can you|do you|are you able to|have you|did you)\s+(read|see|access|view|get|load|have|use|know|find|check)\s+(the\s+)?(my\s+)?(workspace\s+)?(data|dataset|file|workspace data|workspace dataset|my data|my dataset|this data|this dataset)\b/i.test(lower) ||
+    /(do you have|can you get|is there)\s+(access to|visibility of)\s+(the\s+)?(my\s+)?(workspace\s+)?(data|dataset)\b/i.test(lower) ||
+    /what (dataset|data|file) is (currently\s+)?(loaded|active|selected|uploaded|in\s+(my\s+)?workspace)\b/i.test(lower) ||
+    /is (there\s+)?(a\s+|my\s+)?(dataset|data|file)\s+(loaded|active|selected|uploaded|in\s+(my\s+)?workspace)\b/i.test(lower) ||
+    /can you (access|read|see|check|view) (the\s+)?data(set)?( in my workspace)?\b/i.test(lower) ||
+    /do you (see|have|access|know) (the\s+)?(my\s+)?data(set)?\b/i.test(lower);
+
+  const isExplicitCalculationRequest = 
+    /(calculate|sum|totals?|avg|average|mean|count|number of|min|max|highest|lowest|top|bottom|rank|breakdown|trends?|charts?|plots?|graphs?|visualize|compare|versus|vs|ratios?|margins?|growths?|percents?|percentages?|shares?)\b/i.test(lower);
+
+  if (isDatasetAccess && !isExplicitCalculationRequest) {
+    return { note: "Dataset access query. Confirm access and summarize dataset metadata only without running calculations, charts, or widget recommendations." };
+  }
 
   if (isIdentity || isHelp || isWorkspaceKnowledge) {
     // Abort computation evidence to ensure AI answers purely from its structured workspace knowledge without attaching unrelated dataset calculations.
@@ -620,6 +636,17 @@ export async function generateAnalyticsEvidence(
   }
 
   // 5. NUMERIC CALCULATIONS (DESCRIPTIVE, COMPARATIVE, RANKING, TREND)
+  const commonQueryWords = new Set(['data', 'dataset', 'file', 'read', 'workspace', 'my', 'the', 'type', 'group', 'value', 'values']);
+  const hasDirectColumnMatch = (dataset.headers || []).some(h => {
+    const hLower = h.toLowerCase().trim();
+    return !commonQueryWords.has(hLower) && lower.includes(hLower);
+  });
+  const requiresCalculation = isExplicitCalculationRequest || hasDirectColumnMatch || /(which|what is the|show me|find|get)\b/i.test(lower);
+
+  if (!requiresCalculation) {
+    return { note: "No explicit calculation or analysis requested. Answer directly using workspace context and dataset metadata without executing default aggregations." };
+  }
+
   const { measureCols, dimensionCols, dateCols } = findMatchingColumns(dataset, message);
 
   // Check if current or previous state contains metric/dimension

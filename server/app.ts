@@ -268,6 +268,17 @@ CORE INSTRUCTIONS BY USER QUERY TYPE:
      - Do NOT attach or reference any calculated analytical dataset values or evidence for these questions.
      - Keep the output clean, focusing purely on answering the user's conceptual or identity query.
 
+5. DATASET ACCESS / AVAILABILITY QUESTIONS (CRITICAL):
+   - When asked "Can you read my data?", "Can you see my dataset?", "Do you have access to my workspace data?", "What dataset is currently loaded?", "Can you access the data in my workspace?", or similar data availability questions:
+   - Do NOT automatically run calculations, group-by aggregations, default revenue analysis, or chart generation unless explicitly requested.
+   - Confirm access directly and summarize dataset metadata based on 'cleanLiveContext.datasetContext':
+     * State clearly: "Yes. I can access the active dataset in your workspace: [datasetName]."
+     * Provide a clear breakdown of its contents:
+       - Row count and column count (e.g., "It currently contains X rows and Y columns.")
+       - Relevant detected data types or important columns
+     * Offer logical next steps: "I can help you analyze, clean, explore, build KPIs, or create dashboards from this data."
+   - If NO dataset is loaded, state clearly: "No active dataset is currently loaded in your workspace. Please navigate to the **Data Import & Profile** tab to upload a CSV or Excel file."
+
 CURRENT_LIVE_WORKSPACE_CONTEXT_GATHERED_BY_APPLICATION:
 ${JSON.stringify(cleanLiveContext || { note: "No live workspace context is active or requested for this general query." }, null, 2)}
 
@@ -325,12 +336,19 @@ ${JSON.stringify(cleanEvidence || { note: "No dataset computation is required fo
         responseText = "I am Analytics Copilot, an AI-powered analytics assistant developed by Sajeeb The Analyst. My mission is to act as your Senior Data Analyst and workspace guide, helping you clean data, create KPIs, design dashboards, generate MIS executive reports, explore data, and uncover business insights.";
       } else if (q.includes("website") || q.includes("this app") || q.includes("platform") || q.includes("about")) {
         responseText = "Welcome to Analytics Copilot! This platform is a comprehensive end-to-end data analytics workspace. Key features include:\n\n- **Data Import & Profile**: Upload CSV/Excel datasets and calculate automated readiness scores.\n- **Data Cleaning**: Detect anomalies, nulls, duplicates, and apply guided data transformations.\n- **KPI Builder**: Create standard and complex calculated business metrics.\n- **Interactive Dashboards**: Build customizable visual grids with charts and KPI cards.\n- **MIS Executive Reports**: Generate structured executive summaries and business narratives.\n- **Data Explorer & Relationships**: Slice, filter, group, and cross-relate multi-table datasets.";
-      } else if (q.includes("dataset") && q.includes("loaded")) {
+      } else if (
+        (q.includes("dataset") || q.includes("data")) && 
+        (q.includes("loaded") || q.includes("read") || q.includes("see") || q.includes("access") || q.includes("workspace") || q.includes("my data"))
+      ) {
         const dsName = cleanLiveContext?.datasetContext?.datasetName || cleanLiveContext?.datasetContext?.filename;
         if (dsName) {
-          responseText = `The currently loaded dataset is **${dsName}** with **${cleanLiveContext.datasetContext.rowCount || 0} rows** and **${cleanLiveContext.datasetContext.columnCount || 0} columns** (Readiness Score: ${cleanLiveContext.datasetContext.readinessScore || '100%'}).`;
+          const rows = cleanLiveContext.datasetContext.rowCount || 0;
+          const cols = cleanLiveContext.datasetContext.columnCount || 0;
+          const colList = (cleanLiveContext.datasetContext.columns || []).slice(0, 8).map((c: any) => c.name || c).join(', ');
+          
+          responseText = `Yes. I can access the active dataset in your workspace: **${dsName}**.\n\nIt currently contains:\n- **${rows} rows**\n- **${cols} columns**\n${colList ? `- **Key columns**: ${colList}\n` : ''}- **Readiness Score**: ${cleanLiveContext.datasetContext.readinessScore || '100%'}\n\nI can help you analyze, clean, explore, build KPIs, or create dashboards from this data.`;
         } else {
-          responseText = "No active dataset is currently loaded in the workspace. Please navigate to the **Data Import & Profile** tab to upload a CSV or Excel file.";
+          responseText = "No active dataset is currently loaded in your workspace. Please navigate to the **Data Import & Profile** tab to upload a CSV or Excel file.";
         }
       } else if (q.includes("dashboard")) {
         const dbName = cleanLiveContext?.dashboardContext?.dashboardName;

@@ -355,6 +355,7 @@ export async function queryCopilot(
 
   const safeLiveContext = safeSanitize(liveContext);
   const safeEvidence = evidence?.note ? null : safeSanitize(evidence);
+  const returnEvidence = evidence?.note ? null : evidence;
 
   // Try server proxy `/api/chat` call
   try {
@@ -374,7 +375,7 @@ export async function queryCopilot(
     if (res.ok && contentType && contentType.includes('application/json')) {
       const data = await res.json();
       if (data && data.text) {
-        return { text: data.text, evidence, source: 'server' };
+        return { text: data.text, evidence: returnEvidence, source: 'server' };
       }
     }
 
@@ -386,12 +387,31 @@ export async function queryCopilot(
   // 3. Intelligent Local Fallback Engine (for safety)
   return {
     text: generateFallbackText(message, evidence, primaryDataset),
-    evidence,
+    evidence: returnEvidence,
     source: 'local_engine'
   };
 }
 
 function generateFallbackText(message: string, evidence: AnalyticalEvidence | null, dataset: Dataset | null): string {
+  const lower = message.toLowerCase().trim();
+
+  const isDatasetAccess = 
+    /(can you|do you|are you able to|have you|did you)\s+(read|see|access|view|get|load|have|use|know|find|check)\s+(the\s+)?(my\s+)?(workspace\s+)?(data|dataset|file|workspace data|workspace dataset|my data|my dataset|this data|this dataset)\b/i.test(lower) ||
+    /(do you have|can you get|is there)\s+(access to|visibility of)\s+(the\s+)?(my\s+)?(workspace\s+)?(data|dataset)\b/i.test(lower) ||
+    /what (dataset|data|file) is (currently\s+)?(loaded|active|selected|uploaded|in\s+(my\s+)?workspace)\b/i.test(lower) ||
+    /is (there\s+)?(a\s+|my\s+)?(dataset|data|file)\s+(loaded|active|selected|uploaded|in\s+(my\s+)?workspace)\b/i.test(lower) ||
+    /can you (access|read|see|check|view) (the\s+)?data(set)?( in my workspace)?\b/i.test(lower) ||
+    /do you (see|have|access|know) (the\s+)?(my\s+)?data(set)?\b/i.test(lower);
+
+  if (isDatasetAccess) {
+    if (dataset) {
+      const colList = (dataset.headers || []).slice(0, 8).join(', ');
+      return `Yes. I can access the active dataset in your workspace: **${dataset.name}**.\n\nIt currently contains:\n- **${dataset.rowCount.toLocaleString()} rows**\n- **${dataset.headers.length} columns**\n${colList ? `- **Key columns**: ${colList}\n` : ''}\nI can help you analyze, clean, explore, build KPIs, or create dashboards from this data.`;
+    } else {
+      return "No active dataset is currently loaded in your workspace. Please navigate to the **Data Import & Profile** tab to upload a CSV or Excel file.";
+    }
+  }
+
   const workspaceAnswer = getWorkspaceKnowledgeAnswer(message);
   if (workspaceAnswer) {
     return workspaceAnswer;
