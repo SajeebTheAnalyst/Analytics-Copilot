@@ -332,33 +332,100 @@ ${JSON.stringify(cleanEvidence || { note: "No dataset computation is required fo
     // Fallback answer generation if API response is empty or model unavailable
     if (!responseText) {
       const q = (message || "").toLowerCase();
-      if (q.includes("name") || q.includes("who are you")) {
-        responseText = "I am Analytics Copilot, an AI-powered analytics assistant developed by Sajeeb The Analyst. My mission is to act as your Senior Data Analyst and workspace guide, helping you clean data, create KPIs, design dashboards, generate MIS executive reports, explore data, and uncover business insights.";
-      } else if (q.includes("website") || q.includes("this app") || q.includes("platform") || q.includes("about")) {
-        responseText = "Welcome to Analytics Copilot! This platform is a comprehensive end-to-end data analytics workspace. Key features include:\n\n- **Data Import & Profile**: Upload CSV/Excel datasets and calculate automated readiness scores.\n- **Data Cleaning**: Detect anomalies, nulls, duplicates, and apply guided data transformations.\n- **KPI Builder**: Create standard and complex calculated business metrics.\n- **Interactive Dashboards**: Build customizable visual grids with charts and KPI cards.\n- **MIS Executive Reports**: Generate structured executive summaries and business narratives.\n- **Data Explorer & Relationships**: Slice, filter, group, and cross-relate multi-table datasets.";
-      } else if (
-        (q.includes("dataset") || q.includes("data")) && 
-        (q.includes("loaded") || q.includes("read") || q.includes("see") || q.includes("access") || q.includes("workspace") || q.includes("my data"))
+
+      // 1. Identity & Creator Queries
+      if (
+        q.includes("name") || 
+        q.includes("who are you") || 
+        q.includes("who made you") || 
+        q.includes("who created you") || 
+        q.includes("who developed you")
+      ) {
+        responseText = "I am **Analytics Copilot**, an AI-powered analytics assistant developed by **Sajeeb The Analyst**. My mission is to act as your Senior Data Analyst and workspace guide, helping you clean data, create KPIs, design dashboards, generate MIS executive reports, explore data, and uncover business insights.";
+      }
+      // 2. Dataset Access & Availability Queries
+      else if (
+        (q.includes("dataset") || q.includes("data") || q.includes("file")) && 
+        (q.includes("loaded") || q.includes("read") || q.includes("see") || q.includes("access") || q.includes("workspace") || q.includes("my data") || q.includes("this data") || q.includes("check") || q.includes("view"))
       ) {
         const dsName = cleanLiveContext?.datasetContext?.datasetName || cleanLiveContext?.datasetContext?.filename;
         if (dsName) {
           const rows = cleanLiveContext.datasetContext.rowCount || 0;
           const cols = cleanLiveContext.datasetContext.columnCount || 0;
-          const colList = (cleanLiveContext.datasetContext.columns || []).slice(0, 8).map((c: any) => c.name || c).join(', ');
+          const colList = (cleanLiveContext.datasetContext.columnNames || cleanLiveContext.datasetContext.columns || []).slice(0, 8).map((c: any) => typeof c === 'string' ? c : (c.name || c)).join(', ');
+          const score = cleanLiveContext.datasetContext.readinessScore || '100%';
           
-          responseText = `Yes. I can access the active dataset in your workspace: **${dsName}**.\n\nIt currently contains:\n- **${rows} rows**\n- **${cols} columns**\n${colList ? `- **Key columns**: ${colList}\n` : ''}- **Readiness Score**: ${cleanLiveContext.datasetContext.readinessScore || '100%'}\n\nI can help you analyze, clean, explore, build KPIs, or create dashboards from this data.`;
+          responseText = `Yes. I can access the active dataset in your workspace: **${dsName}**.\n\nIt currently contains:\n- **${rows.toLocaleString()} rows**\n- **${cols} columns**\n${colList ? `- **Key columns**: ${colList}\n` : ''}- **Readiness Score**: **${score}**\n\nI can help you analyze, clean, explore, build KPIs, or create dashboards from this data.`;
         } else {
           responseText = "No active dataset is currently loaded in your workspace. Please navigate to the **Data Import & Profile** tab to upload a CSV or Excel file.";
         }
-      } else if (q.includes("dashboard")) {
+      }
+      // 3. Dataset Health & Problem Questions ("whats problem to that dataset?", "what is wrong with my data?")
+      else if (
+        q.includes("problem") || q.includes("issue") || q.includes("wrong") || q.includes("defect") || q.includes("error") || q.includes("bug") || q.includes("quality") || q.includes("health")
+      ) {
+        const dsName = cleanLiveContext?.datasetContext?.datasetName;
+        if (dsName) {
+          const score = cleanLiveContext.datasetContext.readinessScore || '100%';
+          const issues = cleanLiveContext.datasetContext.qualityIssues || [];
+          const missing = cleanLiveContext.datasetContext.missingValues?.totalMissingCells || 0;
+          const dupes = cleanLiveContext.datasetContext.duplicates || 0;
+
+          responseText = `### Data Quality & Health Assessment for **${dsName}**\n\n- **Readiness Score**: **${score}**\n- **Missing Cells**: ${missing}\n- **Duplicate Rows**: ${dupes}\n\n`;
+          if (issues.length > 0) {
+            responseText += `#### Detected Issues (${issues.length}):\n`;
+            issues.forEach((iss: any, idx: number) => {
+              responseText += `${idx + 1}. **${iss.column || 'Dataset'}**: ${iss.title} — ${iss.description}\n`;
+            });
+            responseText += `\n**Next Action**: Head to the **Data Cleaning** tab to apply automated fixes.`;
+          } else {
+            responseText += `Your dataset is clean with 0 critical defects detected!`;
+          }
+        } else {
+          responseText = "No active dataset is currently loaded in your workspace. Please import a dataset in the **Data Import & Profile** tab.";
+        }
+      }
+      // 4. Dashboard & Chart Troubleshooting ("why my dashboard not working?", "this chart blank why?")
+      else if (q.includes("dashboard") || q.includes("chart") || q.includes("widget") || q.includes("visual")) {
         const dbName = cleanLiveContext?.dashboardContext?.dashboardName;
         if (dbName) {
-          responseText = `The current active dashboard is **${dbName}** containing **${cleanLiveContext.dashboardContext.widgetsCount || 0} widgets** (${cleanLiveContext.dashboardContext.kpiCardsCount || 0} KPI cards and ${cleanLiveContext.dashboardContext.chartsCount || 0} charts).`;
+          const widgetCount = cleanLiveContext.dashboardContext.widgetsCount || 0;
+          responseText = `### Diagnostic Report for Dashboard: **"${dbName}"**\n\n- **Active Widgets**: ${widgetCount}\n- **KPI Cards**: ${cleanLiveContext.dashboardContext.kpiCardsCount || 0}\n- **Charts**: ${cleanLiveContext.dashboardContext.chartsCount || 0}\n\nIf your charts are blank or not updating, verify that:\n1. Non-numeric columns aren't used for SUM/AVG metrics.\n2. Global filters are not excluding all rows.\n3. The active dataset contains valid records for the mapped axis columns.`;
         } else {
-          responseText = "No active dashboard is currently selected. You can navigate to the **Dashboard** tab to view or build custom visual dashboards.";
+          responseText = "No active dashboard is currently selected. Navigate to the **Dashboard** tab to view or create visual dashboards.";
         }
-      } else {
-        responseText = "I am your Analytics Copilot. I can help you analyze datasets, diagnose errors, build KPIs, design visual dashboards, and generate executive MIS reports. How can I assist you with your data today?";
+      }
+      // 5. Data Cleaning Guidance ("can u clean my data?")
+      else if (q.includes("clean") || q.includes("cleaning")) {
+        const dsName = cleanLiveContext?.datasetContext?.datasetName;
+        if (dsName) {
+          responseText = `I can guide you through cleaning your active dataset **${dsName}**!\n\nTo clean your data:\n1. Switch to the **Data Cleaning** tab.\n2. Review automatically detected quality issues.\n3. Preview transformed rows and click **Apply** to execute updates safely.`;
+        } else {
+          responseText = "Please upload a dataset first under **Data Import & Profile** so we can run automated cleaning workflows.";
+        }
+      }
+      // 6. KPI Recommendations ("which kpi good for my data?")
+      else if (q.includes("kpi") || q.includes("metric")) {
+        const dsName = cleanLiveContext?.datasetContext?.datasetName;
+        const numCols = cleanLiveContext?.datasetContext?.numericColumns || [];
+        if (dsName && numCols.length > 0) {
+          responseText = `### Recommended KPIs for **${dsName}**\n\nBased on your numeric fields, here are key metrics you can create in the **KPI Builder**:\n` + numCols.slice(0, 3).map((col: string) => `- **Total ${col}**: \`SUM(${col})\`\n- **Average ${col}**: \`AVG(${col})\``).join('\n') + `\n\nNavigate to the **KPI Builder** tab to create these metrics!`;
+        } else {
+          responseText = "You can create custom calculated and standard business metrics in the **KPI Builder** tab.";
+        }
+      }
+      // 7. Website & Overview Queries
+      else if (q.includes("website") || q.includes("this app") || q.includes("platform") || q.includes("about") || q.includes("what can i do") || q.includes("help")) {
+        responseText = "Welcome to Analytics Copilot! This platform is a comprehensive end-to-end data analytics workspace. Key features include:\n\n- **Data Import & Profile**: Upload CSV/Excel datasets and calculate automated readiness scores.\n- **Data Cleaning**: Detect anomalies, nulls, duplicates, and apply guided data transformations.\n- **KPI Builder**: Create standard and complex calculated business metrics.\n- **Interactive Dashboards**: Build customizable visual grids with charts and KPI cards.\n- **MIS Executive Reports**: Generate structured executive summaries and business narratives.\n- **Data Explorer & Relationships**: Slice, filter, group, and cross-relate multi-table datasets.";
+      } 
+      // 8. General Contextual Fallback
+      else {
+        const dsName = cleanLiveContext?.datasetContext?.datasetName;
+        if (dsName) {
+          responseText = `I evaluated your question regarding **${dsName}**.\n\nYou can ask me to perform calculations, troubleshoot your dashboard, recommend KPIs, explain data cleaning steps, or explore specific fields!`;
+        } else {
+          responseText = "I am Analytics Copilot, your data analytics assistant. Upload a dataset or ask me about workspace features, KPI creation, data cleaning, or dashboard configuration!";
+        }
       }
     }
 
