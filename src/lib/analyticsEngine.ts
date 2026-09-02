@@ -9,6 +9,40 @@ export interface AnalyzePlan {
   targetColumn?: string; // For statistical summary
 }
 
+export function formatCleanValue(val: any): string {
+  if (val === null || val === undefined) return 'Unknown';
+  
+  // If it's a Firestore timestamp object { seconds, nanoseconds } or { _seconds, _nanoseconds }
+  if (typeof val === 'object') {
+    const sec = val.seconds ?? val._seconds;
+    if (typeof sec === 'number') {
+      const d = new Date(sec * 1000);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split('T')[0];
+      }
+    }
+  }
+
+  const str = String(val).trim();
+
+  // If it matches string format Timestamp(seconds=1709402380, nanoseconds=0)
+  const tsMatch = str.match(/Timestamp\(seconds=(\d+)/i);
+  if (tsMatch) {
+    const sec = parseInt(tsMatch[1], 10);
+    const d = new Date(sec * 1000);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  }
+
+  // If it's an ISO date string like 2024-03-02T18:26:20.000Z
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)) {
+    return str.split('T')[0];
+  }
+
+  return str;
+}
+
 export function executeAnalysis(datasets: Dataset[], plan: AnalyzePlan) {
   const dataset = datasets.find(d => d.id === plan.datasetId || d.name === plan.datasetId);
   if (!dataset || !dataset.fullData) {
@@ -45,7 +79,7 @@ export function executeAnalysis(datasets: Dataset[], plan: AnalyzePlan) {
     // Group by dimensions
     const groups = new Map<string, any[]>();
     for (const row of data) {
-      const key = plan.dimensions.map(d => row[d] || 'Unknown').join('|');
+      const key = plan.dimensions.map(d => formatCleanValue(row[d])).join('|');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(row);
     }

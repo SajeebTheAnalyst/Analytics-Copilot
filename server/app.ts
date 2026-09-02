@@ -331,10 +331,14 @@ ${JSON.stringify(cleanEvidence || { note: "No dataset computation is required fo
 
     // Fallback answer generation if API response is empty or model unavailable
     if (!responseText) {
-      const q = (message || "").toLowerCase();
+      const q = (message || "").toLowerCase().trim();
 
+      // 0. Greetings
+      if (/^(hey|hi|hello|greetings|good morning|good afternoon|good evening|hey there|hi there)\b/i.test(q)) {
+        responseText = "Hello! I am **Analytics Copilot**, your AI data analyst guide. How can I assist you with your dataset, KPIs, cleaning, or dashboards today?";
+      }
       // 1. Identity & Creator Queries
-      if (
+      else if (
         q.includes("name") || 
         q.includes("who are you") || 
         q.includes("who made you") || 

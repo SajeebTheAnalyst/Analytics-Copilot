@@ -1,5 +1,5 @@
 import { Dataset, Dashboard, KpiDefinition } from '@/types';
-import { executeAnalysis } from './analyticsEngine';
+import { executeAnalysis, formatCleanValue } from './analyticsEngine';
 import { getSavedKpis } from './kpiStorage';
 import { evaluateKpi } from './kpiEngine';
 import { getSavedMisReports } from "./misReportStorage";
@@ -486,7 +486,14 @@ export async function generateAnalyticsEvidence(
     lower.includes('missing') || 
     lower.includes('duplicate') || 
     lower.includes('invalid') || 
-    lower.includes('issue')
+    lower.includes('issue') ||
+    lower.includes('problem') ||
+    lower.includes('wrong') ||
+    lower.includes('defect') ||
+    lower.includes('error') ||
+    lower.includes('bug') ||
+    lower.includes('cleanliness') ||
+    lower.includes('readiness')
   ) {
     const colProfiles = Object.values(dataset.columnProfiles || {});
     const nullCells = colProfiles.reduce((acc, p) => acc + (p.nullCount || 0), 0);
@@ -688,7 +695,7 @@ export async function generateAnalyticsEvidence(
       });
 
       const topItem = topRows[0];
-      let summaryText = topItem ? `Highest ${targetDimension}: ${topItem[targetDimension]} with ${aggType.toUpperCase()}(${targetMetric}) = ${Number(topItem[metricKey]).toLocaleString()} (${topItem.share_of_total} of total)` : '';
+      let summaryText = topItem ? `Highest ${targetDimension}: ${formatCleanValue(topItem[targetDimension])} with ${aggType.toUpperCase()}(${targetMetric}) = ${Number(topItem[metricKey]).toLocaleString()} (${topItem.share_of_total} of total)` : '';
 
       // SECONDARY BREAKDOWN (Drill-down)
       // If user asks "why" or "breakdown", find another dimension to pivot by for the top item

@@ -3,6 +3,7 @@ import { generateAnalyticsEvidence, AnalyticalEvidence } from './copilotAnalytic
 import { getWorkspaceKnowledgeAnswer } from './workspaceKnowledge';
 import { calculateDatasetHealth } from './profiler';
 import { getSavedKpis } from './kpiStorage';
+import { formatCleanValue } from './analyticsEngine';
 
 export interface CopilotResponse {
   text: string;
@@ -404,6 +405,12 @@ function generateFallbackText(
 ): string {
   const lower = message.toLowerCase().trim();
 
+  // 0. Greeting Queries
+  const isGreeting = /^(hey|hi|hello|greetings|good morning|good afternoon|good evening|hey there|hi there)\b/i.test(lower);
+  if (isGreeting) {
+    return "Hello! I am **Analytics Copilot**, your AI data analyst guide. How can I assist you with your dataset, KPIs, cleaning, or dashboards today?";
+  }
+
   // 1. Identity & Creator Queries
   const isIdentity = 
     /(what|who)\s+(is|are)\s+(ur|your)\s+(name|identity)\b/i.test(lower) || 
@@ -434,9 +441,9 @@ function generateFallbackText(
     }
   }
 
-  // 3. Dataset Health & Problem Questions ("whats problem to that dataset?", "what is wrong with my data?")
+  // 3. Dataset Health & Problem Questions ("whats problem ?", "what is wrong with my data?")
   const isDatasetProblem = 
-    /(what|whats|what's|is there|any)\s+(the\s+)?(problem|issue|defect|error|bug|wrong|health|quality)\s+(with|to|in|of)\s+(that|this|the|my)?\s*(dataset|data|file)\b/i.test(lower) ||
+    /(problem|issue|defect|error|bug|wrong|health|quality|null|duplicate|cleanliness|readiness)/i.test(lower) ||
     /is (my|this|the)\s+(dataset|data)\s+(clean|ready|good|ok|okay)\b/i.test(lower) ||
     /what (is|are) (wrong|the issues|the problems) (with|in) (my|this|the) (data|dataset)\b/i.test(lower);
 
@@ -616,7 +623,7 @@ function generateFallbackText(
     if (evidence.rows && evidence.rows.length > 0) {
       const topRow = evidence.rows[0];
       const keys = Object.keys(topRow);
-      return `### Calculated Analysis for **${evidence.datasetName}**\n\n**${evidence.title}**\n\n${evidence.summaryText ? `- **Summary**: ${evidence.summaryText}\n` : ''}#### Breakdown (Top Records):\n| ${keys.join(' | ')} |\n| ${keys.map(() => '---').join(' | ')} |\n${evidence.rows.slice(0, 5).map(r => `| ${keys.map(k => r[k] ?? 'N/A').join(' | ')} |`).join('\n')}\n\n**Key Finding**: The data shows a clear distribution across top categories with **${topRow[keys[0]]}** recording the highest metric.\n\n**Recommended Action**: Would you like me to add this breakdown directly as a chart widget to your active dashboard?`;
+      return `### Calculated Analysis for **${evidence.datasetName}**\n\n**${evidence.title}**\n\n${evidence.summaryText ? `- **Summary**: ${evidence.summaryText}\n` : ''}#### Breakdown (Top Records):\n| ${keys.join(' | ')} |\n| ${keys.map(() => '---').join(' | ')} |\n${evidence.rows.slice(0, 5).map(r => `| ${keys.map(k => formatCleanValue(r[k])).join(' | ')} |`).join('\n')}\n\n**Key Finding**: The data shows a clear distribution across top categories with **${formatCleanValue(topRow[keys[0]])}** recording the highest metric.\n\n**Recommended Action**: Would you like me to add this breakdown directly as a chart widget to your active dashboard?`;
     }
   }
 
