@@ -96,9 +96,10 @@ export function RelationshipView({
   const [zoom, setZoom] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('dataset-model-zoom');
-      return saved ? parseFloat(saved) : 1;
+      const val = saved ? parseFloat(saved) : 0.95;
+      return val < 0.75 ? 0.95 : val;
     } catch {
-      return 1;
+      return 0.95;
     }
   });
 
@@ -132,22 +133,49 @@ export function RelationshipView({
     localStorage.setItem('dataset-model-pan', JSON.stringify(pan));
   }, [pan]);
 
-  // Handle auto layout coordinates for fresh sheets
+  // Compute clean grid positions helper
+  const getGridPositions = (dsList: Dataset[]) => {
+    const next: Record<string, { x: number, y: number }> = {};
+    const cols = Math.max(2, Math.min(3, Math.ceil(Math.sqrt(dsList.length))));
+    dsList.forEach((ds, idx) => {
+      next[ds.id] = { 
+        x: 40 + (idx % cols) * 290, 
+        y: 40 + Math.floor(idx / cols) * 250 
+      };
+    });
+    return next;
+  };
+
+  // Handle auto layout coordinates & sanitize positions for datasets
   useEffect(() => {
+    if (datasets.length === 0) return;
+
     setPositions(prev => {
-      const next = { ...prev };
-      let updated = false;
-      const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
-      datasets.forEach((ds, idx) => {
-        if (!next[ds.id]) {
-          next[ds.id] = { 
-            x: 80 + (idx % cols) * 340, 
-            y: 80 + Math.floor(idx / cols) * 300 
-          };
-          updated = true;
+      const cols = Math.max(2, Math.min(3, Math.ceil(Math.sqrt(datasets.length))));
+      let needsReset = false;
+      const usedCoords = new Set<string>();
+
+      datasets.forEach(ds => {
+        const existing = prev[ds.id];
+        if (!existing || existing.x > 1100 || existing.y > 900 || existing.x < 10 || existing.y < 10) {
+          needsReset = true;
+        } else {
+          const coordKey = `${Math.round(existing.x / 40)}_${Math.round(existing.y / 40)}`;
+          if (usedCoords.has(coordKey)) {
+            needsReset = true;
+          }
+          usedCoords.add(coordKey);
         }
       });
-      return updated ? next : prev;
+
+      if (needsReset || Object.keys(prev).length === 0) {
+        const next = getGridPositions(datasets);
+        localStorage.setItem('dataset-model-positions', JSON.stringify(next));
+        setTimeout(() => fitToViewWithPositions(next), 60);
+        return next;
+      }
+
+      return prev;
     });
 
     // Expand nodes by default
@@ -192,7 +220,7 @@ export function RelationshipView({
 
   // 3. Mathematical Edge Attachment Router
   const getCardWidth = (id: string) => {
-    return cardSizes[id]?.width || 280;
+    return cardSizes[id]?.width || 250;
   };
 
   const getCardHeight = (id: string) => {
@@ -202,9 +230,9 @@ export function RelationshipView({
     const isExpanded = expandedNodes[id];
     if (!isExpanded) return 55;
     const ds = datasets.find(d => d.id === id);
-    if (!ds) return 220;
-    const cols = ds.headers.slice(0, 5);
-    return 65 + cols.length * 36 + (ds.headers.length > 5 ? 32 : 0);
+    if (!ds) return 200;
+    const colsCount = Math.min(ds.headers.length, 5);
+    return Math.min(220, 60 + colsCount * 28 + (ds.headers.length > 5 ? 20 : 0));
   };
 
   const getEdgePoints = (
@@ -454,13 +482,13 @@ export function RelationshipView({
   const fitToViewWithPositions = (posMap: Record<string, { x: number, y: number }>) => {
     if (datasets.length === 0) return;
 
-    const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
+    const cols = Math.max(2, Math.min(3, Math.ceil(Math.sqrt(datasets.length))));
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
     datasets.forEach((ds, idx) => {
       const pos = posMap[ds.id] || {
-        x: 80 + (idx % cols) * 340,
-        y: 80 + Math.floor(idx / cols) * 300
+        x: 40 + (idx % cols) * 290,
+        y: 40 + Math.floor(idx / cols) * 250
       };
       const cardW = getCardWidth(ds.id);
       const cardH = getCardHeight(ds.id);
@@ -470,14 +498,15 @@ export function RelationshipView({
       maxY = Math.max(maxY, pos.y + cardH);
     });
 
-    const padding = 60;
+    const padding = 30;
     const graphWidth = Math.max(100, maxX - minX + padding * 2);
     const graphHeight = Math.max(100, maxY - minY + padding * 2);
 
-    const containerWidth = containerRef.current?.clientWidth || 800;
+    const containerWidth = containerRef.current?.clientWidth || 900;
     const containerHeight = containerRef.current?.clientHeight || 600;
 
-    const newZoom = Math.max(0.4, Math.min(1.2, Math.min(containerWidth / graphWidth, containerHeight / graphHeight)));
+    const rawScale = Math.min(containerWidth / graphWidth, containerHeight / graphHeight);
+    const newZoom = Math.max(0.85, Math.min(1.10, rawScale));
     const newPanX = (containerWidth - graphWidth * newZoom) / 2 - minX * newZoom + padding * newZoom;
     const newPanY = (containerHeight - graphHeight * newZoom) / 2 - minY * newZoom + padding * newZoom;
 
@@ -488,14 +517,7 @@ export function RelationshipView({
   const fitToView = () => fitToViewWithPositions(positions);
 
   const resetAutoLayout = () => {
-    const nextPositions: Record<string, { x: number, y: number }> = {};
-    const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
-    datasets.forEach((ds, idx) => {
-      nextPositions[ds.id] = {
-        x: 80 + (idx % cols) * 340,
-        y: 80 + Math.floor(idx / cols) * 300
-      };
-    });
+    const nextPositions = getGridPositions(datasets);
     setPositions(nextPositions);
     localStorage.setItem('dataset-model-positions', JSON.stringify(nextPositions));
     setTimeout(() => {
@@ -862,16 +884,16 @@ export function RelationshipView({
 
           {/* Draggable Dataset Table cards Layer */}
           {datasets.map((dataset, idx) => {
-            const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
+            const cols = Math.max(2, Math.min(3, Math.ceil(Math.sqrt(datasets.length))));
             const pos = positions[dataset.id] || {
-              x: 80 + (idx % cols) * 340,
-              y: 80 + Math.floor(idx / cols) * 300
+              x: 40 + (idx % cols) * 290,
+              y: 40 + Math.floor(idx / cols) * 250
             };
             const isExpanded = expandedNodes[dataset.id];
             const isBeingDragged = isDraggingNode === dataset.id;
             const isBeingResized = isResizingNode === dataset.id;
             
-            const cardWidth = cardSizes[dataset.id]?.width || 280;
+            const cardWidth = cardSizes[dataset.id]?.width || 250;
             const cardHeight = cardSizes[dataset.id]?.height;
 
             // Check selections and highlight states
@@ -915,6 +937,7 @@ export function RelationshipView({
                   top: pos.y,
                   width: `${cardWidth}px`,
                   height: cardHeight ? `${cardHeight}px` : undefined,
+                  maxHeight: '260px',
                   minWidth: '220px',
                   minHeight: isExpanded ? '120px' : '55px'
                 }}
@@ -947,7 +970,7 @@ export function RelationshipView({
                 </div>
 
                 {/* Columns Field list view */}
-                <div className="p-1.5 flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-0.5 pb-4">
+                <div className="p-1.5 flex-1 min-h-0 max-h-[180px] overflow-y-auto custom-scrollbar space-y-0.5 pb-2">
                   {visibleCols.map(header => {
                     const isSelectedKey = selectedRel && (
                       (selectedRel.sourceDatasetId === dataset.id && selectedRel.sourceColumn === header) ||
