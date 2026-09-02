@@ -81,6 +81,17 @@ export function useFirestoreWorkspace(user: any) {
   }, [user]);
 
   const saveDataset = async (dataset: Dataset) => {
+    setDatasets(prev => {
+      const exists = prev.some(d => d.id === dataset.id);
+      const updated = exists ? prev.map(d => d.id === dataset.id ? dataset : d) : [...prev, dataset];
+      try {
+        localStorage.setItem('ac_datasets_local', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('LocalStorage error saving dataset:', e);
+      }
+      return updated;
+    });
+
     if (!user) return;
     const path = `users/${user.uid}/datasets`;
     try {
@@ -175,6 +186,16 @@ export function useFirestoreWorkspace(user: any) {
   };
 
   const deleteDataset = async (id: string) => {
+    setDatasets(prev => {
+      const updated = prev.filter(d => d.id !== id);
+      try {
+        localStorage.setItem('ac_datasets_local', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('LocalStorage error deleting dataset:', e);
+      }
+      return updated;
+    });
+
     if (!user) return;
     const path = `users/${user.uid}/datasets`;
     try {

@@ -6,6 +6,7 @@ import {
   ZoomIn, 
   ZoomOut, 
   Maximize, 
+  LayoutGrid,
   AlertTriangle, 
   Check, 
   X, 
@@ -136,11 +137,12 @@ export function RelationshipView({
     setPositions(prev => {
       const next = { ...prev };
       let updated = false;
+      const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
       datasets.forEach((ds, idx) => {
         if (!next[ds.id]) {
           next[ds.id] = { 
-            x: 80 + (idx % 3) * 360, 
-            y: 80 + Math.floor(idx / 3) * 320 
+            x: 80 + (idx % cols) * 340, 
+            y: 80 + Math.floor(idx / cols) * 300 
           };
           updated = true;
         }
@@ -448,16 +450,20 @@ export function RelationshipView({
     };
   }, []);
 
-  // Zoom Fit calculations
-  const fitToView = () => {
-    const ids = Object.keys(positions);
-    if (ids.length === 0) return;
+  // Zoom Fit & Auto Layout calculations
+  const fitToViewWithPositions = (posMap: Record<string, { x: number, y: number }>) => {
+    if (datasets.length === 0) return;
 
+    const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    ids.forEach(id => {
-      const pos = positions[id];
-      const cardW = getCardWidth(id);
-      const cardH = getCardHeight(id);
+
+    datasets.forEach((ds, idx) => {
+      const pos = posMap[ds.id] || {
+        x: 80 + (idx % cols) * 340,
+        y: 80 + Math.floor(idx / cols) * 300
+      };
+      const cardW = getCardWidth(ds.id);
+      const cardH = getCardHeight(ds.id);
       minX = Math.min(minX, pos.x);
       maxX = Math.max(maxX, pos.x + cardW);
       minY = Math.min(minY, pos.y);
@@ -465,18 +471,36 @@ export function RelationshipView({
     });
 
     const padding = 60;
-    const graphWidth = maxX - minX + padding * 2;
-    const graphHeight = maxY - minY + padding * 2;
+    const graphWidth = Math.max(100, maxX - minX + padding * 2);
+    const graphHeight = Math.max(100, maxY - minY + padding * 2);
 
     const containerWidth = containerRef.current?.clientWidth || 800;
     const containerHeight = containerRef.current?.clientHeight || 600;
 
-    const newZoom = Math.max(0.4, Math.min(1.5, Math.min(containerWidth / graphWidth, containerHeight / graphHeight)));
+    const newZoom = Math.max(0.4, Math.min(1.2, Math.min(containerWidth / graphWidth, containerHeight / graphHeight)));
     const newPanX = (containerWidth - graphWidth * newZoom) / 2 - minX * newZoom + padding * newZoom;
     const newPanY = (containerHeight - graphHeight * newZoom) / 2 - minY * newZoom + padding * newZoom;
 
     setZoom(Number(newZoom.toFixed(2)));
     setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+  };
+
+  const fitToView = () => fitToViewWithPositions(positions);
+
+  const resetAutoLayout = () => {
+    const nextPositions: Record<string, { x: number, y: number }> = {};
+    const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
+    datasets.forEach((ds, idx) => {
+      nextPositions[ds.id] = {
+        x: 80 + (idx % cols) * 340,
+        y: 80 + Math.floor(idx / cols) * 300
+      };
+    });
+    setPositions(nextPositions);
+    localStorage.setItem('dataset-model-positions', JSON.stringify(nextPositions));
+    setTimeout(() => {
+      fitToViewWithPositions(nextPositions);
+    }, 50);
   };
 
   const handleStatusChange = (id: string, status: 'accepted' | 'rejected' | 'pending') => {
@@ -698,6 +722,16 @@ export function RelationshipView({
           >
             <Maximize className="w-4 h-4" />
           </Button>
+
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="bg-white/95 dark:bg-[#09090b]/95 border-zinc-200 dark:border-zinc-800 shadow-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer text-zinc-700 dark:text-zinc-300" 
+            onClick={resetAutoLayout}
+            title="Reset Grid Layout"
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </Button>
         </div>
 
         {/* Canvas Empty State Message overlays if no links exist */}
@@ -827,8 +861,12 @@ export function RelationshipView({
           </svg>
 
           {/* Draggable Dataset Table cards Layer */}
-          {datasets.map(dataset => {
-            const pos = positions[dataset.id] || { x: 0, y: 0 };
+          {datasets.map((dataset, idx) => {
+            const cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(datasets.length))));
+            const pos = positions[dataset.id] || {
+              x: 80 + (idx % cols) * 340,
+              y: 80 + Math.floor(idx / cols) * 300
+            };
             const isExpanded = expandedNodes[dataset.id];
             const isBeingDragged = isDraggingNode === dataset.id;
             const isBeingResized = isResizingNode === dataset.id;

@@ -107,14 +107,8 @@ function evaluateValueOverlap(
 export function discoverRelationships(datasets: Dataset[]): RelationshipSuggestion[] {
   const suggestions: RelationshipSuggestion[] = [];
 
-  // Filter for READY or already cleaned datasets
-  const readyDatasets = datasets.filter(d => {
-    const evalResult = evaluateDataReadiness(d);
-    return evalResult.status === 'READY' || d.cleaningStatus === 'cleaned';
-  });
-
-  // Fallback: if fewer than 2 READY datasets exist, fallback to all datasets to ensure user can test & view
-  const targetDatasets = readyDatasets.length >= 2 ? readyDatasets : datasets;
+  // Analyze all datasets in the workspace for relationships
+  const targetDatasets = datasets;
 
   if (targetDatasets.length < 2) {
     return suggestions;

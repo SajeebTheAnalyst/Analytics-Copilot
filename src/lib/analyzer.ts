@@ -32,7 +32,15 @@ export async function parseFile(file: File): Promise<{ data: Record<string, any>
           const sheetsData = workbook.SheetNames.map(sheetName => {
             const worksheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
-            const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
+            let headers: string[] = [];
+            if (jsonData.length > 0) {
+              headers = Object.keys(jsonData[0]);
+            } else {
+              const rawMatrix = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+              if (rawMatrix.length > 0 && Array.isArray(rawMatrix[0])) {
+                headers = rawMatrix[0].map(h => String(h || '').trim()).filter(Boolean);
+              }
+            }
             return { data: jsonData, headers, sheetName };
           });
           
