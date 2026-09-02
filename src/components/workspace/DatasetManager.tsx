@@ -517,18 +517,37 @@ export function DatasetManager({
                   {groupDatasets.map(ds => {
                     const isActive = ds.id === activeDataset.id;
                     return (
-                      <button
+                      <div
                         key={ds.id}
-                        onClick={() => onSelectDataset(ds.id)}
                         className={cn(
-                          "px-3 py-1.5 rounded-md text-xs font-bold transition-all border",
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all border group/chip",
                           isActive 
                             ? "bg-blue-600 text-white border-blue-600 shadow-sm" 
                             : "bg-white dark:bg-zinc-950 text-zinc-650 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                         )}
                       >
-                        {ds.sheetName || ds.name}
-                      </button>
+                        <button
+                          onClick={() => onSelectDataset(ds.id)}
+                          className="cursor-pointer truncate max-w-[180px] font-bold text-left"
+                        >
+                          {ds.sheetName || ds.name}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemove(ds.id);
+                          }}
+                          title={`Delete ${ds.name}`}
+                          className={cn(
+                            "p-1 rounded transition-colors cursor-pointer ml-1",
+                            isActive 
+                              ? "text-blue-200 hover:text-white hover:bg-blue-700" 
+                              : "text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                          )}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -583,14 +602,10 @@ export function DatasetManager({
                <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/30 transition-all"
-                  onClick={() => {
-                     if (window.confirm("Are you sure you want to remove this dataset from the workspace?")) {
-                        onRemove(activeDataset.id);
-                     }
-                  }}
+                  className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/30 transition-all font-semibold cursor-pointer"
+                  onClick={() => onRemove(activeDataset.id)}
                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Remove
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Remove Dataset
                </Button>
             </div>
           </div>

@@ -13,10 +13,19 @@ export function useFirestoreWorkspace(user: any) {
 
   useEffect(() => {
     if (!user) {
-      // Clear state on logout
+      // Load local state fallback on guest/logout mode
+      try {
+        const saved = localStorage.getItem('ac_suggestions_local');
+        if (saved) {
+          setSuggestions(JSON.parse(saved));
+        } else {
+          setSuggestions([]);
+        }
+      } catch {
+        setSuggestions([]);
+      }
       setDatasets([]);
       setDashboards([]);
-      setSuggestions([]);
       setKpis([]);
       setMisReports([]);
       setLoading(false);
@@ -100,6 +109,31 @@ export function useFirestoreWorkspace(user: any) {
   };
 
   const saveSuggestion = async (suggestion: RelationshipSuggestion) => {
+    setSuggestions(prev => {
+      const exists = prev.some(s => s.id === suggestion.id);
+      if (exists) {
+        return prev.map(s => s.id === suggestion.id ? suggestion : s);
+      }
+      return [...prev, suggestion];
+    });
+
+    try {
+      const saved = localStorage.getItem('ac_suggestions_local');
+      const list: RelationshipSuggestion[] = saved ? JSON.parse(saved) : [];
+      const updatedList = [...list.filter(s => s.id !== suggestion.id), suggestion];
+      localStorage.setItem('ac_suggestions_local', JSON.stringify(updatedList));
+
+      const delSaved = localStorage.getItem('ac_deleted_suggestions');
+      if (delSaved) {
+        const delList: string[] = JSON.parse(delSaved);
+        if (delList.includes(suggestion.id)) {
+          localStorage.setItem('ac_deleted_suggestions', JSON.stringify(delList.filter(id => id !== suggestion.id)));
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage error saving suggestion:', e);
+    }
+
     if (!user) return;
     const path = `users/${user.uid}/suggestions`;
     try {
@@ -180,6 +214,35 @@ export function useFirestoreWorkspace(user: any) {
     }
   };
 
+  const deleteSuggestion = async (id: string) => {
+    setSuggestions(prev => prev.filter(s => s.id !== id));
+
+    try {
+      const saved = localStorage.getItem('ac_suggestions_local');
+      if (saved) {
+        const list: RelationshipSuggestion[] = JSON.parse(saved);
+        const updatedList = list.filter(s => s.id !== id);
+        localStorage.setItem('ac_suggestions_local', JSON.stringify(updatedList));
+      }
+
+      const delSaved = localStorage.getItem('ac_deleted_suggestions');
+      const delList: string[] = delSaved ? JSON.parse(delSaved) : [];
+      if (!delList.includes(id)) {
+        localStorage.setItem('ac_deleted_suggestions', JSON.stringify([...delList, id]));
+      }
+    } catch (e) {
+      console.warn('LocalStorage error deleting suggestion:', e);
+    }
+
+    if (!user) return;
+    const path = `users/${user.uid}/suggestions`;
+    try {
+      await deleteDoc(doc(db, path, id));
+    } catch (error) {
+       handleFirestoreError(error, OperationType.DELETE, `${path}/${id}`);
+    }
+  };
+
   return {
     datasets,
     dashboards,
@@ -194,6 +257,7 @@ export function useFirestoreWorkspace(user: any) {
     saveMisReport,
     deleteDataset,
     deleteDashboard,
+    deleteSuggestion,
     deleteKpi,
     deleteMisReport,
     setDatasets,

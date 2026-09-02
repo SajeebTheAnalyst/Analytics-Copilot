@@ -304,7 +304,17 @@ export function Sidebar({
                                     </span>
                                   )}
                                   <button
-                                    className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded transition-colors duration-150"
+                                    className="p-1 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors duration-150 cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onRemoveDataset(dataset.id);
+                                    }}
+                                    title={`Delete ${dataset.name}`}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded transition-colors duration-150 cursor-pointer"
                                     onClick={(e) => toggleCardExpand(dataset.id, e)}
                                   >
                                     {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}

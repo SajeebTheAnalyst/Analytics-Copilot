@@ -10,6 +10,7 @@ interface RelationshipSuggestionsProps {
   onAccept: (id: string) => void;
   onDismiss: (id: string) => void;
   onReview: (suggestion: RelationshipSuggestion) => void;
+  onClose?: () => void;
   className?: string;
 }
 
@@ -19,6 +20,7 @@ export function RelationshipSuggestions({
   onAccept,
   onDismiss,
   onReview,
+  onClose,
   className
 }: RelationshipSuggestionsProps) {
   const pendingSuggestions = React.useMemo(() => {
@@ -51,9 +53,22 @@ export function RelationshipSuggestions({
             <p className="text-[11px] text-zinc-500">Auto-detected relationships based on schema & data alignment</p>
           </div>
         </div>
-        <span className="text-xs bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full font-semibold">
-          {pendingSuggestions.length} Found
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full font-semibold">
+            {pendingSuggestions.length} Found
+          </span>
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer rounded-lg"
+              onClick={onClose}
+              title="Hide Relationship Panel"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 max-h-[550px]">

@@ -15,6 +15,7 @@ import { KpiBuilderView } from './components/analysis/KpiBuilderView';
 import { MisReportView } from './components/reporting/MisReportView';
 import { DataDictionaryView } from './components/assets/DataDictionaryView';
 import { RenameModal } from './components/workspace/RenameModal';
+import { DeleteDatasetModal } from './components/workspace/DeleteDatasetModal';
 
 import { Dataset, ViewState, RelationshipSuggestion, Dashboard, DashboardPlan, KpiDefinition } from '@/types';
 import { DatasetStoreContext, DatasetStoreState, DatasetStoreContextType } from '@/lib/datasetStore';
@@ -25,6 +26,9 @@ import { evaluateDataReadiness } from '@/lib/dataReadinessEngine';
 import { DataReadinessPanel } from './components/workspace/DataReadinessPanel';
 import { Button } from './components/ui/button';
 import { Target, Plus, LayoutGrid, FileText } from 'lucide-react';
+import { deleteKpi as deleteKpiStorage } from './lib/kpiStorage';
+import { deleteMisReport as deleteMisReportStorage } from './lib/misReportStorage';
+import { syncAndMarkStaleMetadata } from './lib/dataDictionaryStorage';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -113,11 +117,14 @@ export default function App() {
     saveMisReport,
     deleteDataset,
     deleteDashboard,
+    deleteSuggestion,
     deleteKpi,
     deleteMisReport,
     setDatasets,
     setDashboards,
-    setSuggestions
+    setSuggestions,
+    setKpis,
+    setMisReports
   } = useFirestoreWorkspace(user);
 
   const [pendingKpiToAdd, setPendingKpiToAdd] = useState<KpiDefinition | null>(null);
@@ -136,6 +143,7 @@ export default function App() {
     return false;
   });
   const [renamingDatasetId, setRenamingDatasetId] = useState<string | null>(null);
+  const [deletingDatasetId, setDeletingDatasetId] = useState<string | null>(null);
 
   // Auto-select first dataset if none selected
   useEffect(() => {
@@ -181,11 +189,20 @@ export default function App() {
     const existingDiscovered = new Map<string, RelationshipSuggestion>(
       suggestions.filter(s => !s.isManual).map(p => [p.id, p])
     );
-    const mergedDiscovered = newSuggestions.map(ns => {
-      const ext = existingDiscovered.get(ns.id);
-      if (ext) return { ...ns, status: ext.status };
-      return ns;
-    });
+
+    let deletedIds: string[] = [];
+    try {
+      const saved = localStorage.getItem('ac_deleted_suggestions');
+      if (saved) deletedIds = JSON.parse(saved);
+    } catch {}
+
+    const mergedDiscovered = newSuggestions
+      .filter(ns => !deletedIds.includes(ns.id))
+      .map(ns => {
+        const ext = existingDiscovered.get(ns.id);
+        if (ext) return { ...ns, status: ext.status };
+        return ns;
+      });
     const finalSuggestions = [...manualSuggestions, ...mergedDiscovered];
     
     // Only update if changed
@@ -224,11 +241,65 @@ export default function App() {
   };
 
   const handleRemove = (id: string) => {
-    deleteDataset(id);
+    setDeletingDatasetId(id);
+  };
+
+  const handleConfirmDeleteDataset = async (id: string) => {
+    // 1. Delete dataset document from Firestore
+    await deleteDataset(id);
+
+    // 2. Cascade delete related relationship suggestions
+    const relatedSuggestions = suggestions.filter(s => 
+      s.sourceDatasetId === id || s.targetDatasetId === id || (s as any).dataset1Id === id || (s as any).dataset2Id === id
+    );
+    for (const s of relatedSuggestions) {
+      if (deleteSuggestion) {
+        deleteSuggestion(s.id);
+      }
+    }
+    setSuggestions(prev => prev.filter(s => 
+      s.sourceDatasetId !== id && s.targetDatasetId !== id && (s as any).dataset1Id !== id && (s as any).dataset2Id !== id
+    ));
+
+    // 3. Cascade delete related KPIs
+    const relatedKpis = kpis.filter(k => k.datasetId === id);
+    for (const k of relatedKpis) {
+      deleteKpi(k.id);
+      deleteKpiStorage(k.id).catch(() => {});
+    }
+    setKpis(prev => prev.filter(k => k.datasetId !== id));
+
+    // 4. Cascade delete related MIS Reports
+    const relatedReports = misReports.filter(r => (r as any).datasetId === id);
+    for (const r of relatedReports) {
+      deleteMisReport(r.id);
+      deleteMisReportStorage(r.id).catch(() => {});
+    }
+    setMisReports(prev => prev.filter(r => (r as any).datasetId !== id));
+
+    // 5. Cascade delete or update related Dashboards
+    dashboards.forEach(dash => {
+      const isDatasetSpecific = (dash as any).datasetId === id;
+      const updatedWidgets = dash.widgets.filter(w => (w as any).datasetId !== id);
+      if (isDatasetSpecific && updatedWidgets.length === 0) {
+        deleteDashboard(dash.id);
+      } else if (updatedWidgets.length !== dash.widgets.length) {
+        saveDashboard({ ...dash, widgets: updatedWidgets });
+      }
+    });
+
+    // 6. Update local datasets state & selection
+    const remaining = datasets.filter(d => d.id !== id);
+    setDatasets(remaining);
+
     if (selectedDatasetId === id) {
-      const remaining = datasets.filter(d => d.id !== id);
       setSelectedDatasetId(remaining.length > 0 ? remaining[0].id : null);
     }
+
+    // 7. Sync Data Dictionary metadata
+    syncAndMarkStaleMetadata(remaining).catch(() => {});
+
+    setDeletingDatasetId(null);
   };
 
   const handleSaveDatasetName = (id: string, newName: string) => {
@@ -284,6 +355,7 @@ export default function App() {
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId) || datasets[0];
   const renamingTargetDataset = datasets.find(d => d.id === renamingDatasetId) || null;
+  const deletingTargetDataset = useMemo(() => datasets.find(d => d.id === deletingDatasetId) || null, [datasets, deletingDatasetId]);
 
   const workingDataset = useMemo<DatasetStoreState | null>(() => {
     if (!selectedDataset) return null;
@@ -661,6 +733,8 @@ export default function App() {
                       datasets={datasets} 
                       suggestions={suggestions} 
                       setSuggestions={setSuggestions} 
+                      onSaveSuggestion={saveSuggestion}
+                      onDeleteSuggestion={deleteSuggestion}
                       onOpenDataset={(datasetId) => {
                         setSelectedDatasetId(datasetId);
                         setCurrentView('data-manager');
@@ -750,6 +824,14 @@ export default function App() {
             dataset={renamingTargetDataset}
             onClose={() => setRenamingDatasetId(null)}
             onSave={handleSaveDatasetName}
+          />
+
+          {/* Dataset Delete Confirmation Modal */}
+          <DeleteDatasetModal
+            isOpen={deletingDatasetId !== null}
+            dataset={deletingTargetDataset}
+            onClose={() => setDeletingDatasetId(null)}
+            onConfirmDelete={handleConfirmDeleteDataset}
           />
 
           <style>{`
