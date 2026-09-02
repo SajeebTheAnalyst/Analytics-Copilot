@@ -11,7 +11,7 @@ const ai = new GoogleGenAI({
 
 (async () => {
   try {
-    const targetModel = 'gemini-3.6-flash';
+    const targetModel = 'gemini-3.5-flash';
     console.log("Testing exact model ID:", targetModel);
     
     const response = await ai.models.generateContent({
