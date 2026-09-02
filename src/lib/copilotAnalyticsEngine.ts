@@ -123,6 +123,7 @@ export interface AnalyticalEvidence {
     yAxisColumn: string;
     aggregation: 'sum' | 'avg' | 'count' | 'min' | 'max';
   };
+  note?: string;
 }
 
 /**
@@ -226,17 +227,22 @@ export async function generateAnalyticsEvidence(
 
 
   // 0.0 QUERY INTENT CLASSIFICATION (EARLY EXIT FOR NON-DATA QUERIES)
-  // We must explicitly separate general conversation/help from dataset requests.
+  // We must explicitly separate general conversation, help, and workspace knowledge from dataset calculations.
   
   // 1. Identity / General Conversation
   const isIdentity = /(what|who)\s+(is|are)\s+(your\s+name|you)\b/i.test(lower) || /what can you do\b/i.test(lower) || /^(hello|hi|hey|greetings)\b/i.test(lower);
   
   // 2. Help / System / Website
-  const isHelp = /(tell me about this (website|platform|app)|what can this (website|platform|app) do|how do i use|how to use|help)\b/i.test(lower);
+  const isHelp = /(tell me about this (website|platform|app|workspace)|what can this (website|platform|app|workspace) do|how do i use this|how to use|help)\b/i.test(lower);
   
-  if (isIdentity || isHelp) {
-    // Abort computation evidence to ensure AI answers purely from its system context without attaching unrelated data calculations.
-    return { note: "No dataset computation is required for this query. Please answer based purely on the conversation context and your core instructions." };
+  // 3. Workspace Knowledge / How-To / Conceptual Questions
+  const isWorkspaceKnowledge = 
+    /(what can i do in|how do i (create|build|make|use|generate|add)|what does .+ (do|mean)|how does .+ work|difference between|which chart (should|can) i use|what chart (should|to) use|what is (the )?workflow|what is (a )?(kpi builder|data cleaning|data explorer|data dictionary|mis report|dashboard|data model|relationships|data profile))\b/i.test(lower) &&
+    !/(calculate|sum|avg|average|total|count|rank|top \d+|bottom \d+|breakdown by)\b/i.test(lower);
+
+  if (isIdentity || isHelp || isWorkspaceKnowledge) {
+    // Abort computation evidence to ensure AI answers purely from its structured workspace knowledge without attaching unrelated dataset calculations.
+    return { note: "Workspace knowledge or conversational query. Please answer based on your structured workspace knowledge without attaching dataset computations." };
   }
   
   // 3. Strict Verification for Analytics

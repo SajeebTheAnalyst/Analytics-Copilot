@@ -107,6 +107,21 @@ export function DataExplorer({
     setVisibleColumns(dataset.headers || []);
   }, [dataset.id]);
 
+  // Synchronize current explorer state globally for Copilot context passing
+  useEffect(() => {
+    (window as any).__explorerState = {
+      filters,
+      sortRules,
+      visibleColumns,
+      groupingConfig,
+      quickMetrics,
+      searchTerm
+    };
+    return () => {
+      delete (window as any).__explorerState;
+    };
+  }, [filters, sortRules, visibleColumns, groupingConfig, quickMetrics, searchTerm]);
+
   // Search Debounce (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {

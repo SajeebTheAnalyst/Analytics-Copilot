@@ -740,6 +740,15 @@ export function RightPanel({
 
                             {/* Evidence/Grounded Panel */}
                             {ev && !ev.note && (
+                              ev.intent === 'NAVIGATION' ||
+                              ev.intent === 'ACTION_KPI_CREATE' ||
+                              ev.intent === 'MIS' ||
+                              ev.intent === 'ACTION_PLAN' ||
+                              ev.intent === 'ACTIONABLE_CLEANING' ||
+                              ev.intent === 'DATA_QUALITY' ||
+                              ev.intent === 'COLUMN' ||
+                              (ev.rows && ev.rows.length > 0)
+                            ) && (
                               <div className="border border-emerald-500/20 rounded-2xl overflow-hidden bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05]">
                                 <button
                                   onClick={() => toggleEvidence(msg.id)}

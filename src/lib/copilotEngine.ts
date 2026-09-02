@@ -1,10 +1,271 @@
-import { Dataset, Dashboard, RelationshipSuggestion, DashboardPlan } from '@/types';
+import { Dataset, Dashboard, RelationshipSuggestion, DashboardPlan, KpiDefinition } from '@/types';
 import { generateAnalyticsEvidence, AnalyticalEvidence } from './copilotAnalyticsEngine';
+import { getWorkspaceKnowledgeAnswer } from './workspaceKnowledge';
+import { calculateDatasetHealth } from './profiler';
+import { getSavedKpis } from './kpiStorage';
 
 export interface CopilotResponse {
   text: string;
   evidence?: AnalyticalEvidence | null;
   source: 'server' | 'client_gemini' | 'local_engine';
+}
+
+export type CopilotIntent = 'IDENTITY' | 'DATASET_SUMMARY' | 'DATA_QUALITY' | 'DASHBOARD' | 'KPI' | 'EXPLORER' | 'GENERAL_HELP';
+
+export function detectIntent(message: string): CopilotIntent {
+  const q = message.toLowerCase();
+  
+  if (
+    /(what|who)\s+(is|are)\s+(your\s+name|you)\b/i.test(q) || 
+    /(who\s+created|who\s+built|who\s+developed|who\s+made)\s+you/i.test(q) ||
+    /how\s+does\s+(this\s+)?(app|workspace|system|workflow|tool|chart|selection)\s+work/i.test(q)
+  ) {
+    return 'IDENTITY';
+  }
+
+  if (
+    /dash(board)?/i.test(q) || 
+    /widget/i.test(q) || 
+    /chart/i.test(q) || 
+    /visual/i.test(q) ||
+    /presentation/i.test(q)
+  ) {
+    return 'DASHBOARD';
+  }
+
+  if (
+    /\bkpi\b/i.test(q) || 
+    /\bmetric/i.test(q) || 
+    /formula/i.test(q) || 
+    /target/i.test(q) || 
+    /achievement/i.test(q)
+  ) {
+    return 'KPI';
+  }
+
+  if (
+    /clean/i.test(q) || 
+    /qual(ity)?/i.test(q) || 
+    /defect/i.test(q) || 
+    /anomal/i.test(q) || 
+    /duplicate/i.test(q) || 
+    /missing/i.test(q) || 
+    /issue/i.test(q) || 
+    /outlier/i.test(q) || 
+    /transform/i.test(q) || 
+    /audit/i.test(q) || 
+    /health/i.test(q)
+  ) {
+    return 'DATA_QUALITY';
+  }
+
+  if (
+    /explor/i.test(q) || 
+    /slice/i.test(q) || 
+    /filter/i.test(q) || 
+    /group/i.test(q) || 
+    /sort/i.test(q)
+  ) {
+    return 'EXPLORER';
+  }
+
+  if (
+    /dataset/i.test(q) || 
+    /loaded/i.test(q) || 
+    /\bdata\b/i.test(q) || 
+    /column/i.test(q) || 
+    /row/i.test(q) || 
+    /type/i.test(q) || 
+    /schema/i.test(q) || 
+    /header/i.test(q)
+  ) {
+    return 'DATASET_SUMMARY';
+  }
+
+  return 'GENERAL_HELP';
+}
+
+function getActiveDatasetContext(dataset: Dataset, includeFullProfiles: boolean = false) {
+  if (!dataset) return null;
+
+  const health = calculateDatasetHealth(dataset);
+
+  const numericCols: string[] = [];
+  const categoricalCols: string[] = [];
+  const dateCols: string[] = [];
+  const datetimeCols: string[] = [];
+  const timeCols: string[] = [];
+
+  const headers = dataset.headers || [];
+  headers.forEach(h => {
+    const type = dataset.columnProfiles?.[h]?.type || dataset.columnTypes?.[h] || 'unknown';
+    const lowerHeader = h.toLowerCase();
+    
+    if (type === 'date') {
+      if (lowerHeader.includes('time') || lowerHeader.includes('hour') || lowerHeader.includes('minute') || lowerHeader.includes('second')) {
+        datetimeCols.push(h);
+      } else {
+        dateCols.push(h);
+      }
+    } else if (type === 'numeric') {
+      numericCols.push(h);
+    } else if (type === 'categorical' || type === 'text' || type === 'boolean') {
+      categoricalCols.push(h);
+    } else {
+      categoricalCols.push(h);
+    }
+  });
+
+  const profiles = headers.map(h => {
+    const p = dataset.columnProfiles?.[h] as any;
+    const stats: any = {
+      name: h,
+      type: p?.type || 'unknown',
+      semanticType: dataset.columnSemanticTypes?.[h] || 'unknown',
+      nullCount: p?.nullCount ?? 0,
+      completenessPercent: p ? parseFloat(((1 - (p.nullCount / dataset.rowCount)) * 100).toFixed(1)) : 100,
+      uniqueCount: p?.uniqueCount ?? 0,
+    };
+    if (includeFullProfiles && p) {
+      if (p.min !== undefined && p.min !== null) stats.min = p.min;
+      if (p.max !== undefined && p.max !== null) stats.max = p.max;
+      if (p.mean !== undefined && p.mean !== null) stats.mean = parseFloat(Number(p.mean).toFixed(2));
+      if (p.median !== undefined && p.median !== null) stats.median = parseFloat(Number(p.median).toFixed(2));
+    }
+    return stats;
+  });
+
+  const pendingIssues = (dataset.issues || [])
+    .filter(i => i.status === 'pending')
+    .map(i => ({
+      column: i.column || 'Dataset Level',
+      type: i.type,
+      title: i.title,
+      description: i.description,
+      riskLevel: i.riskLevel,
+      affectedRowCount: i.affectedRowCount,
+      suggestedAction: i.suggestedAction
+    }));
+
+  const sampleData = (dataset.data || dataset.fullData || []).slice(0, 3).map(row => {
+    const cleanRow: Record<string, any> = {};
+    headers.forEach(h => {
+      cleanRow[h] = row[h];
+    });
+    return cleanRow;
+  });
+
+  return {
+    datasetName: dataset.name,
+    filename: dataset.filename,
+    rowCount: dataset.rowCount,
+    columnCount: dataset.colCount || headers.length,
+    columnNames: headers,
+    dataTypes: dataset.columnTypes || {},
+    semanticTypes: dataset.columnSemanticTypes || {},
+    numericColumns: numericCols,
+    categoricalColumns: categoricalCols,
+    dateColumns: dateCols,
+    datetimeColumns: datetimeCols,
+    timeColumns: timeCols,
+    missingValues: {
+      totalMissingCells: health.missingCells,
+      missingCellsPercentage: health.missingCellsPercentage,
+      byColumn: headers.reduce((acc, h) => {
+        acc[h] = dataset.columnProfiles?.[h]?.nullCount ?? 0;
+        return acc;
+      }, {} as Record<string, number>)
+    },
+    duplicates: health.duplicateRows,
+    qualityIssues: pendingIssues,
+    readinessScore: health.score,
+    relevantStatistics: includeFullProfiles ? profiles : undefined,
+    cleaningSuggestions: pendingIssues.map(i => i.suggestedAction),
+    safeSampleRows: sampleData
+  };
+}
+
+function getDashboardContext(dashboards: Dashboard[], activeDashboardId: string | null | undefined) {
+  const activeDb = dashboards.find(d => d.id === activeDashboardId);
+  if (!activeDb) return { hasActiveDashboard: false };
+
+  return {
+    hasActiveDashboard: true,
+    activeDashboardId: activeDb.id,
+    dashboardName: activeDb.title,
+    subtitle: activeDb.subtitle,
+    description: activeDb.description,
+    widgets: (activeDb.widgets || []).map(w => ({
+      id: w.id,
+      title: w.title,
+      type: w.type,
+      xAxisColumn: w.xAxisColumn,
+      yAxisColumn: w.yAxisColumn,
+      aggregation: w.aggregation,
+      kpiId: w.kpiId,
+      filters: w.filters || (w.filter ? [w.filter] : []),
+      topN: w.topN,
+      sortDirection: w.sortDirection,
+      themePalette: w.themePalette || 'professional'
+    })),
+    filters: activeDb.filters || [],
+    widgetsCount: (activeDb.widgets || []).length,
+    kpiCardsCount: (activeDb.widgets || []).filter(w => w.type === 'kpi').length,
+    chartsCount: (activeDb.widgets || []).filter(w => w.type !== 'kpi' && w.type !== 'filter' && w.type !== 'text').length
+  };
+}
+
+function getKpiContext(savedKpis: KpiDefinition[], activeDatasetId: string | null | undefined) {
+  const filtered = activeDatasetId ? savedKpis.filter(k => k.datasetId === activeDatasetId) : savedKpis;
+  return {
+    kpisCount: filtered.length,
+    kpis: filtered.map(k => ({
+      id: k.id,
+      name: k.name,
+      description: k.description,
+      metricType: k.metricType,
+      column: k.column,
+      aggregation: k.aggregation,
+      formula: k.metricType === 'calculated' && k.formulaTokens ? k.formulaTokens.map(t => {
+        if (t.type === 'operator') return t.operator;
+        if (t.type === 'constant') return t.value;
+        if (t.type === 'kpi_ref') return `[KPI:${t.kpiName || t.kpiId}]`;
+        return `[Col:${t.column}]`;
+      }).join(' ') : undefined,
+      targetValue: k.targetValue,
+      comparison: k.comparison,
+      dateColumn: k.dateColumn,
+      filters: k.filters || [],
+      formatting: k.format,
+      status: k.status,
+      statusReason: k.statusReason
+    }))
+  };
+}
+
+function getExplorerContext() {
+  const explorerState = (window as any).__explorerState;
+  if (!explorerState) {
+    return {
+      active: false,
+      note: "Data Explorer is not currently open or active."
+    };
+  }
+  return {
+    active: true,
+    currentSelectedColumns: explorerState.visibleColumns || [],
+    analysisConfiguration: {
+      searchTerm: explorerState.searchTerm || "",
+      filters: explorerState.filters || [],
+      sortRules: explorerState.sortRules || []
+    },
+    currentChartOrGroupingState: explorerState.groupingConfig ? {
+      groupByColumn: explorerState.groupingConfig.groupByColumn,
+      metricColumn: explorerState.groupingConfig.metricColumn,
+      aggregation: explorerState.groupingConfig.aggregation
+    } : null,
+    quickMetrics: explorerState.quickMetrics || []
+  };
 }
 
 export async function queryCopilot(
@@ -26,6 +287,28 @@ export async function queryCopilot(
     activeDashboardId
   );
 
+  // 1. DETECT INTENT AND ASSEMBLE ENRICHED WORKSPACE CONTEXT
+  const intent = detectIntent(message);
+  const liveContext: any = { intent };
+
+  if (intent !== 'IDENTITY') {
+    // Add active dataset context
+    if (primaryDataset) {
+      const includeFull = (intent === 'DATASET_SUMMARY' || intent === 'DATA_QUALITY' || intent === 'KPI' || intent === 'EXPLORER');
+      liveContext.datasetContext = getActiveDatasetContext(primaryDataset, includeFull);
+    }
+
+    // Add specific module context
+    if (intent === 'DASHBOARD') {
+      liveContext.dashboardContext = getDashboardContext(dashboards, activeDashboardId);
+    } else if (intent === 'KPI') {
+      const savedKpis = await getSavedKpis();
+      liveContext.kpiContext = getKpiContext(savedKpis, primaryDataset?.id);
+    } else if (intent === 'EXPLORER') {
+      liveContext.explorerContext = getExplorerContext();
+    }
+  }
+
   // Always use the server proxy `/api/chat` call
   try {
     const res = await fetch('/api/chat', {
@@ -35,6 +318,7 @@ export async function queryCopilot(
         message,
         history: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.text })),
         metadata,
+        liveContext,
         // Only send evidence to the AI if it's an actual computation, not just a "don't compute" note.
         evidence: evidence?.note ? null : evidence
       })
@@ -85,6 +369,11 @@ export async function queryCopilot(
 }
 
 function generateFallbackText(message: string, evidence: AnalyticalEvidence | null, dataset: Dataset | null): string {
+  const workspaceAnswer = getWorkspaceKnowledgeAnswer(message);
+  if (workspaceAnswer) {
+    return workspaceAnswer;
+  }
+
   if (!dataset) {
     return "Please import a dataset first so I can analyze your data.";
   }
