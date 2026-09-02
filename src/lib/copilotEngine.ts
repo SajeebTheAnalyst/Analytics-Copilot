@@ -268,6 +268,44 @@ function getExplorerContext() {
   };
 }
 
+export function safeSanitize(val: any, maxDepth = 4, seen = new WeakSet()): any {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') {
+    if (isNaN(val) || !isFinite(val)) return null;
+    return val;
+  }
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    if (val.length > 1000) return val.substring(0, 1000) + '... [truncated]';
+    return val;
+  }
+  if (typeof val === 'function' || typeof val === 'symbol') return null;
+
+  if (typeof val === 'object') {
+    // Ignore React elements / fiber instances
+    if (val.$$typeof || val._reactInternalFiber || val._owner) return null;
+    if (seen.has(val)) return '[Circular]';
+    seen.add(val);
+
+    if (maxDepth <= 0) return '[Depth Limit Reached]';
+
+    if (Array.isArray(val)) {
+      return val.slice(0, 10).map(item => safeSanitize(item, maxDepth - 1, seen)).filter(item => item !== null);
+    }
+
+    const clean: Record<string, any> = {};
+    for (const key of Object.keys(val)) {
+      if (key.startsWith('_') || key.startsWith('$')) continue;
+      const cleaned = safeSanitize(val[key], maxDepth - 1, seen);
+      if (cleaned !== null && cleaned !== undefined) {
+        clean[key] = cleaned;
+      }
+    }
+    return clean;
+  }
+  return null;
+}
+
 export async function queryCopilot(
   message: string,
   history: { role: string; text: string }[],
@@ -309,55 +347,40 @@ export async function queryCopilot(
     }
   }
 
-  // Always use the server proxy `/api/chat` call
+  // 2. SAFE CONTEXT PREPARATION LAYER
+  const safeHistory = (history || []).slice(-6).map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    text: safeSanitize(m.text || "")
+  }));
+
+  const safeLiveContext = safeSanitize(liveContext);
+  const safeEvidence = evidence?.note ? null : safeSanitize(evidence);
+
+  // Try server proxy `/api/chat` call
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
-        history: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.text })),
-        metadata,
-        liveContext,
-        // Only send evidence to the AI if it's an actual computation, not just a "don't compute" note.
-        evidence: evidence?.note ? null : evidence
+        history: safeHistory,
+        metadata: safeSanitize(metadata),
+        liveContext: safeLiveContext,
+        evidence: safeEvidence
       })
     });
 
     const contentType = res.headers.get('content-type');
-    if (!res.ok) {
-      let errorMessage = `Server error (${res.status})`;
-      if (contentType && contentType.includes('application/json')) {
-        const errorData = await res.json();
-        errorMessage = errorData.message || errorData.error || errorMessage;
-        const error = new Error(errorMessage);
-        (error as any).code = errorData.code;
-        (error as any).details = errorData.details;
-        throw error;
-      } else {
-        const text = await res.text();
-        if (text.length > 0 && text.length < 500) {
-          errorMessage = `AI Service Error: ${text}`;
-        } else if (text.includes('Runtime.ImportModuleError')) {
-          errorMessage = "AI Service failed to load a required module (ImportModuleError). This is usually a deployment configuration issue.";
-        }
-        throw new Error(errorMessage);
-      }
-    }
-
-    if (contentType && contentType.includes('application/json')) {
+    if (res.ok && contentType && contentType.includes('application/json')) {
       const data = await res.json();
       if (data && data.text) {
         return { text: data.text, evidence, source: 'server' };
       }
-      throw new Error('Incomplete response from AI service');
-    } else {
-      throw new Error('AI service returned an unexpected response format (not JSON)');
     }
+
+    console.warn('/api/chat non-OK or empty response, falling back to local analyst engine');
   } catch (e: any) {
-    console.warn('/api/chat error', e);
-    // Propagate all errors to UI so user can see the real reason
-    throw e;
+    console.warn('/api/chat network error, falling back to local analyst engine:', e);
   }
 
   // 3. Intelligent Local Fallback Engine (for safety)
